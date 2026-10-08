@@ -49,11 +49,68 @@ const reviews: Review[] = [
       "Salary transparency and company insights gave me huge confidence during interviews. I received two top offers through CareerConnect with a 40% salary hike.",
     avatar: "/reviewer-3.png",
   },
+  {
+    id: "4",
+    name: "Sneha Rao",
+    role: "Data Analyst",
+    company: "GreenField Foods",
+    timeframe: "Hired in 3 weeks",
+    rating: 5,
+    quote:
+      "The career portal gave me verified recruiter contacts. Within 20 days, I transitioned into an analytics role with an amazing team and flexible remote setup.",
+    avatar: "/reviewer-4.jpg",
+  },
+  {
+    id: "5",
+    name: "Vikram Malhotra",
+    role: "DevOps Engineer",
+    company: "Apex Labs",
+    timeframe: "Hired in 10 days",
+    rating: 5,
+    quote:
+      "The fastest hiring pipeline I've ever experienced! Applied on Tuesday, had technical rounds by Friday, and received the offer letter early next week.",
+    avatar: "/reviewer-5.jpg",
+  },
+  {
+    id: "6",
+    name: "Ananya Gupta",
+    role: "Product Manager",
+    company: "PixelForge",
+    timeframe: "Hired in 4 weeks",
+    rating: 5,
+    quote:
+      "CareerConnect stands out from all traditional job boards. Curated listings, verified salary brackets, and rapid responses made my job switch completely stress-free.",
+    avatar: "/reviewer-6.jpg",
+  },
 ];
+
+// Duplicate 6 reviews for seamless infinite loop
+const marqueeReviews = [...reviews, ...reviews];
 
 export default function TestimonialsAndCTA() {
   return (
-    <section className="py-14 sm:py-20 bg-slate-50/50">
+    <section className="py-14 sm:py-20 bg-slate-50/50 overflow-hidden">
+      {/* Inline styles for guaranteed Left-to-Right infinite scroll */}
+      <style>{`
+        @keyframes scrollLeftToRight {
+          0% {
+            transform: translate3d(-50%, 0, 0);
+          }
+          100% {
+            transform: translate3d(0, 0, 0);
+          }
+        }
+        .infinite-reviews-slider {
+          display: flex;
+          width: max-content;
+          animation: scrollLeftToRight 40s linear infinite;
+          will-change: transform;
+        }
+        .infinite-reviews-slider:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
@@ -78,13 +135,22 @@ export default function TestimonialsAndCTA() {
             <span>4.9 / 5 from 12,000+ reviews</span>
           </div>
         </div>
+      </div>
 
-        {/* Reviews Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
-          {reviews.map((rev) => (
+      {/* Infinite Left-to-Right Carousel Track */}
+      <div className="relative w-full overflow-hidden mb-16 py-3">
+        {/* Left Gradient Fade Mask */}
+        <div className="absolute left-0 inset-y-0 w-16 sm:w-32 bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-transparent z-10 pointer-events-none" />
+
+        {/* Right Gradient Fade Mask */}
+        <div className="absolute right-0 inset-y-0 w-16 sm:w-32 bg-gradient-to-l from-slate-50/90 via-slate-50/60 to-transparent z-10 pointer-events-none" />
+
+        {/* Moving Track */}
+        <div className="infinite-reviews-slider flex items-stretch gap-6 pl-4">
+          {marqueeReviews.map((rev, idx) => (
             <div
-              key={rev.id}
-              className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_30px_rgba(37,99,235,0.08)] hover:border-blue-200 transition-all duration-200 flex flex-col justify-between group"
+              key={`${rev.id}-${idx}`}
+              className="w-[340px] sm:w-[390px] shrink-0 bg-white rounded-2xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_14px_32px_rgba(37,99,235,0.08)] hover:border-blue-200 transition-all duration-200 flex flex-col justify-between group cursor-default"
             >
               <div>
                 {/* Top Row: Stars + Quote Icon */}
@@ -100,7 +166,7 @@ export default function TestimonialsAndCTA() {
                 </div>
 
                 {/* Review Text */}
-                <p className="text-slate-600 text-sm leading-relaxed mb-6 font-normal">
+                <p className="text-slate-600 text-sm leading-relaxed mb-6 font-normal line-clamp-4">
                   &ldquo;{rev.quote}&rdquo;
                 </p>
               </div>
@@ -128,7 +194,7 @@ export default function TestimonialsAndCTA() {
                     <p className="text-xs text-slate-500 truncate">
                       {rev.role}
                     </p>
-                    <span className="inline-block mt-0.5 text-[11px] font-semibold text-blue-600">
+                    <span className="inline-block mt-0.5 text-[11px] font-semibold text-blue-600 truncate">
                       {rev.company} • {rev.timeframe}
                     </span>
                   </div>
@@ -137,8 +203,10 @@ export default function TestimonialsAndCTA() {
             </div>
           ))}
         </div>
+      </div>
 
-        {/* CTA Banner */}
+      {/* CTA Banner */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 sm:p-10 shadow-xl shadow-blue-600/20 text-white flex flex-col md:flex-row items-center justify-between gap-6">
           {/* Background subtle glow shapes */}
           <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-white/10 rounded-full blur-2xl pointer-events-none" />
