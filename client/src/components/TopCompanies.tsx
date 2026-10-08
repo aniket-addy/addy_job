@@ -43,14 +43,40 @@ const companies = [
   },
 ];
 
-// Duplicate items for continuous seamless loop
-const marqueeList = [...companies, ...companies];
+// Duplicate list 4 times for seamless continuous loop on any screen width
+const marqueeList = [
+  ...companies,
+  ...companies,
+  ...companies,
+  ...companies,
+];
 
 export default function TopCompanies() {
   return (
     <section className="py-12 sm:py-16 bg-slate-50/50 overflow-hidden">
+      {/* Inline styles for guaranteed infinite marquee animation */}
+      <style>{`
+        @keyframes scrollRightToLeft {
+          0% {
+            transform: translate3d(0, 0, 0);
+          }
+          100% {
+            transform: translate3d(-50%, 0, 0);
+          }
+        }
+        .infinite-marquee-slider {
+          display: flex;
+          width: max-content;
+          animation: scrollRightToLeft 28s linear infinite;
+          will-change: transform;
+        }
+        .infinite-marquee-slider:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header (without View All Companies link) */}
+        {/* Header */}
         <div className="mb-8">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Trusted by Top Companies
@@ -63,13 +89,13 @@ export default function TopCompanies() {
         {/* Infinite Scrolling Logos Container (Right to Left) */}
         <div className="relative bg-white rounded-2xl py-6 sm:py-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
           {/* Left Gradient Fade Mask */}
-          <div className="absolute left-0 inset-y-0 w-16 sm:w-24 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
+          <div className="absolute left-0 inset-y-0 w-20 sm:w-28 bg-gradient-to-r from-white via-white/80 to-transparent z-10 pointer-events-none" />
 
           {/* Right Gradient Fade Mask */}
-          <div className="absolute right-0 inset-y-0 w-16 sm:w-24 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
+          <div className="absolute right-0 inset-y-0 w-20 sm:w-28 bg-gradient-to-l from-white via-white/80 to-transparent z-10 pointer-events-none" />
 
-          {/* Continuous Marquee Track */}
-          <div className="animate-marquee flex items-center gap-12 sm:gap-16">
+          {/* Continuous Moving Track */}
+          <div className="infinite-marquee-slider flex items-center gap-12 sm:gap-16 pr-12 sm:pr-16">
             {marqueeList.map((comp, idx) => {
               const Icon = comp.icon;
               return (
