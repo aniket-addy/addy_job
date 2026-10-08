@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Search, Bell, Menu, X, CheckCircle, User, Briefcase, Bookmark, LogOut } from "lucide-react";
+import { Search, Bell, Menu, X, CheckCircle, User, Briefcase, Bookmark, LogOut, ShieldCheck } from "lucide-react";
 
 interface NavbarProps {
   activeTab?: string;
@@ -195,6 +195,14 @@ export default function Navbar({ activeTab }: NavbarProps) {
                       <User className="w-4 h-4" />
                       <span>Profile Settings</span>
                     </Link>
+                    <Link
+                      href="/admin"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50/70 hover:bg-blue-100 transition"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-blue-600" />
+                      <span>Super Admin Portal</span>
+                    </Link>
                   </div>
                   <div className="pt-1 border-t border-slate-100">
                     <button
@@ -208,6 +216,15 @@ export default function Navbar({ activeTab }: NavbarProps) {
                 </div>
               )}
             </div>
+
+            {/* Direct Admin Portal link on large screens */}
+            <Link
+              href="/admin"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white text-xs font-semibold shadow-sm transition-all duration-200"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+              <span>Admin Portal</span>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -261,6 +278,17 @@ export default function Navbar({ activeTab }: NavbarProps) {
                 </Link>
               );
             })}
+          </div>
+
+          <div className="pt-2">
+            <Link
+              href="/admin"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-blue-600 transition-colors"
+            >
+              <ShieldCheck className="w-4 h-4 text-blue-400" />
+              <span>Open Super Admin Portal</span>
+            </Link>
           </div>
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between px-2">
