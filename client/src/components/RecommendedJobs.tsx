@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   MapPin,
-  Heart,
+  Bookmark,
   ArrowRight,
   Globe,
   Compass,
@@ -135,11 +136,16 @@ export default function RecommendedJobs() {
                     <button
                       onClick={() => toggleSave(job.id)}
                       aria-label="Save job"
-                      className="p-1.5 rounded-full text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition cursor-pointer"
+                      title={isSaved ? "Saved" : "Save Job"}
+                      className={`p-1.5 rounded-lg transition cursor-pointer ${
+                        isSaved
+                          ? "bg-blue-50 text-blue-600"
+                          : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
+                      }`}
                     >
-                      <Heart
+                      <Bookmark
                         className={`w-4 h-4 ${
-                          isSaved ? "fill-rose-500 text-rose-500" : ""
+                          isSaved ? "fill-blue-600 text-blue-600" : ""
                         }`}
                       />
                     </button>
@@ -177,10 +183,13 @@ export default function RecommendedJobs() {
                   </div>
                 </div>
 
-                {/* Apply Button */}
-                <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl transition duration-150 shadow-sm cursor-pointer">
-                  Easy Apply
-                </button>
+                {/* View Details Button */}
+                <Link
+                  href={`/jobs/${job.id}`}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl transition duration-150 shadow-sm cursor-pointer text-center block"
+                >
+                  View Details &amp; Apply
+                </Link>
               </div>
             );
           })}

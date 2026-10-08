@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 export default function Footer() {
   return (
@@ -47,28 +48,29 @@ export default function Footer() {
           </div>
 
           {/* Quick Links */}
+          {/* Quick Links */}
           <div>
             <h4 className="font-semibold text-white text-sm mb-4">Quick Links</h4>
             <ul className="space-y-2.5 text-xs">
               <li>
-                <a href="#" className="hover:text-white transition">
+                <Link href="/" className="hover:text-white transition">
                   Home
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition">
+                <Link href="/jobs" className="hover:text-white transition">
                   Jobs
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition">
+                <Link href="/companies" className="hover:text-white transition">
                   Companies
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition">
+                <Link href="/about" className="hover:text-white transition">
                   About
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -78,24 +80,24 @@ export default function Footer() {
             <h4 className="font-semibold text-white text-sm mb-4">Resources</h4>
             <ul className="space-y-2.5 text-xs">
               <li>
-                <a href="#" className="hover:text-white transition">
+                <Link href="/resources" className="hover:text-white transition">
                   Career Tips
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition">
+                <Link href="/resources" className="hover:text-white transition">
                   Resume Builder
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition">
+                <Link href="/resources" className="hover:text-white transition">
                   Interview Guide
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition">
+                <Link href="/resources" className="hover:text-white transition">
                   FAQs
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
