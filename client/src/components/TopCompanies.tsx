@@ -2,7 +2,6 @@
 
 import React from "react";
 import {
-  ArrowRight,
   Layers,
   Sparkles,
   Sprout,
@@ -44,48 +43,50 @@ const companies = [
   },
 ];
 
+// Duplicate items for continuous seamless loop
+const marqueeList = [...companies, ...companies];
+
 export default function TopCompanies() {
   return (
-    <section className="py-12 sm:py-16 bg-slate-50/50">
+    <section className="py-12 sm:py-16 bg-slate-50/50 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Trusted by Top Companies
-            </h2>
-            <p className="text-slate-500 text-sm mt-1">
-              Join 5,000+ hiring companies
-            </p>
-          </div>
-
-          <a
-            href="#"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group self-start sm:self-auto"
-          >
-            <span>View All Companies</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </a>
+        {/* Header (without View All Companies link) */}
+        <div className="mb-8">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Trusted by Top Companies
+          </h2>
+          <p className="text-slate-500 text-sm mt-1">
+            Join 5,000+ hiring companies
+          </p>
         </div>
 
-        {/* Logos Container */}
-        <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 sm:gap-8 items-center justify-items-center">
-          {companies.map((comp) => {
-            const Icon = comp.icon;
-            return (
-              <div
-                key={comp.name}
-                className="flex items-center gap-2.5 opacity-85 hover:opacity-100 transition-opacity group cursor-pointer"
-              >
-                <Icon
-                  className={`w-6 h-6 ${comp.color} transition-transform group-hover:scale-110`}
-                />
-                <span className="font-bold text-slate-800 text-sm sm:text-base tracking-tight">
-                  {comp.name}
-                </span>
-              </div>
-            );
-          })}
+        {/* Infinite Scrolling Logos Container (Right to Left) */}
+        <div className="relative bg-white rounded-2xl py-6 sm:py-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
+          {/* Left Gradient Fade Mask */}
+          <div className="absolute left-0 inset-y-0 w-16 sm:w-24 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
+
+          {/* Right Gradient Fade Mask */}
+          <div className="absolute right-0 inset-y-0 w-16 sm:w-24 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
+
+          {/* Continuous Marquee Track */}
+          <div className="animate-marquee flex items-center gap-12 sm:gap-16">
+            {marqueeList.map((comp, idx) => {
+              const Icon = comp.icon;
+              return (
+                <div
+                  key={`${comp.name}-${idx}`}
+                  className="flex items-center gap-3 shrink-0 opacity-80 hover:opacity-100 transition-opacity cursor-pointer group"
+                >
+                  <Icon
+                    className={`w-6 h-6 ${comp.color} transition-transform group-hover:scale-110`}
+                  />
+                  <span className="font-bold text-slate-800 text-base sm:text-lg tracking-tight select-none">
+                    {comp.name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>
