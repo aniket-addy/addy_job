@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // Reloaded Turbopack loader config
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
