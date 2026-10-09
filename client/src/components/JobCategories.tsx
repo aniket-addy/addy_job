@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   Code2,
   Palette,
@@ -66,7 +67,7 @@ const categories: Category[] = [
 
 export default function JobCategories() {
   return (
-    <section className="py-14 sm:py-20 bg-slate-50/50">
+    <section id="explore-jobs" className="py-14 sm:py-20 bg-slate-50/50 scroll-mt-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
@@ -82,13 +83,13 @@ export default function JobCategories() {
             </p>
           </div>
 
-          <a
-            href="#"
+          <Link
+            href="/jobs"
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group self-start sm:self-auto"
           >
             <span>View All Categories</span>
             <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </a>
+          </Link>
         </div>
 
         {/* Categories Grid */}

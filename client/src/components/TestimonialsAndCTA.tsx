@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Star, Send, ArrowRight, Quote, CheckCircle2 } from "lucide-react";
 
 interface Review {
@@ -89,7 +90,7 @@ const marqueeReviews = [...reviews, ...reviews];
 
 export default function TestimonialsAndCTA() {
   return (
-    <section className="py-14 sm:py-20 bg-slate-50/50 overflow-hidden">
+    <section id="get-hired" className="py-14 sm:py-20 bg-slate-50/50 overflow-hidden scroll-mt-24">
       {/* Inline styles for guaranteed Left-to-Right infinite scroll */}
       <style>{`
         @keyframes scrollLeftToRight {
@@ -206,7 +207,7 @@ export default function TestimonialsAndCTA() {
       </div>
 
       {/* CTA Banner */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div id="create-profile" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-24">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-8 sm:p-10 shadow-xl shadow-blue-600/20 text-white flex flex-col md:flex-row items-center justify-between gap-6">
           {/* Background subtle glow shapes */}
           <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-white/10 rounded-full blur-2xl pointer-events-none" />
@@ -219,22 +220,22 @@ export default function TestimonialsAndCTA() {
             </div>
             <div>
               <h3 className="text-xl sm:text-2xl font-bold tracking-tight">
-                Ready to Build Your Future?
+                Ready to Build Your Profile & Career?
               </h3>
               <p className="text-blue-100 text-sm mt-1">
-                Join thousands of job seekers and take the next step in your career.
+                Join thousands of job seekers. Create your profile in minutes and start applying.
               </p>
             </div>
           </div>
 
           {/* Right Button */}
-          <a
-            href="#"
+          <Link
+            href="/signup?role=job_seeker"
             className="z-10 inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-white text-blue-600 hover:bg-blue-50 active:scale-98 font-bold text-sm shadow-lg shadow-black/10 transition-all cursor-pointer whitespace-nowrap"
           >
-            <span>Create Free Account</span>
+            <span>Create Profile Free</span>
             <ArrowRight className="w-4 h-4" />
-          </a>
+          </Link>
         </div>
       </div>
     </section>

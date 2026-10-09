@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/api.routes.js';
+import { connectDB } from './config/db.js';
 
 dotenv.config();
 
@@ -9,9 +10,24 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
+// Connect to MongoDB
+connectDB();
+
 // Middleware
+const allowedOrigins = [
+  CLIENT_URL,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+
 app.use(cors({
-  origin: CLIENT_URL,
+  origin: (origin, callback) => {
+    // allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Permissive in dev to avoid CORS blocking
+  },
   credentials: true
 }));
 app.use(express.json());
