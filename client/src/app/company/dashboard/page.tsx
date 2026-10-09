@@ -96,6 +96,7 @@ export default function CompanyDashboardPage() {
   const [website, setWebsite] = useState("https://acmetech.global");
   const [contactEmail, setContactEmail] = useState("recruiting@acmetech.global");
   const [contactPhone, setContactPhone] = useState("+91 80 4123 5678");
+  const [gstNumber, setGstNumber] = useState("29AABCN1234F1Z6");
   const [aboutCompany, setAboutCompany] = useState(
     "Acme Global Technologies is a leading cloud infrastructure and enterprise product engineering company building high-scale distributed systems and digital platforms for Fortune 500 clients worldwide."
   );
@@ -365,6 +366,8 @@ export default function CompanyDashboardPage() {
         if (user.email) setContactEmail(user.email);
         if (user.industry) setIndustry(user.industry);
         if (user.location) setHeadquarters(user.location);
+        if (user.phone) setContactPhone(user.phone);
+        if (user.gstNumber) setGstNumber(user.gstNumber);
       }
       const savedCompanyProfile = localStorage.getItem("company_profile_data");
       if (savedCompanyProfile) {
@@ -376,6 +379,7 @@ export default function CompanyDashboardPage() {
           if (parsed.website) setWebsite(parsed.website);
           if (parsed.aboutCompany) setAboutCompany(parsed.aboutCompany);
           if (parsed.contactPhone) setContactPhone(parsed.contactPhone);
+          if (parsed.gstNumber) setGstNumber(parsed.gstNumber);
         } catch (e) {
           console.error(e);
         }
@@ -445,6 +449,7 @@ export default function CompanyDashboardPage() {
     const cWeb = (formData.get("website") as string) || website;
     const cEmail = (formData.get("contactEmail") as string) || contactEmail;
     const cPhone = (formData.get("contactPhone") as string) || contactPhone;
+    const cGst = (formData.get("gstNumber") as string) || gstNumber;
     const cAbout = (formData.get("aboutCompany") as string) || aboutCompany;
 
     setCompanyName(cName);
@@ -455,6 +460,7 @@ export default function CompanyDashboardPage() {
     setWebsite(cWeb);
     setContactEmail(cEmail);
     setContactPhone(cPhone);
+    setGstNumber(cGst);
     setAboutCompany(cAbout);
 
     if (typeof window !== "undefined") {
@@ -469,6 +475,7 @@ export default function CompanyDashboardPage() {
           website: cWeb,
           contactEmail: cEmail,
           contactPhone: cPhone,
+          gstNumber: cGst,
           aboutCompany: cAbout,
         })
       );
@@ -1087,10 +1094,17 @@ export default function CompanyDashboardPage() {
                     <div>
                       <h3 className="text-lg font-black text-slate-900">{companyName}</h3>
                       <p className="text-xs text-slate-500 mt-0.5">{industry}</p>
-                      <p className="text-[11px] text-slate-400 flex items-center gap-2 mt-1">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{headquarters}</span>
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-400 mt-1">
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{headquarters}</span>
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1 font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                          <FileText className="w-3 h-3 text-blue-600" />
+                          <span>GST: {gstNumber}</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -1175,6 +1189,25 @@ export default function CompanyDashboardPage() {
                         defaultValue={contactPhone}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
                       />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">GST Number (GSTIN)</label>
+                      <input
+                        type="text"
+                        name="gstNumber"
+                        defaultValue={gstNumber}
+                        placeholder="29AAAAA0000A1Z5"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono uppercase tracking-wider focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">GSTIN Verification</label>
+                      <div className="w-full px-3.5 py-2 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-800 font-semibold flex items-center gap-2 text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>GSTIN Active &amp; Verified</span>
+                      </div>
                     </div>
                   </div>
 

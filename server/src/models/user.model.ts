@@ -13,6 +13,8 @@ export interface IUser extends Document {
   industry?: string;
   companySize?: string;
   location?: string;
+  phone?: string;
+  gstNumber?: string;
   status?: 'Pending' | 'Approved' | 'Rejected';
   createdAt: Date;
   updatedAt: Date;
@@ -78,6 +80,14 @@ const userSchema = new Schema<IUser>(
       type: String,
       trim: true,
       default: 'Bengaluru, India',
+    },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    gstNumber: {
+      type: String,
+      trim: true,
     },
     status: {
       type: String,

@@ -13,6 +13,8 @@ export interface UserSession {
   industry?: string;
   companySize?: string;
   location?: string;
+  phone?: string;
+  gstNumber?: string;
   status?: string;
 }
 
@@ -73,6 +75,8 @@ export async function registerUser(payload: {
   industry?: string;
   companySize?: string;
   location?: string;
+  phone?: string;
+  gstNumber?: string;
 }): Promise<AuthResponse> {
   try {
     const res = await fetch(`${API_BASE_URL}/auth/register`, {

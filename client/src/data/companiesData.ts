@@ -15,6 +15,8 @@ export interface Company {
   about: string;
   founded: string;
   website: string;
+  gstNumber?: string;
+  phone?: string;
   iconName: "Layers" | "Sparkles" | "Sprout" | "Globe" | "Boxes" | "Triangle";
   iconBg: string;
   color: string;
@@ -44,6 +46,8 @@ export const companiesList: Company[] = [
       "NovaTech Solutions is an enterprise cloud computing company building high-scale developer platforms, distributed Kubernetes control planes, and SaaS infrastructures trusted by Fortune 500 teams worldwide.",
     founded: "2018",
     website: "novatech-solutions.io",
+    gstNumber: "29AABCN1234F1Z6",
+    phone: "+91 80 4123 4567",
     iconName: "Layers",
     iconBg: "bg-blue-50 border-blue-100",
     color: "text-blue-600",
@@ -81,6 +85,8 @@ export const companiesList: Company[] = [
       "Award-winning human-centered digital studio specializing in world-class design systems, consumer mobile apps, and enterprise web experiences for high-growth global startups and legacy enterprises.",
     founded: "2019",
     website: "brightpathdigital.com",
+    gstNumber: "03AABCB5678D1Z2",
+    phone: "+91 172 509 8899",
     iconName: "Sparkles",
     iconBg: "bg-rose-50 border-rose-100",
     color: "text-rose-500",
@@ -118,6 +124,8 @@ export const companiesList: Company[] = [
       "India's premier organic food brand and sustainable farm-to-door network connecting over 50,000 local farmers directly with consumers using cutting-edge predictive logistics and cold-chain IoT.",
     founded: "2017",
     website: "greenfieldfoods.in",
+    gstNumber: "09AABCG9101E1Z3",
+    phone: "+91 120 488 2211",
     iconName: "Sprout",
     iconBg: "bg-emerald-50 border-emerald-100",
     color: "text-emerald-600",
@@ -155,6 +163,8 @@ export const companiesList: Company[] = [
       "Skyline Technologies is a fintech powerhouse facilitating real-time transactions, payment infrastructure, and banking APIs handling over $20B in monthly payment flows with 99.999% uptime.",
     founded: "2016",
     website: "skyline-tech.com",
+    gstNumber: "36AABCS2345K1Z4",
+    phone: "+91 40 6712 9000",
     iconName: "Globe",
     iconBg: "bg-sky-50 border-sky-100",
     color: "text-sky-500",
@@ -192,6 +202,8 @@ export const companiesList: Company[] = [
       "Creating immersive 3D multiplayer environments, WebGL simulations, and state-of-the-art interactive digital twins for entertainment, engineering, and virtual training applications worldwide.",
     founded: "2021",
     website: "pixelforge.studio",
+    gstNumber: "06AABCP3456L1Z5",
+    phone: "+91 124 456 7890",
     iconName: "Boxes",
     iconBg: "bg-purple-50 border-purple-100",
     color: "text-purple-600",
@@ -229,6 +241,8 @@ export const companiesList: Company[] = [
       "Pioneering autonomous intelligence systems, domain-specific foundation LLMs, and robotics control middleware designed to revolutionize manufacturing, health informatics, and aerospace operations.",
     founded: "2020",
     website: "apexlabs.ai",
+    gstNumber: "27AABCA7890M1Z8",
+    phone: "+91 20 6689 3300",
     iconName: "Triangle",
     iconBg: "bg-cyan-50 border-cyan-100",
     color: "text-cyan-600",

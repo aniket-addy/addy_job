@@ -31,6 +31,8 @@ const formatUser = (user: IUser) => {
     industry: user.industry,
     companySize: user.companySize,
     location: user.location,
+    phone: user.phone,
+    gstNumber: user.gstNumber,
     status: user.status,
     createdAt: user.createdAt,
   };
@@ -56,6 +58,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       industry,
       companySize,
       location,
+      phone,
+      gstNumber,
     } = req.body;
 
     const normalizedEmail = (email || workEmail || '').trim().toLowerCase();
@@ -96,6 +100,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       industry: industry || 'Information Technology',
       companySize: companySize || '11-50 employees',
       location: location || 'Bengaluru, India',
+      phone: phone ? String(phone).trim() : undefined,
+      gstNumber: gstNumber ? String(gstNumber).trim().toUpperCase() : undefined,
       status: role === 'company' ? 'Pending' : 'Approved',
     });
 

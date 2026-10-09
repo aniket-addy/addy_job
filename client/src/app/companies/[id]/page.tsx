@@ -34,6 +34,8 @@ import {
   Check,
   Award,
   ThumbsUp,
+  FileText,
+  Phone,
 } from "lucide-react";
 
 export default function CompanyDetailPage() {
@@ -233,6 +235,20 @@ export default function CompanyDetailPage() {
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
                 <span>Founded {company.founded}</span>
               </span>
+              <span className="text-slate-300">•</span>
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-200/60 text-blue-700 font-semibold">
+                <FileText className="w-3.5 h-3.5 text-blue-600" />
+                <span>GST: {company.gstNumber || "29AABCN1234F1Z6"}</span>
+              </span>
+              {company.phone && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="flex items-center gap-1 text-slate-600">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{company.phone}</span>
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -489,14 +505,89 @@ export default function CompanyDetailPage() {
         </section>
 
         {/* About Company Card */}
-        <section id="about-section" className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] space-y-4 scroll-mt-24">
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-blue-600" />
-            <span>About {company.name}</span>
-          </h2>
+        <section id="about-section" className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] space-y-6 scroll-mt-24">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              <span>About {company.name}</span>
+            </h2>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Verified Business</span>
+            </span>
+          </div>
+
           <p className="text-sm text-slate-600 leading-relaxed font-normal">
             {company.about}
           </p>
+
+          {/* Corporate Registration & Key Details Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-2">
+            <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-400 block mb-1">GST Number (GSTIN)</span>
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-600" />
+                <span className="font-mono font-bold text-xs sm:text-sm text-slate-900">
+                  {company.gstNumber || "29AABCN1234F1Z6"}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-400 block mb-1">Official Contact Phone</span>
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-emerald-600" />
+                <span className="font-bold text-xs sm:text-sm text-slate-900">
+                  {company.phone || "+91 80 4123 4567"}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-400 block mb-1">Corporate Headquarters</span>
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-amber-600" />
+                <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                  {company.location}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-400 block mb-1">Company Size</span>
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-indigo-600" />
+                <span className="font-bold text-xs sm:text-sm text-slate-900">
+                  {company.size}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-400 block mb-1">Incorporation Year</span>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-purple-600" />
+                <span className="font-bold text-xs sm:text-sm text-slate-900">
+                  Founded {company.founded}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-400 block mb-1">Official Website</span>
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-sky-600" />
+                <a
+                  href={`https://${company.website}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-bold text-xs sm:text-sm text-blue-600 hover:underline truncate"
+                >
+                  {company.website}
+                </a>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Culture & Perks */}
