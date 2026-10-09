@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -32,7 +32,13 @@ import {
   LayoutDashboard,
   Check,
   FolderDown,
-  Plus
+  Plus,
+  Camera,
+  Upload,
+  ImageIcon,
+  ExternalLink,
+  Globe,
+  Share2,
 } from "lucide-react";
 import { getStoredUser, clearAuthSession } from "@/lib/api";
 
@@ -100,6 +106,18 @@ export default function CompanyDashboardPage() {
   const [aboutCompany, setAboutCompany] = useState(
     "Acme Global Technologies is a leading cloud infrastructure and enterprise product engineering company building high-scale distributed systems and digital platforms for Fortune 500 clients worldwide."
   );
+
+  // Profile Image & Banner Cover Image states
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [bannerImage, setBannerImage] = useState<string | null>(null);
+  const [imageModalState, setImageModalState] = useState<{
+    isOpen: boolean;
+    type: "profile" | "banner";
+    mode: "menu" | "view";
+  }>({ isOpen: false, type: "profile", mode: "menu" });
+
+  const profileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   // Subscription & Resume Credits state
   const [currentPlan, setCurrentPlan] = useState("Professional Growth");
@@ -380,6 +398,8 @@ export default function CompanyDashboardPage() {
           if (parsed.aboutCompany) setAboutCompany(parsed.aboutCompany);
           if (parsed.contactPhone) setContactPhone(parsed.contactPhone);
           if (parsed.gstNumber) setGstNumber(parsed.gstNumber);
+          if (parsed.profileImage) setProfileImage(parsed.profileImage);
+          if (parsed.bannerImage) setBannerImage(parsed.bannerImage);
         } catch (e) {
           console.error(e);
         }
@@ -390,6 +410,72 @@ export default function CompanyDashboardPage() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Image Upload & Removal Handlers (See, Update, Remove)
+  const handleProfileImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showToast("File size too large. Please select an image under 5MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setProfileImage(base64);
+        try {
+          const prev = JSON.parse(localStorage.getItem("company_profile_data") || "{}");
+          localStorage.setItem("company_profile_data", JSON.stringify({ ...prev, profileImage: base64 }));
+        } catch (err) {}
+        showToast("Company profile image updated successfully!");
+        setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleBannerImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 8 * 1024 * 1024) {
+        showToast("File size too large. Please select a banner under 8MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setBannerImage(base64);
+        try {
+          const prev = JSON.parse(localStorage.getItem("company_profile_data") || "{}");
+          localStorage.setItem("company_profile_data", JSON.stringify({ ...prev, bannerImage: base64 }));
+        } catch (err) {}
+        showToast("Company cover banner updated successfully!");
+        setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = (type: "profile" | "banner") => {
+    if (type === "profile") {
+      setProfileImage(null);
+      try {
+        const prev = JSON.parse(localStorage.getItem("company_profile_data") || "{}");
+        delete prev.profileImage;
+        localStorage.setItem("company_profile_data", JSON.stringify(prev));
+      } catch (err) {}
+      showToast("Profile image removed. Reverted to default.");
+    } else {
+      setBannerImage(null);
+      try {
+        const prev = JSON.parse(localStorage.getItem("company_profile_data") || "{}");
+        delete prev.bannerImage;
+        localStorage.setItem("company_profile_data", JSON.stringify(prev));
+      } catch (err) {}
+      showToast("Cover banner removed. Reverted to default gradient.");
+    }
+    setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
   };
 
   // Actions for Candidates: Hire, Reject, Shortlist, Interview
@@ -477,6 +563,8 @@ export default function CompanyDashboardPage() {
           contactPhone: cPhone,
           gstNumber: cGst,
           aboutCompany: cAbout,
+          profileImage,
+          bannerImage,
         })
       );
     }
@@ -1085,27 +1173,195 @@ export default function CompanyDashboardPage() {
               </div>
 
               <form onSubmit={handleSaveCompanyProfile} className="space-y-6">
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs space-y-6">
-                  {/* Brand Header */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-6 border-b border-slate-100">
-                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-2xl shadow-md">
-                      {companyName.slice(0, 2).toUpperCase()}
+                {/* Brand Header Banner & Profile Avatar (Matching 1st image) */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+                  {/* Sleek Brand Cover Banner (Click to See, Update, Remove) */}
+                  <div
+                    onClick={() => setImageModalState({ isOpen: true, type: "banner", mode: "menu" })}
+                    className="relative w-full h-44 sm:h-56 bg-gradient-to-r from-slate-950 via-indigo-950 to-blue-950 overflow-hidden cursor-pointer group"
+                    style={
+                      bannerImage
+                        ? {
+                            backgroundImage: `url(${bannerImage})`,
+                            backgroundSize: "cover",
+                            backgroundPosition: "center",
+                          }
+                        : undefined
+                    }
+                  >
+                    {/* Subtle geometric dot pattern (from Image 1) */}
+                    <div className="absolute inset-0 opacity-25 bg-[radial-gradient(#ffffff_1.2px,transparent_1.2px)] [background-size:20px_20px] pointer-events-none" />
+                    <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                    {/* Banner Hover Overlay */}
+                    <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <span className="px-3.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-semibold flex items-center gap-1.5 border border-white/20 shadow-md">
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Click to View, Update or Remove Banner</span>
+                      </span>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900">{companyName}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">{industry}</p>
-                      <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-400 mt-1">
-                        <span className="flex items-center gap-1.5">
+
+                    {/* Top Right Header Controls */}
+                    <div className="absolute top-4 right-4 sm:right-6 flex items-center gap-2.5 z-10">
+                      {/* Verified Employer Pill (from Image 1) */}
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/15 text-white text-xs font-semibold shadow-sm">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Verified Employer</span>
+                      </span>
+
+                      {/* Cover Options Action Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setImageModalState({ isOpen: true, type: "banner", mode: "menu" });
+                        }}
+                        className="px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/25 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Cover Options</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Profile Details Container (Below Banner) */}
+                  <div className="px-6 sm:px-8 pb-6">
+                    {/* Avatar overlapping banner + Right side action buttons */}
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-12 sm:-mt-14 mb-4 relative z-10">
+                      {/* Company Avatar Card (Click to See, Update, Remove) */}
+                      <div
+                        onClick={() => setImageModalState({ isOpen: true, type: "profile", mode: "menu" })}
+                        className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white border-4 border-white shadow-xl p-1.5 flex items-center justify-center shrink-0 relative group cursor-pointer"
+                        title="Click to view, update or remove logo"
+                      >
+                        {profileImage ? (
+                          <img
+                            src={profileImage}
+                            alt={companyName}
+                            className="w-full h-full object-contain rounded-xl"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col items-center justify-center shadow-xs select-none">
+                            <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-none">
+                              {companyName.slice(0, 2).toUpperCase()}
+                            </span>
+                            <span className="text-[8px] sm:text-[9px] font-bold tracking-widest text-slate-500 uppercase mt-0.5">
+                              {companyName.split(" ")[1] || "CORP"}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Hover camera overlay */}
+                        <div className="absolute inset-0 rounded-xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-semibold gap-1">
+                          <Camera className="w-4 h-4" />
+                          <span>Edit Logo</span>
+                        </div>
+
+                        {/* Small camera badge bottom right */}
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md border-2 border-white">
+                          <Camera className="w-3 h-3" />
+                        </div>
+                      </div>
+
+                      {/* Right: Actions (Follow, Website, Share from Image 1) */}
+                      <div className="flex items-center gap-2 self-start sm:self-end shrink-0">
+                        <Link
+                          href="/companies/1"
+                          target="_blank"
+                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>View Public Page</span>
+                        </Link>
+
+                        <a
+                          href={website.startsWith("http") ? website : `https://${website}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+                        >
+                          <Globe className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Website</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              navigator.clipboard?.writeText(window.location.origin + "/companies/1");
+                              showToast("Company profile link copied to clipboard!");
+                            }
+                          }}
+                          className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition shadow-xs cursor-pointer"
+                          title="Share"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Company Details (Title, badges, tagline, meta strip from Image 1) */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                          {companyName}
+                        </h1>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 fill-blue-100" />
+                          <span>Verified</span>
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
+                          {industry}
+                        </span>
+                      </div>
+
+                      {/* Tagline */}
+                      <p className="text-xs sm:text-sm text-slate-600 font-normal max-w-3xl leading-relaxed">
+                        {tagline}
+                      </p>
+
+                      {/* Meta details strip with dot separators */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 pt-1">
+                        <span className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-slate-400" />
                           <span>{headquarters}</span>
                         </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1 font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                        <span className="text-slate-300">•</span>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{companySize}</span>
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span>Private • Enterprise</span>
+                        <span className="text-slate-300">•</span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Founded 2018</span>
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="flex items-center gap-1 font-semibold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-md border border-blue-200/60">
                           <FileText className="w-3 h-3 text-blue-600" />
                           <span>GST: {gstNumber}</span>
                         </span>
+                        {contactPhone && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{contactPhone}</span>
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Form Fields Card */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs space-y-6">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <h3 className="text-sm font-bold text-slate-800">Edit Company Information</h3>
+                    <span className="text-[11px] text-slate-400">All changes update live</span>
                   </div>
 
                   {/* Form Fields */}
@@ -1232,6 +1488,22 @@ export default function CompanyDashboardPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Hidden File Inputs for Profile Logo & Cover Banner Uploads */}
+                <input
+                  ref={profileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleProfileImageUpload}
+                />
+                <input
+                  ref={bannerInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleBannerImageUpload}
+                />
               </form>
             </div>
           )}
@@ -2147,6 +2419,220 @@ export default function CompanyDashboardPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: IMAGE ACTIONS MODAL (SEE, UPDATE, REMOVE) */}
+      {imageModalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95 duration-200 my-8">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {imageModalState.type === "profile"
+                      ? "Company Profile Logo"
+                      : "Company Cover Banner"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Manage your company&apos;s brand image assets
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImageModalState({ ...imageModalState, isOpen: false, mode: "menu" })}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Mode: VIEW (Full Size Lightbox Preview) */}
+            {imageModalState.mode === "view" ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center min-h-[220px] max-h-[360px] p-3 border border-slate-200">
+                  {imageModalState.type === "profile" ? (
+                    profileImage ? (
+                      <img
+                        src={profileImage}
+                        alt="Profile Preview"
+                        className="max-h-[300px] max-w-full object-contain rounded-xl"
+                      />
+                    ) : (
+                      <div className="w-36 h-36 rounded-2xl bg-white border border-slate-200 flex flex-col items-center justify-center">
+                        <span className="text-4xl font-black text-slate-900">
+                          {companyName.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mt-1">
+                          {companyName.split(" ")[1] || "CORP"}
+                        </span>
+                      </div>
+                    )
+                  ) : bannerImage ? (
+                    <img
+                      src={bannerImage}
+                      alt="Banner Preview"
+                      className="max-h-[300px] w-full object-cover rounded-xl"
+                    />
+                  ) : (
+                    <div className="w-full h-44 rounded-xl bg-gradient-to-r from-slate-950 via-indigo-950 to-blue-950 flex items-center justify-center text-white/70 text-xs font-semibold">
+                      Default Corporate Cover Gradient
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setImageModalState({ ...imageModalState, mode: "menu" })}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                  >
+                    ← Back to Options
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (imageModalState.type === "profile") {
+                        profileInputRef.current?.click();
+                      } else {
+                        bannerInputRef.current?.click();
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload New Image</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Mode: MENU (See, Update, Remove Options) */
+              <div className="space-y-4">
+                {/* Current Image Preview Strip */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3.5">
+                  <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 shadow-xs overflow-hidden flex items-center justify-center shrink-0">
+                    {imageModalState.type === "profile" ? (
+                      profileImage ? (
+                        <img
+                          src={profileImage}
+                          alt="Logo"
+                          className="w-full h-full object-contain p-1"
+                        />
+                      ) : (
+                        <span className="font-black text-slate-800 text-sm">
+                          {companyName.slice(0, 2).toUpperCase()}
+                        </span>
+                      )
+                    ) : bannerImage ? (
+                      <img
+                        src={bannerImage}
+                        alt="Banner"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-tr from-slate-900 to-indigo-900" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-slate-900">
+                      {imageModalState.type === "profile"
+                        ? profileImage
+                          ? "Custom Company Logo"
+                          : "Default Initials Avatar"
+                        : bannerImage
+                        ? "Custom Cover Banner"
+                        : "Default Corporate Gradient"}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {imageModalState.type === "profile"
+                        ? "Recommended: 400×400 PNG, JPG or WebP"
+                        : "Recommended: 1600×450 PNG, JPG or WebP"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3 Action Option Cards: See, Update, Remove */}
+                <div className="grid grid-cols-1 gap-2.5">
+                  {/* Option 1: SEE IMAGE */}
+                  <button
+                    type="button"
+                    onClick={() => setImageModalState({ ...imageModalState, mode: "view" })}
+                    className="w-full p-3.5 rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-left transition flex items-center justify-between group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Eye className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                          See Image (View Full Size)
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Preview the current {imageModalState.type === "profile" ? "logo" : "cover"} in high resolution
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-transform group-hover:translate-x-0.5" />
+                  </button>
+
+                  {/* Option 2: UPDATE IMAGE */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (imageModalState.type === "profile") {
+                        profileInputRef.current?.click();
+                      } else {
+                        bannerInputRef.current?.click();
+                      }
+                    }}
+                    className="w-full p-3.5 rounded-2xl border border-slate-200/90 hover:border-emerald-400 hover:bg-emerald-50/40 text-left transition flex items-center justify-between group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Upload className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-700">
+                          Update Image (Upload New)
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Select a new photo from your device to replace this image
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-transform group-hover:translate-x-0.5" />
+                  </button>
+
+                  {/* Option 3: REMOVE IMAGE */}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(imageModalState.type)}
+                    className="w-full p-3.5 rounded-2xl border border-slate-200/90 hover:border-red-400 hover:bg-red-50/40 text-left transition flex items-center justify-between group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-red-100 text-red-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Trash2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-red-700">
+                          Remove Image
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Delete custom asset and restore default branding
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-red-600 transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
