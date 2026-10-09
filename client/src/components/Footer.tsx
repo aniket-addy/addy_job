@@ -1,49 +1,34 @@
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Footer() {
   return (
-    <footer className="bg-[#0A1128] text-slate-400 text-sm">
+    <footer className="hidden md:block bg-[#0A1128] text-slate-400 text-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800">
           {/* Brand Column (Col span 2) */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-2.5">
-              {/* CareerConnect White/Blue Logo */}
-              <div className="relative w-8 h-8 flex items-center justify-center">
-                <svg
-                  viewBox="0 0 36 36"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-8 h-8"
-                >
-                  <circle cx="10" cy="18" r="7" fill="#3B82F6" />
-                  <circle cx="25" cy="11" r="6" fill="#60A5FA" />
-                  <circle cx="26" cy="25" r="5" fill="#93C5FD" />
-                  <path
-                    d="M14 16 L22 13"
-                    stroke="#3B82F6"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M14 20 L23 23"
-                    stroke="#3B82F6"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                  />
-                  <circle cx="10" cy="18" r="3" fill="#FFFFFF" />
-                </svg>
+              {/* AddyJob Logo */}
+              <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-black flex items-center justify-center p-0.5">
+                <Image
+                  src="/addyjob-logo.png"
+                  alt="AddyJob Logo"
+                  width={32}
+                  height={32}
+                  className="w-full h-full object-contain"
+                />
               </div>
-              <span className="text-xl font-bold tracking-tight text-white font-sans">
-                Career<span className="text-blue-500">Connect</span>
+              <span className="text-xl font-black tracking-tight text-white font-sans">
+                Addy<span className="text-blue-500">Job</span>
               </span>
             </div>
             <p className="text-xs text-slate-400 italic">
               Better Jobs. Brighter Futures.
             </p>
             <p className="text-xs text-slate-500 pt-2">
-              &copy; 2026 CareerConnect. All rights reserved.
+              &copy; 2026 AddyJob. All rights reserved.
             </p>
           </div>
 

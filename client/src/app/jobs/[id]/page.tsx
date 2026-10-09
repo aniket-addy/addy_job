@@ -448,10 +448,10 @@ export default function JobDetailPage() {
             <div className="bg-gradient-to-br from-indigo-50/80 to-blue-50/80 rounded-3xl p-5 border border-indigo-100/80 space-y-2">
               <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs">
                 <ShieldCheck className="w-4 h-4" />
-                <span>CareerConnect Verified Job</span>
+                <span>AddyJob Verified Job</span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                All compensation bands and hiring teams are verified by CareerConnect. No recruiter spam or fake listings.
+                All compensation bands and hiring teams are verified by AddyJob. No recruiter spam or fake listings.
               </p>
             </div>
           </div>

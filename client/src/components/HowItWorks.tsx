@@ -63,7 +63,7 @@ export default function HowItWorks() {
   };
 
   return (
-    <section id="how-it-works" className="py-14 sm:py-20 bg-white scroll-mt-24">
+    <section id="how-it-works" className="hidden md:block py-14 sm:py-20 bg-white scroll-mt-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-12">

@@ -86,14 +86,8 @@ export default function TopCompanies() {
           </p>
         </div>
 
-        {/* Infinite Scrolling Logos Container (Right to Left) */}
-        <div className="relative bg-white rounded-2xl py-6 sm:py-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
-          {/* Left Gradient Fade Mask */}
-          <div className="absolute left-0 inset-y-0 w-20 sm:w-28 bg-gradient-to-r from-white via-white/80 to-transparent z-10 pointer-events-none" />
-
-          {/* Right Gradient Fade Mask */}
-          <div className="absolute right-0 inset-y-0 w-20 sm:w-28 bg-gradient-to-l from-white via-white/80 to-transparent z-10 pointer-events-none" />
-
+        {/* Infinite Scrolling Logos Container (Transparent Background) */}
+        <div className="relative py-2 sm:py-3 overflow-hidden">
           {/* Continuous Moving Track */}
           <div className="infinite-marquee-slider flex items-center gap-12 sm:gap-16 pr-12 sm:pr-16">
             {marqueeList.map((comp, idx) => {

@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { clearAuthSession } from "@/lib/api";
 import {
@@ -133,34 +134,18 @@ export default function AdminSidebar({
             href="/"
             className="flex items-center gap-3 group transition-transform hover:scale-[1.02]"
           >
-            {/* CareerConnect Connected Nodes Logo */}
-            <div className="relative w-8 h-8 flex items-center justify-center bg-blue-600/10 rounded-lg p-1">
-              <svg
-                viewBox="0 0 36 36"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-7 h-7 drop-shadow-sm"
-              >
-                <circle cx="10" cy="18" r="7" fill="#3B82F6" />
-                <circle cx="25" cy="11" r="6" fill="#60A5FA" />
-                <circle cx="26" cy="25" r="5" fill="#93C5FD" />
-                <path
-                  d="M14 16 L22 13"
-                  stroke="#60A5FA"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M14 20 L23 23"
-                  stroke="#60A5FA"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                />
-                <circle cx="10" cy="18" r="3" fill="#FFFFFF" />
-              </svg>
+            {/* AddyJob Logo */}
+            <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-black flex items-center justify-center p-0.5 shrink-0">
+              <Image
+                src="/addyjob-logo.png"
+                alt="AddyJob Logo"
+                width={32}
+                height={32}
+                className="w-full h-full object-contain"
+              />
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900 font-sans">
-              Career<span className="text-blue-600">Connect</span>
+            <span className="text-xl font-black tracking-tight text-slate-900 font-sans">
+              Addy<span className="text-blue-600">Job</span>
             </span>
           </Link>
 
@@ -283,7 +268,7 @@ export default function AdminSidebar({
                   Super Admin
                 </p>
                 <p className="text-[11px] text-slate-400 truncate max-w-[125px]">
-                  admin@careerconnect.com
+                  admin@addyjob.com
                 </p>
               </div>
             </div>

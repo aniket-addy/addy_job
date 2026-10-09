@@ -4,7 +4,20 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { Search, Bell, Menu, X, CheckCircle, User, Briefcase, Bookmark, LogOut, ShieldCheck } from "lucide-react";
+import {
+  Search,
+  Bell,
+  Menu,
+  X,
+  CheckCircle,
+  User,
+  Briefcase,
+  Bookmark,
+  LogOut,
+  ShieldCheck,
+  Home,
+  Heart,
+} from "lucide-react";
 import { getStoredUser, clearAuthSession, UserSession } from "@/lib/api";
 
 interface NavbarProps {
@@ -55,40 +68,26 @@ export default function Navbar({ activeTab }: NavbarProps) {
   };
 
   return (
-    <nav className="w-full bg-white/95 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+    <>
+      <nav className="w-full bg-white/95 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo Left */}
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5 group">
-              {/* CareerConnect Custom Connected Node Logo */}
-              <div className="relative w-9 h-9 flex items-center justify-center">
-                <svg
-                  viewBox="0 0 36 36"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-9 h-9 drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
-                >
-                  <circle cx="10" cy="18" r="7" fill="#2563EB" />
-                  <circle cx="25" cy="11" r="6" fill="#3B82F6" />
-                  <circle cx="26" cy="25" r="5" fill="#60A5FA" />
-                  <path
-                    d="M14 16 L22 13"
-                    stroke="#2563EB"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M14 20 L23 23"
-                    stroke="#2563EB"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                  />
-                  <circle cx="10" cy="18" r="3" fill="#FFFFFF" />
-                </svg>
+              {/* AddyJob Logo */}
+              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-xs shrink-0 group-hover:scale-105 transition-transform flex items-center justify-center bg-black">
+                <Image
+                  src="/addyjob-logo.png"
+                  alt="AddyJob Logo"
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-contain"
+                  priority
+                />
               </div>
-              <span className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-sans">
-                Career<span className="text-blue-600">Connect</span>
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 font-sans">
+                Addy<span className="text-blue-600">Job</span>
               </span>
             </Link>
           </div>
@@ -294,29 +293,27 @@ export default function Navbar({ activeTab }: NavbarProps) {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Right: Bell (when logged in) + Hamburger Menu */}
           <div className="flex md:hidden items-center gap-2">
             {mounted && currentUser && (
               <button
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 aria-label="Notifications"
-                className="relative p-2 text-slate-600 hover:text-blue-600 rounded-full"
+                className="relative p-2 text-slate-700 hover:text-blue-600 rounded-full transition-colors cursor-pointer"
               >
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-1 ring-white">
-                  1
-                </span>
+                <Bell className="w-5 h-5 stroke-[2]" />
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white" />
               </button>
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation menu"
-              className="p-2 text-slate-700 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-slate-700 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               {mobileMenuOpen ? (
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6 stroke-[2]" />
               ) : (
-                <Menu className="w-6 h-6" />
+                <Menu className="w-6 h-6 stroke-[2]" />
               )}
             </button>
           </div>
@@ -427,5 +424,84 @@ export default function Navbar({ activeTab }: NavbarProps) {
         </div>
       )}
     </nav>
+
+    {/* Mobile Bottom Navigation Bar (Fixed at bottom on all mobile screens) */}
+    <nav
+      aria-label="Mobile Bottom Navigation"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-slate-200/90 px-3 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] shadow-[0_-4px_25px_rgba(0,0,0,0.06)]"
+    >
+      <div className="flex items-center justify-around max-w-md mx-auto">
+        {/* 1. Home */}
+        <Link
+          href="/"
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[54px] rounded-xl transition-all ${
+            pathname === "/"
+              ? "text-blue-600 font-bold"
+              : "text-slate-500 hover:text-slate-800 font-medium"
+          }`}
+        >
+          <Home className={`w-5 h-5 transition-transform ${pathname === "/" ? "fill-blue-600/20 stroke-[2.2]" : "stroke-[1.8]"}`} />
+          <span className="text-[11px] mt-1 tracking-tight">Home</span>
+        </Link>
+
+        {/* 2. Jobs */}
+        <Link
+          href="/jobs"
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[54px] rounded-xl transition-all ${
+            pathname.startsWith("/jobs") && !pathname.includes("saved")
+              ? "text-blue-600 font-bold"
+              : "text-slate-500 hover:text-slate-800 font-medium"
+          }`}
+        >
+          <Briefcase className={`w-5 h-5 transition-transform ${pathname.startsWith("/jobs") && !pathname.includes("saved") ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+          <span className="text-[11px] mt-1 tracking-tight">Jobs</span>
+        </Link>
+
+        {/* 3. Saved */}
+        <Link
+          href="/jobs?filter=saved"
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[54px] rounded-xl transition-all ${
+            pathname.includes("saved")
+              ? "text-blue-600 font-bold"
+              : "text-slate-500 hover:text-slate-800 font-medium"
+          }`}
+        >
+          <Heart className={`w-5 h-5 transition-transform ${pathname.includes("saved") ? "fill-blue-600/20 stroke-[2.2]" : "stroke-[1.8]"}`} />
+          <span className="text-[11px] mt-1 tracking-tight">Saved</span>
+        </Link>
+
+        {/* 4. Alerts */}
+        <button
+          type="button"
+          onClick={() => setNotificationsOpen(true)}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[54px] rounded-xl transition-all cursor-pointer ${
+            notificationsOpen
+              ? "text-blue-600 font-bold"
+              : "text-slate-500 hover:text-slate-800 font-medium"
+          }`}
+        >
+          <div className="relative">
+            <Bell className="w-5 h-5 stroke-[1.8]" />
+            <span className="absolute -top-0.5 -right-1 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white" />
+          </div>
+          <span className="text-[11px] mt-1 tracking-tight">Alerts</span>
+        </button>
+
+        {/* 5. Profile */}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[54px] rounded-xl transition-all cursor-pointer ${
+            mobileMenuOpen || pathname === "/about"
+              ? "text-blue-600 font-bold"
+              : "text-slate-500 hover:text-slate-800 font-medium"
+          }`}
+        >
+          <User className="w-5 h-5 stroke-[1.8]" />
+          <span className="text-[11px] mt-1 tracking-tight">Profile</span>
+        </button>
+      </div>
+    </nav>
+  </>
   );
 }

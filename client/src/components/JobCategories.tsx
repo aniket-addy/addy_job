@@ -9,7 +9,6 @@ import {
   TrendingUp,
   CircleDollarSign,
   Users2,
-  ArrowRight,
 } from "lucide-react";
 
 interface Category {
