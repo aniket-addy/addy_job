@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import {
   MapPin,
-  Bookmark,
+  Heart,
   ArrowRight,
   Globe,
-  Compass,
   Sprout,
   Layers,
+  Sparkles,
+  Boxes,
+  Triangle,
 } from "lucide-react";
 
 interface Job {
@@ -30,7 +32,7 @@ const jobs: Job[] = [
     id: "1",
     company: "NovaTech",
     companyIcon: Layers,
-    iconBg: "bg-blue-600",
+    iconBg: "bg-gradient-to-br from-blue-500 to-indigo-600",
     iconColor: "text-white",
     role: "Frontend Developer",
     companySub: "NovaTech Solutions",
@@ -41,8 +43,8 @@ const jobs: Job[] = [
   {
     id: "2",
     company: "BrightPath",
-    companyIcon: Compass,
-    iconBg: "bg-indigo-600",
+    companyIcon: Sparkles,
+    iconBg: "bg-gradient-to-br from-rose-500 to-amber-500",
     iconColor: "text-white",
     role: "UI/UX Designer",
     companySub: "BrightPath Digital",
@@ -54,7 +56,7 @@ const jobs: Job[] = [
     id: "3",
     company: "GreenField",
     companyIcon: Sprout,
-    iconBg: "bg-emerald-600",
+    iconBg: "bg-gradient-to-br from-emerald-500 to-teal-600",
     iconColor: "text-white",
     role: "Marketing Associate",
     companySub: "GreenField Foods",
@@ -66,7 +68,7 @@ const jobs: Job[] = [
     id: "4",
     company: "Skyline",
     companyIcon: Globe,
-    iconBg: "bg-sky-600",
+    iconBg: "bg-gradient-to-br from-sky-500 to-blue-600",
     iconColor: "text-white",
     role: "Backend Developer",
     companySub: "Skyline Technologies",
@@ -74,123 +76,136 @@ const jobs: Job[] = [
     badges: ["Full-time", "Remote"],
     salary: "₹8L - ₹12L/year",
   },
+  {
+    id: "5",
+    company: "Apex Labs",
+    companyIcon: Triangle,
+    iconBg: "bg-gradient-to-br from-cyan-500 to-blue-600",
+    iconColor: "text-white",
+    role: "DevOps Engineer",
+    companySub: "Apex Labs Cloud",
+    location: "Pune, Maharashtra",
+    badges: ["Full-time", "Remote"],
+    salary: "₹12L - ₹18L/year",
+  },
+  {
+    id: "6",
+    company: "PixelForge",
+    companyIcon: Boxes,
+    iconBg: "bg-gradient-to-br from-purple-500 to-indigo-600",
+    iconColor: "text-white",
+    role: "Product Designer",
+    companySub: "PixelForge Studio",
+    location: "Gurugram, Haryana",
+    badges: ["Full-time", "Hybrid"],
+    salary: "₹9L - ₹14L/year",
+  },
 ];
 
 export default function RecommendedJobs() {
   const [savedJobs, setSavedJobs] = useState<Record<string, boolean>>({});
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const toggleSave = (id: string) => {
+  const toggleSave = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     setSavedJobs((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
-    <section className="py-14 sm:py-20 bg-white">
+    <section className="py-8 sm:py-16 lg:py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+        <div className="flex items-center justify-between gap-4 mb-5 sm:mb-8">
           <div>
-            <span className="inline-block px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#EEF2FF] text-[#4F46E5] border border-[#E0E7FF] mb-3">
-              Handpicked for You
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Recommended Jobs
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Recommended for You
             </h2>
-            <p className="text-slate-500 text-sm sm:text-base mt-1">
+            <p className="hidden sm:block text-slate-500 text-xs sm:text-sm mt-1">
               Based on your profile, skills and interests.
             </p>
           </div>
 
-          <a
-            href="#"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group self-start sm:self-auto"
+          <Link
+            href="/jobs"
+            className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700 transition group cursor-pointer whitespace-nowrap"
           >
-            <span>View All Jobs</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </a>
+            <span>View All</span>
+            <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+          </Link>
         </div>
 
-        {/* Job Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Horizontal Manual Scrollable Job Cards Track */}
+        <div
+          ref={scrollContainerRef}
+          className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto pb-4 pt-1 scroll-smooth snap-x snap-mandatory cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
           {jobs.map((job) => {
             const Icon = job.companyIcon;
             const isSaved = !!savedJobs[job.id];
             return (
-              <div
+              <Link
                 key={job.id}
-                className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.08)] hover:border-blue-300 transition-all duration-200 flex flex-col justify-between"
+                href={`/jobs/${job.id}`}
+                className="w-[270px] sm:w-[310px] shrink-0 snap-start bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.08)] hover:border-blue-300 transition-all duration-200 flex flex-col justify-between group cursor-pointer"
               >
                 <div>
-                  {/* Company Row */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2.5">
+                  {/* Company Row: Logo + Company Name + Heart Save Icon */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div
-                        className={`w-9 h-9 rounded-xl ${job.iconBg} flex items-center justify-center shadow-xs`}
+                        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${job.iconBg} flex items-center justify-center shadow-xs shrink-0`}
                       >
                         <Icon className={`w-5 h-5 ${job.iconColor}`} />
                       </div>
-                      <span className="font-bold text-slate-900 text-sm">
+                      <span className="font-bold text-slate-900 text-sm truncate">
                         {job.company}
                       </span>
                     </div>
 
                     <button
-                      onClick={() => toggleSave(job.id)}
-                      aria-label="Save job"
+                      type="button"
+                      onClick={(e) => toggleSave(job.id, e)}
+                      aria-label={isSaved ? "Unsave job" : "Save job"}
                       title={isSaved ? "Saved" : "Save Job"}
-                      className={`p-1.5 rounded-lg transition cursor-pointer ${
-                        isSaved
-                          ? "bg-blue-50 text-blue-600"
-                          : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
-                      }`}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-50 transition-colors cursor-pointer"
                     >
-                      <Bookmark
-                        className={`w-4 h-4 ${
-                          isSaved ? "fill-blue-600 text-blue-600" : ""
+                      <Heart
+                        className={`w-4 h-4 transition-colors ${
+                          isSaved ? "fill-rose-500 text-rose-500" : ""
                         }`}
                       />
                     </button>
                   </div>
 
-                  {/* Title & Company */}
-                  <h3 className="font-bold text-slate-900 text-base mb-1">
+                  {/* Job Title */}
+                  <h3 className="font-bold text-slate-900 text-base sm:text-lg mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
                     {job.role}
                   </h3>
-                  <p className="text-xs text-slate-500 font-medium mb-3">
-                    {job.companySub}
-                  </p>
 
-                  {/* Location */}
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-4">
+                  {/* Location & Tags Meta Row */}
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
                     <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">{job.location}</span>
-                  </div>
-
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {job.badges.map((badge) => (
-                      <span
-                        key={badge}
-                        className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600"
-                      >
-                        {badge}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Salary */}
-                  <div className="text-sm font-bold text-slate-900 mb-5">
-                    {job.salary}
+                    <span className="truncate">
+                      {job.location} • {job.badges.join(" • ")}
+                    </span>
                   </div>
                 </div>
 
-                {/* View Details Button */}
-                <Link
-                  href={`/jobs/${job.id}`}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl transition duration-150 shadow-sm cursor-pointer text-center block"
-                >
-                  View Details &amp; Apply
-                </Link>
-              </div>
+                {/* Salary Row (at the bottom of card) */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block font-medium">Offered Salary</span>
+                    <span className="text-sm sm:text-base font-extrabold text-slate-900">
+                      {job.salary}
+                    </span>
+                  </div>
+                  <span className="text-xs font-semibold text-blue-600 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5">
+                    View
+                    <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </Link>
             );
           })}
         </div>

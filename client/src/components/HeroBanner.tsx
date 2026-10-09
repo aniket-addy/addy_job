@@ -2,10 +2,12 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Search,
   MapPin,
   ChevronDown,
+  SlidersHorizontal,
   Briefcase,
   Building2,
   Users,
@@ -15,11 +17,11 @@ import {
 export default function HeroBanner() {
   const [jobTitle, setJobTitle] = useState("");
   const [location, setLocation] = useState("");
-  const [jobType, setJobType] = useState("All Job Types");
+  const [jobType, setJobType] = useState("All Types");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const jobTypes = [
-    "All Job Types",
+    "All Types",
     "Full-time",
     "Part-time",
     "Remote",
@@ -29,20 +31,26 @@ export default function HeroBanner() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Searching for:", { jobTitle, location, jobType });
+    const query = new URLSearchParams();
+    if (jobTitle) query.set("q", jobTitle);
+    if (location) query.set("location", location);
+    if (jobType && jobType !== "All Types") query.set("type", jobType);
+    window.location.href = `/jobs?${query.toString()}`;
   };
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-[#FAFBFD] via-[#F3F7FD] to-white pt-6 pb-12 lg:pt-10 lg:pb-20">
-      {/* Background Soft Glows */}
-      <div className="absolute top-12 right-1/4 w-[500px] h-[500px] bg-blue-100/40 rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="absolute top-1/3 left-10 w-80 h-80 bg-indigo-100/30 rounded-full blur-3xl pointer-events-none -z-10" />
+    <section className="relative z-30 bg-gradient-to-b from-[#FAFBFD] via-[#F3F7FD] to-white pt-5 pb-10 sm:pt-8 sm:pb-16 lg:pt-10 lg:pb-20">
+      {/* Background Soft Glows (isolated in overflow-hidden to prevent scrollbars) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute top-12 right-1/4 w-[500px] h-[500px] bg-blue-100/40 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 left-10 w-80 h-80 bg-indigo-100/30 rounded-full blur-3xl" />
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-6 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-6 items-center">
           
-          {/* ================= LEFT COLUMN: HEADLINE & SEARCH ================= */}
-          <div className="lg:col-span-7 space-y-6 lg:space-y-7 z-10">
+          {/* ================= LEFT COLUMN: HEADLINE, SEARCH & QUICK ACTIONS ================= */}
+          <div className="lg:col-span-7 space-y-5 sm:space-y-6 lg:space-y-7 z-10">
             {/* Pill Tag */}
             <div className="inline-flex items-center">
               <span className="px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-[#EEF2FF] text-[#4F46E5] border border-[#E0E7FF] shadow-xs">
@@ -51,111 +59,119 @@ export default function HeroBanner() {
             </div>
 
             {/* Main Headline */}
-            <div className="space-y-0.5">
-              <h1 className="text-4xl sm:text-5xl lg:text-[3.6rem] font-extrabold text-slate-900 tracking-tight leading-[1.12]">
+            <div className="space-y-0.5 sm:space-y-1">
+              <h1 className="text-3xl sm:text-5xl lg:text-[3.6rem] font-extrabold text-slate-900 tracking-tight leading-[1.15]">
                 Find Your Dream Job
               </h1>
-              <h2 className="text-4xl sm:text-5xl lg:text-[3.6rem] font-extrabold tracking-tight leading-[1.12]">
+              <h2 className="text-3xl sm:text-5xl lg:text-[3.6rem] font-extrabold tracking-tight leading-[1.15]">
                 <span className="text-slate-900">and </span>
-                <span className="text-[#3B82F6] bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                <span className="text-blue-600 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                   Build a Brighter
                 </span>
               </h2>
-              <h2 className="text-4xl sm:text-5xl lg:text-[3.6rem] font-extrabold text-[#3B82F6] tracking-tight leading-[1.12]">
+              <h2 className="text-3xl sm:text-5xl lg:text-[3.6rem] font-extrabold text-blue-600 tracking-tight leading-[1.15]">
                 Future
               </h2>
             </div>
 
             {/* Subtitle */}
-            <p className="text-slate-500 text-base sm:text-lg leading-relaxed max-w-xl font-normal">
-              Connect with top companies, explore exciting opportunities, and
-              take the next step in your career journey.
+            <p className="text-slate-500 text-sm sm:text-base lg:text-lg leading-relaxed max-w-xl font-normal">
+              Connect with top companies, explore opportunities and grow your career.
             </p>
 
-            {/* Job Search Horizontal Bar */}
+            {/* Mobile & Desktop Adaptive Search Box */}
             <form
               onSubmit={handleSearch}
-              className="bg-white rounded-2xl sm:rounded-full p-2 sm:p-2.5 shadow-[0_10px_35px_-4px_rgba(37,99,235,0.1)] border border-slate-200/90 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-1 max-w-2xl transition-all hover:border-blue-300 focus-within:ring-2 focus-within:ring-blue-500/20"
+              className="bg-white rounded-2xl sm:rounded-full p-2.5 sm:p-2 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-200/90 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-2xl transition-all hover:border-blue-300 focus-within:ring-2 focus-within:ring-blue-500/20 relative z-40"
             >
               {/* Field 1: Job title, skills or company */}
-              <div className="flex-1 flex items-center gap-2.5 px-3 py-2">
-                <Search className="w-5 h-5 text-slate-400 shrink-0" />
+              <div className="flex items-center gap-2.5 px-3 py-2.5 sm:py-2 bg-slate-50/70 sm:bg-transparent rounded-xl sm:rounded-none border sm:border-0 border-slate-100 sm:flex-1">
+                <Search className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 shrink-0" />
                 <input
                   type="text"
                   value={jobTitle}
                   onChange={(e) => setJobTitle(e.target.value)}
                   placeholder="Job title, skills or company"
-                  className="w-full text-sm text-slate-800 placeholder:text-slate-400 font-medium bg-transparent focus:outline-none"
+                  className="w-full text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 font-medium bg-transparent focus:outline-none"
                 />
               </div>
 
-              {/* Vertical Divider */}
+              {/* Vertical Divider for desktop */}
               <div className="hidden sm:block w-px h-8 bg-slate-200 shrink-0" />
 
-              {/* Field 2: Location */}
-              <div className="flex-1 sm:max-w-[160px] flex items-center gap-2.5 px-3 py-2">
-                <MapPin className="w-5 h-5 text-slate-400 shrink-0" />
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Location"
-                  className="w-full text-sm text-slate-800 placeholder:text-slate-400 font-medium bg-transparent focus:outline-none"
-                />
-              </div>
-
-              {/* Vertical Divider */}
-              <div className="hidden sm:block w-px h-8 bg-slate-200 shrink-0" />
-
-              {/* Field 3: Job Type Dropdown */}
-              <div className="relative sm:max-w-[160px]">
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-slate-700 font-medium bg-transparent hover:text-slate-900 focus:outline-none cursor-pointer"
-                >
-                  <span className="truncate">{jobType}</span>
-                  <ChevronDown
-                    className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
-                      isDropdownOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-
-                {isDropdownOpen && (
-                  <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 animate-in fade-in-50 zoom-in-95">
-                    {jobTypes.map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => {
-                          setJobType(type);
-                          setIsDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-2 text-xs sm:text-sm font-medium transition-colors cursor-pointer ${
-                          jobType === type
-                            ? "bg-blue-50 text-blue-600 font-semibold"
-                            : "text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
+              {/* Mobile 2-column row: Location + All Types */}
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
+                {/* Field 2: Location */}
+                <div className="flex items-center justify-between gap-1.5 px-3 py-2 sm:py-2 bg-slate-50/70 sm:bg-transparent rounded-xl sm:rounded-none border sm:border-0 border-slate-100 sm:w-36">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="Location"
+                      className="w-full text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 font-medium bg-transparent focus:outline-none truncate"
+                    />
                   </div>
-                )}
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                </div>
+
+                {/* Vertical Divider for desktop */}
+                <div className="hidden sm:block w-px h-8 bg-slate-200 shrink-0" />
+
+                {/* Field 3: Job Type Dropdown */}
+                <div className="relative sm:w-36">
+                  <button
+                    type="button"
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="w-full flex items-center justify-between gap-1.5 px-3 py-2 sm:py-2 bg-slate-50/70 sm:bg-transparent rounded-xl sm:rounded-none border sm:border-0 border-slate-100 text-xs sm:text-sm text-slate-700 font-medium cursor-pointer"
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{jobType}</span>
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                        isDropdownOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {isDropdownOpen && (
+                    <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-48 max-h-72 overflow-y-auto bg-white rounded-xl shadow-[0_20px_50px_rgba(15,23,42,0.18)] border border-slate-100 py-1.5 z-[100] animate-in fade-in-50 zoom-in-95">
+                      {jobTypes.map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => {
+                            setJobType(type);
+                            setIsDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-xs sm:text-sm font-medium transition-colors cursor-pointer ${
+                            jobType === type
+                              ? "bg-blue-50 text-blue-600 font-semibold"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Search Button */}
               <button
                 type="submit"
-                className="w-full sm:w-auto px-7 py-3.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl sm:rounded-full shadow-md shadow-blue-600/30 transition-all duration-200 cursor-pointer whitespace-nowrap text-center shrink-0"
+                className="w-full sm:w-auto px-7 py-3 sm:py-3.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm sm:text-base rounded-xl sm:rounded-full shadow-md shadow-blue-600/30 transition-all duration-200 cursor-pointer whitespace-nowrap text-center shrink-0 flex items-center justify-center gap-2"
               >
-                Search Jobs
+                <span>Search Jobs</span>
               </button>
             </form>
 
-            {/* Stats Counter Row */}
-            <div className="pt-2 sm:pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 max-w-xl">
+            {/* Stats Counter Row (Desktop Only) */}
+            <div className="hidden sm:grid pt-2 grid-cols-3 gap-4 sm:gap-6 max-w-xl">
               {/* Stat 1 */}
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100/70 flex items-center justify-center text-indigo-600 shrink-0 shadow-xs">
@@ -196,15 +212,15 @@ export default function HeroBanner() {
                     50,000+
                   </div>
                   <div className="text-xs text-slate-500 font-medium">
-                    Registered Job Seekers
+                    Registered Seekers
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ================= RIGHT COLUMN: HERO PERSON & FLOATING ELEMENTS ================= */}
-          <div className="lg:col-span-5 relative flex items-center justify-center min-h-[460px] lg:min-h-[520px]">
+          {/* ================= RIGHT COLUMN: HERO PERSON & FLOATING ELEMENTS (DESKTOP) ================= */}
+          <div className="hidden lg:flex lg:col-span-5 relative items-center justify-center min-h-[460px] lg:min-h-[520px]">
             
             {/* Multi-lobed Organic Pastel Cloud Backdrop */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">

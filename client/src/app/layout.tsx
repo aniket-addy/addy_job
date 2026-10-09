@@ -19,8 +19,8 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  title: "CareerConnect - Find Your Dream Job",
-  description: "Connect with top companies and explore exciting opportunities.",
+  title: "AddyJob - Find Your Dream Job",
+  description: "Connect with top companies and explore exciting opportunities with AddyJob.",
 };
 
 export default function RootLayout({

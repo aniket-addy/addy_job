@@ -171,7 +171,7 @@ export default function AdminHeader({
             <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-2.5 border-b border-slate-100">
                 <p className="text-xs font-bold text-slate-900">Super Administrator</p>
-                <p className="text-[11px] text-slate-500">admin@careerconnect.com</p>
+                <p className="text-[11px] text-slate-500">admin@addyjob.com</p>
               </div>
               <div className="py-1">
                 <Link

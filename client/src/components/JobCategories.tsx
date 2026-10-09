@@ -8,7 +8,6 @@ import {
   TrendingUp,
   CircleDollarSign,
   Users2,
-  ArrowRight,
 } from "lucide-react";
 
 interface Category {
@@ -69,26 +68,16 @@ export default function JobCategories() {
     <section className="py-14 sm:py-20 bg-slate-50/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
-          <div>
-            <span className="inline-block px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#EEF2FF] text-[#4F46E5] border border-[#E0E7FF] mb-3">
-              Popular Categories
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Explore Jobs by Category
-            </h2>
-            <p className="text-slate-500 text-sm sm:text-base mt-1">
-              Find opportunities in your area of expertise and grow your career.
-            </p>
-          </div>
-
-          <a
-            href="#"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group self-start sm:self-auto"
-          >
-            <span>View All Categories</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </a>
+        <div className="mb-10">
+          <span className="inline-block px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#EEF2FF] text-[#4F46E5] border border-[#E0E7FF] mb-3">
+            Popular Categories
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Explore Jobs by Category
+          </h2>
+          <p className="text-slate-500 text-sm sm:text-base mt-1">
+            Find opportunities in your area of expertise and grow your career.
+          </p>
         </div>
 
         {/* Categories Grid */}

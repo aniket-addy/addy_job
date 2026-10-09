@@ -58,7 +58,7 @@ export default function AboutPage() {
             <span className="text-blue-600">Career Network</span>
           </h1>
           <p className="text-slate-600 text-sm sm:text-base mt-4 max-w-2xl mx-auto leading-relaxed">
-            CareerConnect is designed to make hiring fair, transparent, and ultra-fast. We connect ambitious tech talent with top companies that value their skills.
+            AddyJob is designed to make hiring fair, transparent, and ultra-fast. We connect ambitious tech talent with top companies that value their skills.
           </p>
         </div>
       </section>
