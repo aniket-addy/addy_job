@@ -39,6 +39,7 @@ import {
   ExternalLink,
   Globe,
   Share2,
+  Pencil,
 } from "lucide-react";
 import { getStoredUser, clearAuthSession } from "@/lib/api";
 
@@ -49,7 +50,16 @@ interface PostedJob {
   department: string;
   location: string;
   type: string;
+  workplace?: string;
+  experience?: string;
   salary: string;
+  openings?: number | string;
+  postedBy?: string;
+  tags?: string[];
+  description?: string;
+  responsibilities?: string[];
+  requirements?: string[];
+  benefits?: string[];
   applicantsCount: number;
   status: "Active" | "Paused" | "Closed";
   postedOn: string;
@@ -140,12 +150,22 @@ export default function CompanyDashboardPage() {
   const [isUpgradePlanModalOpen, setIsUpgradePlanModalOpen] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState<RecruiterApplicant | null>(null);
 
-  // Form states for new job
-  const [newTitle, setNewTitle] = useState("");
-  const [newDept, setNewDept] = useState("Engineering");
-  const [newLocation, setNewLocation] = useState("Bengaluru (Hybrid)");
-  const [newType, setNewType] = useState("Full-time");
-  const [newSalary, setNewSalary] = useState("₹18L - ₹26L/yr");
+  // Form states for Post / Edit Job (matching /jobs/1 details)
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
+  const [jobTitle, setJobTitle] = useState("");
+  const [jobDepartment, setJobDepartment] = useState("Engineering");
+  const [jobLocation, setJobLocation] = useState("Bengaluru, Karnataka");
+  const [jobWorkplace, setJobWorkplace] = useState("Remote");
+  const [jobType, setJobType] = useState("Full-time");
+  const [jobExperience, setJobExperience] = useState("3 - 5 years");
+  const [jobSalary, setJobSalary] = useState("₹18L - ₹24L/yr");
+  const [jobOpenings, setJobOpenings] = useState("2");
+  const [jobPostedBy, setJobPostedBy] = useState("Talent Acquisition Team");
+  const [jobTags, setJobTags] = useState("React, Next.js, TypeScript, Tailwind");
+  const [jobDescription, setJobDescription] = useState("");
+  const [jobResponsibilities, setJobResponsibilities] = useState("");
+  const [jobRequirements, setJobRequirements] = useState("");
+  const [jobBenefits, setJobBenefits] = useState("");
 
   // Initial Jobs List (Kitne Post Hai)
   const [jobs, setJobs] = useState<PostedJob[]>([
@@ -153,9 +173,34 @@ export default function CompanyDashboardPage() {
       id: "JOB-101",
       title: "Senior Full Stack Engineer (React / Node.js)",
       department: "Engineering",
-      location: "Bengaluru (Hybrid)",
+      location: "Bengaluru, Karnataka",
       type: "Full-time",
+      workplace: "Remote",
+      experience: "3 - 5 years",
       salary: "₹20L - ₹28L/yr",
+      openings: 2,
+      postedBy: "Talent Acquisition Team",
+      tags: ["React", "TypeScript", "Next.js", "Tailwind", "Node.js"],
+      description:
+        "We are looking for an experienced Senior Full Stack Engineer to architect and build our next-generation cloud dashboard. You will work closely with product and design teams to create snappy, accessible, and high-performance interfaces using React, Next.js, and TypeScript.",
+      responsibilities: [
+        "Architect and ship modern, performant web applications using Next.js and TypeScript.",
+        "Collaborate with UX designers to translate complex cloud telemetry into elegant dashboards.",
+        "Optimize frontend asset loading, runtime performance, and core web vitals.",
+        "Mentor junior frontend developers and uphold clean code, CI/CD, and testing standards.",
+      ],
+      requirements: [
+        "4+ years of professional experience with React, Next.js, and TypeScript.",
+        "Deep understanding of server components, state management, and modern CSS frameworks.",
+        "Familiarity with REST and GraphQL APIs, WebSockets, and performance profiling.",
+        "Strong communication and autonomous problem-solving capabilities.",
+      ],
+      benefits: [
+        "100% Remote flexibility with home-office setup allowance",
+        "Competitive stock options (ESOPs) & annual bonuses",
+        "Comprehensive medical insurance for employee and dependents",
+        "₹1,00,000 annual learning & certification budget",
+      ],
       applicantsCount: 42,
       status: "Active",
       postedOn: "3 days ago",
@@ -164,9 +209,30 @@ export default function CompanyDashboardPage() {
       id: "JOB-102",
       title: "Lead UI/UX Designer & Design Systems",
       department: "Product Design",
-      location: "Remote (India)",
+      location: "Mohali, Punjab",
       type: "Full-time",
+      workplace: "Hybrid",
+      experience: "4+ years",
       salary: "₹18L - ₹24L/yr",
+      openings: 1,
+      postedBy: "Design Hiring Team",
+      tags: ["Figma", "Design Systems", "Prototyping", "UI/UX"],
+      description:
+        "As Lead Product Designer, you will shape the future visual language and user experience across our flagship client applications. You'll lead design systems and guide product discovery workshops.",
+      responsibilities: [
+        "Lead end-to-end product design from user discovery to interactive prototypes.",
+        "Maintain and scale centralized Figma multi-brand design tokens system.",
+        "Conduct user testing sessions, synthesize feedback, and iterate rapidly.",
+      ],
+      requirements: [
+        "4+ years of experience in product design, UI/UX, or digital product studios.",
+        "Mastery of Figma, micro-animations, user testing, and interactive prototyping.",
+      ],
+      benefits: [
+        "Flexible hybrid working schedule (2 days in-office)",
+        "Top-tier MacBook Pro and ergonomic workspace",
+        "Health & wellness subsidies and gym memberships",
+      ],
       applicantsCount: 28,
       status: "Active",
       postedOn: "1 week ago",
@@ -177,7 +243,25 @@ export default function CompanyDashboardPage() {
       department: "Platform Eng",
       location: "Hyderabad, India",
       type: "Full-time",
+      workplace: "On-site",
+      experience: "5+ years",
       salary: "₹24L - ₹32L/yr",
+      openings: 1,
+      postedBy: "Platform HR",
+      tags: ["Kubernetes", "AWS", "Terraform", "CI/CD", "Docker"],
+      description:
+        "Looking for an experienced DevOps Architect to manage our AWS multi-region infrastructure and automated CI/CD pipelines.",
+      responsibilities: [
+        "Manage cloud infrastructure as code via Terraform and Helm charts.",
+        "Ensure 99.99% high-availability and security compliance.",
+      ],
+      requirements: [
+        "5+ years cloud infrastructure experience with AWS, Kubernetes, and Linux internals.",
+      ],
+      benefits: [
+        "Premium comprehensive medical insurance",
+        "Annual performance bonuses & certification funding",
+      ],
       applicantsCount: 19,
       status: "Active",
       postedOn: "2 weeks ago",
@@ -188,7 +272,25 @@ export default function CompanyDashboardPage() {
       department: "Marketing",
       location: "Mumbai, India",
       type: "Full-time",
+      workplace: "Hybrid",
+      experience: "3 - 5 years",
       salary: "₹15L - ₹20L/yr",
+      openings: 1,
+      postedBy: "Growth Team",
+      tags: ["Product Marketing", "B2B SaaS", "Go-to-Market", "Content"],
+      description:
+        "Drive product messaging, positioning, and go-to-market strategies for our B2B SaaS platform.",
+      responsibilities: [
+        "Create high-impact positioning documents, case studies, and customer stories.",
+        "Partner with sales team to deliver high-converting enablement material.",
+      ],
+      requirements: [
+        "3+ years product marketing experience in fast-growth B2B SaaS.",
+      ],
+      benefits: [
+        "Hybrid workplace flexibility",
+        "Performance incentives & quarterly bonuses",
+      ],
       applicantsCount: 14,
       status: "Paused",
       postedOn: "3 weeks ago",
@@ -199,7 +301,25 @@ export default function CompanyDashboardPage() {
       department: "Engineering",
       location: "Noida, India",
       type: "Full-time",
+      workplace: "Remote",
+      experience: "1 - 3 years",
       salary: "₹8L - ₹12L/yr",
+      openings: 3,
+      postedBy: "Engineering Recruitment",
+      tags: ["React", "JavaScript", "HTML/CSS", "Tailwind"],
+      description:
+        "Join our frontend team to build modern responsive web applications and customer portals using React.",
+      responsibilities: [
+        "Develop pixel-perfect components based on Figma design guidelines.",
+        "Integrate RESTful APIs and ensure cross-browser compatibility.",
+      ],
+      requirements: [
+        "1-3 years of solid frontend experience with React and JavaScript/TypeScript.",
+      ],
+      benefits: [
+        "100% Remote flexibility",
+        "Medical insurance and paid time off",
+      ],
       applicantsCount: 83,
       status: "Active",
       postedOn: "Just now",
@@ -404,6 +524,18 @@ export default function CompanyDashboardPage() {
           console.error(e);
         }
       }
+
+      const savedJobs = localStorage.getItem("company_posted_jobs");
+      if (savedJobs) {
+        try {
+          const parsedJobs = JSON.parse(savedJobs);
+          if (Array.isArray(parsedJobs) && parsedJobs.length > 0) {
+            setJobs(parsedJobs);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
     }
   }, []);
 
@@ -492,28 +624,145 @@ export default function CompanyDashboardPage() {
     );
   };
 
-  // Action: Post New Job
-  const handleCreateJob = (e: React.FormEvent) => {
+  // Modal Handlers: Open New Job / Edit Existing Job
+  const openNewJobModal = () => {
+    setEditingJobId(null);
+    setJobTitle("");
+    setJobDepartment("Engineering");
+    setJobLocation("Bengaluru, Karnataka");
+    setJobWorkplace("Remote");
+    setJobType("Full-time");
+    setJobExperience("3 - 5 years");
+    setJobSalary("₹18L - ₹24L/yr");
+    setJobOpenings("2");
+    setJobPostedBy("Talent Acquisition Team");
+    setJobTags("React, Next.js, TypeScript, Tailwind");
+    setJobDescription(
+      "We are looking for an experienced professional to join our team and build scalable, modern applications. You will collaborate closely with cross-functional teams to design, architect, and deliver exceptional digital solutions."
+    );
+    setJobResponsibilities(
+      "Architect and ship modern, performant web applications using best coding practices.\nCollaborate with UX designers to translate telemetry into elegant dashboards.\nOptimize runtime performance, code quality, and core web vitals.\nMentor team members and participate in code reviews."
+    );
+    setJobRequirements(
+      "3+ years of professional industry experience in relevant technologies.\nStrong understanding of system design, state management, and modern API integrations.\nProven ability to solve complex problems and write clean, maintainable code.\nExcellent communication and cross-team collaboration skills."
+    );
+    setJobBenefits(
+      "Flexible Remote / Hybrid work arrangement with home office allowance\nCompetitive stock options (ESOPs) & annual bonuses\nComprehensive medical insurance for employee and dependents\nAnnual learning & skill development budget"
+    );
+    setIsPostJobModalOpen(true);
+  };
+
+  const openEditJobModal = (job: PostedJob) => {
+    setEditingJobId(job.id);
+    setJobTitle(job.title || "");
+    setJobDepartment(job.department || "Engineering");
+    setJobLocation(job.location || "Bengaluru, Karnataka");
+    setJobWorkplace(job.workplace || "Remote");
+    setJobType(job.type || "Full-time");
+    setJobExperience(job.experience || "3 - 5 years");
+    setJobSalary(job.salary || "₹18L - ₹24L/yr");
+    setJobOpenings(String(job.openings || 1));
+    setJobPostedBy(job.postedBy || "Talent Acquisition Team");
+    setJobTags((job.tags || []).join(", "));
+    setJobDescription(job.description || "");
+    setJobResponsibilities((job.responsibilities || []).join("\n"));
+    setJobRequirements((job.requirements || []).join("\n"));
+    setJobBenefits((job.benefits || []).join("\n"));
+    setIsPostJobModalOpen(true);
+  };
+
+  // Action: Save Job (Create or Edit)
+  const handleSaveJob = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim()) {
+    if (!jobTitle.trim()) {
       showToast("Please enter a valid job title");
       return;
     }
-    const newJob: PostedJob = {
-      id: `JOB-${Math.floor(100 + Math.random() * 900)}`,
-      title: newTitle,
-      department: newDept,
-      location: newLocation,
-      type: newType,
-      salary: newSalary,
-      applicantsCount: 0,
-      status: "Active",
-      postedOn: "Just now",
-    };
-    setJobs([newJob, ...jobs]);
+
+    const parsedTags = jobTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const parsedResponsibilities = jobResponsibilities
+      .split("\n")
+      .map((r) => r.trim())
+      .filter(Boolean);
+
+    const parsedRequirements = jobRequirements
+      .split("\n")
+      .map((r) => r.trim())
+      .filter(Boolean);
+
+    const parsedBenefits = jobBenefits
+      .split("\n")
+      .map((b) => b.trim())
+      .filter(Boolean);
+
+    if (editingJobId) {
+      // Update existing job
+      setJobs((prev) => {
+        const updated = prev.map((j) => {
+          if (j.id === editingJobId) {
+            return {
+              ...j,
+              title: jobTitle,
+              department: jobDepartment,
+              location: jobLocation,
+              workplace: jobWorkplace,
+              type: jobType,
+              experience: jobExperience,
+              salary: jobSalary,
+              openings: Number(jobOpenings) || 1,
+              postedBy: jobPostedBy,
+              tags: parsedTags,
+              description: jobDescription,
+              responsibilities: parsedResponsibilities,
+              requirements: parsedRequirements,
+              benefits: parsedBenefits,
+            };
+          }
+          return j;
+        });
+        try {
+          localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+        } catch (err) {}
+        return updated;
+      });
+      showToast(`Job posting "${jobTitle}" updated successfully!`);
+    } else {
+      // Create new job
+      const newJob: PostedJob = {
+        id: `JOB-${Math.floor(100 + Math.random() * 900)}`,
+        title: jobTitle,
+        department: jobDepartment,
+        location: jobLocation,
+        workplace: jobWorkplace,
+        type: jobType,
+        experience: jobExperience,
+        salary: jobSalary,
+        openings: Number(jobOpenings) || 1,
+        postedBy: jobPostedBy,
+        tags: parsedTags.length > 0 ? parsedTags : ["Engineering", "Tech"],
+        description: jobDescription,
+        responsibilities: parsedResponsibilities,
+        requirements: parsedRequirements,
+        benefits: parsedBenefits,
+        applicantsCount: 0,
+        status: "Active",
+        postedOn: "Just now",
+      };
+      setJobs((prev) => {
+        const updated = [newJob, ...prev];
+        try {
+          localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+        } catch (err) {}
+        return updated;
+      });
+      showToast(`Job posting "${newJob.title}" is now LIVE!`);
+    }
+
     setIsPostJobModalOpen(false);
-    setNewTitle("");
-    showToast(`Job posting "${newJob.title}" is now LIVE!`);
   };
 
   // Action: Buy More Resume Credits
@@ -1079,7 +1328,7 @@ export default function CompanyDashboardPage() {
                         <span>Active Job Openings</span>
                       </h3>
                       <button
-                        onClick={() => setIsPostJobModalOpen(true)}
+                        onClick={openNewJobModal}
                         className="text-xs font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
                       >
                         + Post
@@ -1519,7 +1768,7 @@ export default function CompanyDashboardPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setIsPostJobModalOpen(true)}
+                  onClick={openNewJobModal}
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition hover:scale-102"
                 >
                   <PlusCircle className="w-4 h-4" />
@@ -1534,9 +1783,9 @@ export default function CompanyDashboardPage() {
                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200/80">
                       <tr>
                         <th className="py-3.5 px-6">Job Role & ID</th>
-                        <th className="py-3.5 px-6">Department</th>
+                        <th className="py-3.5 px-6">Department & Mode</th>
                         <th className="py-3.5 px-6">Location</th>
-                        <th className="py-3.5 px-6">Salary Range</th>
+                        <th className="py-3.5 px-6">Salary & Exp</th>
                         <th className="py-3.5 px-6">Applications</th>
                         <th className="py-3.5 px-6">Status</th>
                         <th className="py-3.5 px-6 text-right">Actions</th>
@@ -1546,12 +1795,27 @@ export default function CompanyDashboardPage() {
                       {jobs.map((job) => (
                         <tr key={job.id} className="hover:bg-slate-50/60 transition">
                           <td className="py-4 px-6 font-bold text-slate-900">
-                            <div>{job.title}</div>
-                            <span className="text-[10px] text-slate-400 font-mono">{job.id}</span>
+                            <div className="flex items-center gap-2">
+                              <span>{job.title}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-slate-400 font-mono">{job.id}</span>
+                              {job.openings && (
+                                <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded font-medium">
+                                  {job.openings} Openings
+                                </span>
+                              )}
+                            </div>
                           </td>
-                          <td className="py-4 px-6 text-slate-600">{job.department}</td>
+                          <td className="py-4 px-6">
+                            <div className="font-semibold text-slate-700">{job.department}</div>
+                            <span className="text-[10px] text-slate-500 font-medium">{job.workplace || "Remote"} • {job.type}</span>
+                          </td>
                           <td className="py-4 px-6 text-slate-600">{job.location}</td>
-                          <td className="py-4 px-6 font-semibold text-emerald-600">{job.salary}</td>
+                          <td className="py-4 px-6">
+                            <div className="font-semibold text-emerald-600">{job.salary}</div>
+                            <div className="text-[10px] text-slate-400">{job.experience || "0 - 1 years"}</div>
+                          </td>
                           <td className="py-4 px-6">
                             <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                               {job.applicantsCount} Candidates
@@ -1568,31 +1832,49 @@ export default function CompanyDashboardPage() {
                               {job.status}
                             </span>
                           </td>
-                          <td className="py-4 px-6 text-right space-x-2">
+                          <td className="py-4 px-6 text-right space-x-1.5">
+                            <button
+                              onClick={() => openEditJobModal(job)}
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold cursor-pointer transition inline-flex items-center gap-1"
+                              title="Edit Job Details"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
                             <button
                               onClick={() => {
-                                setJobs((prev) =>
-                                  prev.map((j) =>
+                                setJobs((prev) => {
+                                  const updated = prev.map((j) =>
                                     j.id === job.id
                                       ? {
                                           ...j,
-                                          status: j.status === "Active" ? "Paused" : "Active",
+                                          status: (j.status === "Active" ? "Paused" : "Active") as "Active" | "Paused" | "Closed",
                                         }
                                       : j
-                                  )
-                                );
+                                  );
+                                  try {
+                                    localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+                                  } catch (err) {}
+                                  return updated;
+                                });
                                 showToast(`Job status updated for ${job.title}`);
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold cursor-pointer transition"
                             >
                               {job.status === "Active" ? "Pause" : "Activate"}
                             </button>
                             <button
                               onClick={() => {
-                                setJobs((prev) => prev.filter((j) => j.id !== job.id));
+                                setJobs((prev) => {
+                                  const updated = prev.filter((j) => j.id !== job.id);
+                                  try {
+                                    localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+                                  } catch (err) {}
+                                  return updated;
+                                });
                                 showToast(`Job ${job.title} deleted`);
                               }}
-                              className="p-1 rounded-lg text-rose-500 hover:bg-rose-50 cursor-pointer"
+                              className="p-1 rounded-lg text-rose-500 hover:bg-rose-50 cursor-pointer transition"
                               title="Delete job"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -2112,97 +2394,289 @@ export default function CompanyDashboardPage() {
         </main>
       </div>
 
-      {/* MODAL 1: POST A NEW JOB (Clean Light Theme) */}
+      {/* MODAL 1: POST OR EDIT JOB (Complete /jobs/1 specification matching) */}
       {isPostJobModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <PlusCircle className="w-5 h-5 text-blue-600" />
-                <h3 className="text-base font-black text-slate-900">Create New Job Posting</h3>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 my-6 max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <Briefcase className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">
+                    {editingJobId ? "Edit Job Posting" : "Create New Job Posting"}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Specify role requirements, experience, compensation, and benefits matching AddyJob live view.
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setIsPostJobModalOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600"
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer transition shrink-0"
+                title="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateJob} className="space-y-4 pt-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Job Title</label>
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSaveJob} className="overflow-y-auto pr-1 sm:pr-2 pt-5 space-y-6 text-xs flex-1">
+              {/* SECTION 1: ROLE IDENTITY & CLASSIFICATION */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                  1. Role Classification & Details
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Job Title <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      placeholder="e.g. Senior Frontend Engineer (React/Next.js)"
+                      required
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Category / Department</label>
+                    <select
+                      value={jobDepartment}
+                      onChange={(e) => setJobDepartment(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden cursor-pointer font-medium"
+                    >
+                      <option value="Engineering">Engineering</option>
+                      <option value="Product Design">Product Design (UI/UX)</option>
+                      <option value="Platform Eng">Platform Eng / DevOps</option>
+                      <option value="Product Management">Product Management</option>
+                      <option value="Marketing">Marketing & Growth</option>
+                      <option value="Sales & BD">Sales & BD</option>
+                      <option value="Data & Analytics">Data & Analytics</option>
+                      <option value="Human Resources">Human Resources</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Workplace Policy</label>
+                    <select
+                      value={jobWorkplace}
+                      onChange={(e) => setJobWorkplace(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden cursor-pointer font-medium"
+                    >
+                      <option value="Remote">Remote</option>
+                      <option value="Hybrid">Hybrid</option>
+                      <option value="On-site">On-site (In-office)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Employment Type</label>
+                    <select
+                      value={jobType}
+                      onChange={(e) => setJobType(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden cursor-pointer font-medium"
+                    >
+                      <option value="Full-time">Full-time</option>
+                      <option value="Part-time">Part-time</option>
+                      <option value="Contract">Contract</option>
+                      <option value="Internship">Internship</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Experience Required</label>
+                    <input
+                      type="text"
+                      value={jobExperience}
+                      onChange={(e) => setJobExperience(e.target.value)}
+                      placeholder="e.g. 0 - 1 years, 3 - 5 years"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: LOGISTICS, COMPENSATION & RECRUITER */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                  2. Compensation, Location & Logistics
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Salary Range</label>
+                    <input
+                      type="text"
+                      value={jobSalary}
+                      onChange={(e) => setJobSalary(e.target.value)}
+                      placeholder="e.g. ₹18L - ₹24L/yr"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Location</label>
+                    <input
+                      type="text"
+                      value={jobLocation}
+                      onChange={(e) => setJobLocation(e.target.value)}
+                      placeholder="e.g. Bengaluru, Karnataka"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Total Openings</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={jobOpenings}
+                      onChange={(e) => setJobOpenings(e.target.value)}
+                      placeholder="e.g. 2"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Posted By / Recruiter Dept</label>
+                  <input
+                    type="text"
+                    value={jobPostedBy}
+                    onChange={(e) => setJobPostedBy(e.target.value)}
+                    placeholder="e.g. Talent Acquisition Team / PERSOL"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* SECTION 3: REQUIRED SKILLS & TECHNOLOGIES */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                    3. Required Skills & Technologies (Tags)
+                  </h4>
+                  <span className="text-[11px] text-slate-400">Separate skills with commas</span>
+                </div>
+
                 <input
                   type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Senior Frontend Engineer"
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                  value={jobTags}
+                  onChange={(e) => setJobTags(e.target.value)}
+                  placeholder="e.g. React, Next.js, TypeScript, Tailwind, Node.js"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
                 />
+
+                {/* Live Tag Badges Preview */}
+                {jobTags.trim() && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase mr-1">Preview:</span>
+                    {jobTags
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean)
+                      .map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* SECTION 4: ROLE OVERVIEW & SPECIFICATIONS */}
+              <div className="space-y-4 pt-2 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                  4. Role Description, Responsibilities & Perks
+                </h4>
+
+                {/* Role Overview */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Department</label>
-                  <input
-                    type="text"
-                    value={newDept}
-                    onChange={(e) => setNewDept(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                  <label className="font-bold text-slate-700 block mb-1">Role Overview</label>
+                  <textarea
+                    rows={3}
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="We are looking for an experienced Senior Frontend Engineer to architect and build our next-generation cloud dashboard..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden leading-relaxed resize-y font-normal"
                   />
                 </div>
+
+                {/* Key Responsibilities */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Employment Type</label>
-                  <select
-                    value={newType}
-                    onChange={(e) => setNewType(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden cursor-pointer"
-                  >
-                    <option value="Full-time">Full-time</option>
-                    <option value="Part-time">Part-time</option>
-                    <option value="Contract">Contract</option>
-                    <option value="Internship">Internship</option>
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700">Key Responsibilities</label>
+                    <span className="text-[10px] text-slate-400">1 item per line</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={jobResponsibilities}
+                    onChange={(e) => setJobResponsibilities(e.target.value)}
+                    placeholder="Architect and ship modern, performant web applications using Next.js and TypeScript.&#10;Collaborate with UX designers to translate complex cloud telemetry into elegant dashboards.&#10;Optimize frontend asset loading, runtime performance, and core web vitals."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
+                  />
+                </div>
+
+                {/* Requirements & Experience */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700">Requirements & Qualifications</label>
+                    <span className="text-[10px] text-slate-400">1 item per line</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={jobRequirements}
+                    onChange={(e) => setJobRequirements(e.target.value)}
+                    placeholder="4+ years of professional experience with React, Next.js, and TypeScript.&#10;Deep understanding of server components, state management, and modern CSS frameworks.&#10;Familiarity with REST and GraphQL APIs, WebSockets, and performance profiling."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
+                  />
+                </div>
+
+                {/* Perks & Benefits */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700">Perks & Benefits</label>
+                    <span className="text-[10px] text-slate-400">1 item per line</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={jobBenefits}
+                    onChange={(e) => setJobBenefits(e.target.value)}
+                    placeholder="100% Remote flexibility with home-office setup allowance&#10;Competitive stock options (ESOPs) & annual bonuses&#10;Comprehensive medical insurance for employee and dependents&#10;₹1,00,000 annual learning & certification budget"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Location</label>
-                  <input
-                    type="text"
-                    value={newLocation}
-                    onChange={(e) => setNewLocation(e.target.value)}
-                    placeholder="e.g. Bengaluru / Remote"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Salary Range</label>
-                  <input
-                    type="text"
-                    value={newSalary}
-                    onChange={(e) => setNewSalary(e.target.value)}
-                    placeholder="e.g. ₹18L - ₹24L/yr"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              {/* Form Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 shrink-0 sticky bottom-0 bg-white">
                 <button
                   type="button"
                   onClick={() => setIsPostJobModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200"
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-2"
                 >
-                  Publish Job
+                  <Check className="w-4 h-4" />
+                  <span>{editingJobId ? "Save Changes" : "Publish Job Opening"}</span>
                 </button>
               </div>
             </form>
