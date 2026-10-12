@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { User, IUser } from '../models/user.model.js';
 import { UserCredential } from '../models/credential.model.js';
 import { UserProfile } from '../models/profile.model.js';
+import { ensureDBConnection } from '../config/db.js';
 import {
   getNextCustomUserId,
   saveAuthToFile,
@@ -107,6 +108,16 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     if (!password || password.length < 6) {
       res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+      return;
+    }
+
+    // Ensure database connection is active and healthy
+    const isDbReady = await ensureDBConnection();
+    if (!isDbReady) {
+      res.status(503).json({
+        success: false,
+        message: 'Database service is temporarily unavailable. Reconnecting, please try again in a moment.',
+      });
       return;
     }
 
@@ -277,6 +288,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({
         success: false,
         message: 'Please provide both email address and password',
+      });
+      return;
+    }
+
+    // Ensure database connection is active and healthy
+    const isDbReady = await ensureDBConnection();
+    if (!isDbReady) {
+      res.status(503).json({
+        success: false,
+        message: 'Database service is temporarily unavailable. Reconnecting, please try again in a moment.',
       });
       return;
     }
