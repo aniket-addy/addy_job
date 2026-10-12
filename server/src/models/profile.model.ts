@@ -17,6 +17,11 @@ export interface IUserProfile extends Document {
   gradeScore?: string;
   skills?: string[];
   targetRole?: string;
+  headline?: string;
+  bio?: string;
+  languages?: string;
+  resumeName?: string;
+  resumeDate?: string;
   preferredLocation?: string;
   expectedSalary?: string;
   // Company fields if role is company
@@ -99,6 +104,26 @@ const userProfileSchema = new Schema<IUserProfile>(
       default: [],
     },
     targetRole: {
+      type: String,
+      trim: true,
+    },
+    headline: {
+      type: String,
+      trim: true,
+    },
+    bio: {
+      type: String,
+      trim: true,
+    },
+    languages: {
+      type: String,
+      trim: true,
+    },
+    resumeName: {
+      type: String,
+      trim: true,
+    },
+    resumeDate: {
       type: String,
       trim: true,
     },

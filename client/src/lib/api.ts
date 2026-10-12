@@ -3,9 +3,14 @@ export const API_BASE_URL =
 
 export interface UserSession {
   id: string;
+  userId?: string;
+  customId?: string;
   email: string;
   role: 'job_seeker' | 'company' | 'admin';
   name: string;
+  headline?: string;
+  bio?: string;
+  languages?: string;
   targetRole?: string;
   experience?: string;
   highestQualification?: string;
@@ -21,6 +26,12 @@ export interface UserSession {
   workStatus?: string;
   preferredLocation?: string;
   expectedSalary?: string;
+  resumeName?: string;
+  resumeDate?: string;
+  appliedJobsCount?: number;
+  savedJobsCount?: number;
+  interviewsCount?: number;
+  profileViewsCount?: number;
   companyName?: string;
   workEmail?: string;
   industry?: string;
@@ -197,3 +208,46 @@ export async function fetchCurrentUser(): Promise<UserSession | null> {
     return null;
   }
 }
+
+// Update User Profile API call
+export async function updateUserProfile(
+  payload: Partial<UserSession>
+): Promise<{ success: boolean; message: string; user?: UserSession }> {
+  const token = getAuthToken();
+  if (!token) {
+    return { success: false, message: 'You are not logged in.' };
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return {
+        success: false,
+        message: data.message || 'Failed to update profile.',
+      };
+    }
+
+    if (data.user) {
+      setAuthSession(token, data.user);
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error('API update profile error:', error);
+    return {
+      success: false,
+      message: 'Failed to update profile. Please verify network connection.',
+    };
+  }
+}
+

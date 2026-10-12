@@ -38,7 +38,13 @@ import {
   CheckCircle,
   ArrowRight
 } from "lucide-react";
-import { getStoredUser, clearAuthSession } from "@/lib/api";
+import {
+  getStoredUser,
+  clearAuthSession,
+  fetchCurrentUser,
+  updateUserProfile,
+  UserSession,
+} from "@/lib/api";
 
 interface ApplicationItem {
   id: string;
@@ -51,48 +57,57 @@ interface ApplicationItem {
   avatarText: string;
 }
 
+const getInitials = (n: string): string => {
+  if (!n) return "C";
+  const clean = n.trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+};
+
+const formatEducation = (u: any): string => {
+  if (!u) return "";
+  const parts: string[] = [];
+  if (u.highestQualification) parts.push(u.highestQualification);
+  if (u.course && u.course !== u.highestQualification) parts.push(u.course);
+  if (u.specialization) parts.push(u.specialization);
+
+  let str = parts.filter(Boolean).join(" - ");
+  if (u.university) {
+    str += (str ? " • " : "") + u.university;
+  }
+  if (u.passingYear) {
+    const yearRange = u.startingYear ? `${u.startingYear} - ${u.passingYear}` : u.passingYear;
+    str += ` (${yearRange})`;
+  }
+  return str;
+};
+
 export default function CandidateDashboardPage() {
   const router = useRouter();
 
-  // Profile State
-  const [name, setName] = useState("Rahul Sharma");
+  // Profile State - all start clean/empty, loaded from backend
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [headline, setHeadline] = useState("");
+  const [experience, setExperience] = useState("");
+  const [location, setLocation] = useState("");
+  const [phone, setPhone] = useState("");
+  const [education, setEducation] = useState("");
+  const [languages, setLanguages] = useState("");
+  const [bio, setBio] = useState("");
+  const [skills, setSkills] = useState<string[]>([]);
+  const [resumeName, setResumeName] = useState("");
+  const [resumeDate, setResumeDate] = useState("");
 
-  useEffect(() => {
-    const user = getStoredUser();
-    if (!user) {
-      window.location.href = "/login";
-      return;
-    }
-    if (user.name) setName(user.name);
-    if (user.email) setEmail(user.email);
-  }, []);
-
-  const [headline, setHeadline] = useState("Frontend Developer");
-  const [experience, setExperience] = useState("2+ Years Experience");
-  const [location, setLocation] = useState("Noida, Uttar Pradesh");
-  const [email, setEmail] = useState("rahul.sharma@gmail.com");
-  const [phone, setPhone] = useState("+91 98765 43210");
-  const [education, setEducation] = useState("B.Tech in Computer Science (2020 - 2024)");
-  const [languages, setLanguages] = useState("English, Hindi");
-  const [bio, setBio] = useState(
-    "Passionate Frontend Developer with experience in building responsive and user-friendly web applications using React.js, Next.js and modern web technologies. Always eager to learn and work on challenging projects."
-  );
-
-  const [skills, setSkills] = useState([
-    "React.js",
-    "Next.js",
-    "JavaScript",
-    "Tailwind CSS",
-    "TypeScript",
-    "HTML",
-    "CSS",
-    "Node.js",
-    "Git",
-    "MongoDB",
-  ]);
-
-  const [resumeName, setResumeName] = useState("Rahul_Sharma_Resume.pdf");
-  const [resumeDate, setResumeDate] = useState("Updated 2 days ago • 1.2 MB");
+  // Real backend metrics
+  const [appliedJobsCount, setAppliedJobsCount] = useState(0);
+  const [savedJobsCount, setSavedJobsCount] = useState(0);
+  const [interviewsCount, setInterviewsCount] = useState(0);
+  const [profileViewsCount, setProfileViewsCount] = useState(0);
 
   // Navigation / Tab States
   const [activeSidebarTab, setActiveSidebarTab] = useState<
@@ -109,133 +124,156 @@ export default function CandidateDashboardPage() {
   const [uploadResumeModalOpen, setUploadResumeModalOpen] = useState(false);
   const [completeProfileModalOpen, setCompleteProfileModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Applications list matching the mockup
-  const [applications] = useState<ApplicationItem[]>([
-    {
-      id: "1",
-      role: "Frontend Developer",
-      company: "TechCorp",
-      location: "Noida",
-      status: "Applied",
-      date: "2 days ago",
-      avatarBg: "bg-blue-600",
-      avatarText: "TC",
-    },
-    {
-      id: "2",
-      role: "UI/UX Designer",
-      company: "BrightPath",
-      location: "Gurugram",
-      status: "Viewed",
-      date: "3 days ago",
-      avatarBg: "bg-purple-600",
-      avatarText: "BP",
-    },
-    {
-      id: "3",
-      role: "React Developer",
-      company: "InnovateTech",
-      location: "Bangalore",
-      status: "Interview",
-      date: "5 days ago",
-      avatarBg: "bg-indigo-600",
-      avatarText: "IT",
-    },
-  ]);
+  // Applications list
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
 
-  // Load user data from localStorage if available
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const user = getStoredUser();
-      if (user) {
-        if (user.name) setName(user.name);
-        if (user.email) setEmail(user.email);
-      }
-      const savedProfile = localStorage.getItem("candidate_profile_custom");
-      if (savedProfile) {
-        try {
-          const parsed = JSON.parse(savedProfile);
-          if (parsed.headline) setHeadline(parsed.headline);
-          if (parsed.experience) setExperience(parsed.experience);
-          if (parsed.location) setLocation(parsed.location);
-          if (parsed.phone) setPhone(parsed.phone);
-          if (parsed.education) setEducation(parsed.education);
-          if (parsed.languages) setLanguages(parsed.languages);
-          if (parsed.bio) setBio(parsed.bio);
-          if (parsed.skills) setSkills(parsed.skills);
-          if (parsed.resumeName) setResumeName(parsed.resumeName);
-        } catch (e) {
-          console.error(e);
-        }
-      }
+  const populateFromUser = (u: UserSession) => {
+    setCurrentUser(u);
+    setName(u.name || (u as any).fullName || u.email?.split("@")[0] || "");
+    setEmail(u.email || "");
+    setHeadline(u.headline || u.targetRole || "");
+    setExperience(u.experience || "");
+    setLocation(u.location || u.preferredLocation || "");
+    setPhone(u.phone || "");
+    setBio(u.bio || "");
+    setLanguages(u.languages || "");
+
+    if (Array.isArray(u.skills) && u.skills.length > 0) {
+      setSkills(u.skills);
+    } else {
+      setSkills([]);
     }
+
+    const eduStr = formatEducation(u);
+    setEducation(eduStr || (u.course ? u.course : ""));
+
+    setResumeName(u.resumeName || "");
+    setResumeDate(u.resumeDate || "");
+
+    setAppliedJobsCount(u.appliedJobsCount ?? 0);
+    setSavedJobsCount(u.savedJobsCount ?? 0);
+    setInterviewsCount(u.interviewsCount ?? 0);
+    setProfileViewsCount(u.profileViewsCount ?? 0);
+  };
+
+  // Load user data on mount from backend
+  useEffect(() => {
+    const init = async () => {
+      const stored = getStoredUser();
+      if (!stored) {
+        window.location.href = "/login";
+        return;
+      }
+      populateFromUser(stored);
+
+      try {
+        const fresh = await fetchCurrentUser();
+        if (fresh) {
+          populateFromUser(fresh);
+        }
+      } catch (e) {
+        console.error("Failed to fetch fresh user from backend:", e);
+      }
+    };
+    init();
   }, []);
+
+  // Compute profile completion score strictly from filled fields
+  const calculateProfileScore = () => {
+    let score = 0;
+    if (name) score += 15;
+    if (email) score += 15;
+    if (phone) score += 10;
+    if (headline || experience) score += 15;
+    if (location) score += 10;
+    if (skills.length > 0) score += 15;
+    if (education) score += 10;
+    if (bio) score += 10;
+    return Math.min(100, score);
+  };
+  const profileCompletion = calculateProfileScore();
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleSaveProfile = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsSaving(true);
     const formData = new FormData(e.currentTarget);
-    const newName = (formData.get("name") as string) || name;
-    const newHeadline = (formData.get("headline") as string) || headline;
-    const newExp = (formData.get("experience") as string) || experience;
-    const newLoc = (formData.get("location") as string) || location;
-    const newMail = (formData.get("email") as string) || email;
-    const newPhone = (formData.get("phone") as string) || phone;
-    const newBio = (formData.get("bio") as string) || bio;
-    const newEdu = (formData.get("education") as string) || education;
-    const newLang = (formData.get("languages") as string) || languages;
-    const rawSkills = (formData.get("skills") as string) || skills.join(", ");
+    const newName = (formData.get("name") as string)?.trim() || name;
+    const newHeadline = (formData.get("headline") as string)?.trim() || "";
+    const newExp = (formData.get("experience") as string)?.trim() || "";
+    const newLoc = (formData.get("location") as string)?.trim() || "";
+    const newPhone = (formData.get("phone") as string)?.trim() || "";
+    const newBio = (formData.get("bio") as string)?.trim() || "";
+    const newEdu = (formData.get("education") as string)?.trim() || "";
+    const newLang = (formData.get("languages") as string)?.trim() || "";
+    const rawSkills = (formData.get("skills") as string)?.trim() || "";
+    const splitSkills = rawSkills
+      ? rawSkills.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
 
-    setName(newName);
-    setHeadline(newHeadline);
-    setExperience(newExp);
-    setLocation(newLoc);
-    setEmail(newMail);
-    setPhone(newPhone);
-    setBio(newBio);
-    setEducation(newEdu);
-    setLanguages(newLang);
-    const splitSkills = rawSkills.split(",").map((s) => s.trim()).filter(Boolean);
-    if (splitSkills.length) setSkills(splitSkills);
+    const updatePayload = {
+      name: newName,
+      headline: newHeadline,
+      targetRole: newHeadline,
+      experience: newExp,
+      location: newLoc,
+      phone: newPhone,
+      bio: newBio,
+      course: newEdu,
+      languages: newLang,
+      skills: splitSkills,
+    };
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        "candidate_profile_custom",
-        JSON.stringify({
-          headline: newHeadline,
-          experience: newExp,
-          location: newLoc,
-          phone: newPhone,
-          bio: newBio,
-          education: newEdu,
-          languages: newLang,
-          skills: splitSkills,
-        })
-      );
+    try {
+      const res = await updateUserProfile(updatePayload);
+      if (res.success && res.user) {
+        populateFromUser(res.user);
+        setEditModalOpen(false);
+        showToast("Profile updated successfully in backend!");
+      } else {
+        showToast(res.message || "Failed to update profile.");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Error saving profile to server.");
+    } finally {
+      setIsSaving(false);
     }
-
-    setEditModalOpen(false);
-    showToast("Profile updated successfully!");
   };
 
-  const handleUploadResume = (e: React.FormEvent) => {
+  const handleUploadResume = async (e: React.FormEvent) => {
     e.preventDefault();
     const input = document.getElementById("resume-file-input") as HTMLInputElement;
+    let fileName = "";
+    let fileMeta = "";
     if (input?.files && input.files[0]) {
-      const fileName = input.files[0].name;
-      setResumeName(fileName);
-      setResumeDate("Updated just now • " + (input.files[0].size / (1024 * 1024)).toFixed(1) + " MB");
+      fileName = input.files[0].name;
+      fileMeta = "Updated just now • " + (input.files[0].size / (1024 * 1024)).toFixed(1) + " MB";
     } else {
-      setResumeName(`${name.replace(/\s+/g, "_")}_Resume_Updated.pdf`);
-      setResumeDate("Updated just now • 1.4 MB");
+      fileName = `${(name || "Candidate").replace(/\s+/g, "_")}_Resume.pdf`;
+      fileMeta = "Updated just now • 1.2 MB";
     }
-    setUploadResumeModalOpen(false);
-    showToast("Resume uploaded successfully!");
+
+    try {
+      const res = await updateUserProfile({
+        resumeName: fileName,
+        resumeDate: fileMeta,
+      });
+      if (res.success && res.user) {
+        populateFromUser(res.user);
+        setUploadResumeModalOpen(false);
+        showToast("Resume uploaded and saved to profile!");
+      } else {
+        showToast(res.message || "Failed to save resume.");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Error uploading resume.");
+    }
   };
 
   const handleLogout = () => {
@@ -332,17 +370,11 @@ export default function CandidateDashboardPage() {
               }}
               className="flex items-center gap-2.5 p-1 sm:pr-3 rounded-full hover:bg-slate-100 transition cursor-pointer"
             >
-              <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-slate-200/90 shadow-xs relative bg-blue-100">
-                <Image
-                  src="/reviewer-1.jpg"
-                  alt={name}
-                  width={36}
-                  height={36}
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-slate-200/90 shadow-xs relative bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs select-none">
+                {getInitials(name || currentUser?.userId || "C")}
               </div>
               <span className="hidden sm:inline-block text-xs font-bold text-slate-800 max-w-[120px] truncate">
-                {name}
+                {name || currentUser?.userId || "Candidate"}
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
             </button>
@@ -351,7 +383,7 @@ export default function CandidateDashboardPage() {
             {profileDropdownOpen && (
               <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95">
                 <div className="px-3 py-2.5 border-b border-slate-100">
-                  <p className="text-xs font-bold text-slate-900 truncate">{name}</p>
+                  <p className="text-xs font-bold text-slate-900 truncate">{name || currentUser?.userId || "Candidate"}</p>
                   <p className="text-[11px] text-slate-500 truncate">{email}</p>
                   <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-bold rounded-full bg-emerald-50 text-emerald-600 uppercase">
                     Job Seeker
@@ -445,9 +477,11 @@ export default function CandidateDashboardPage() {
                 <Send className="w-4 h-4 text-slate-500" />
                 <span>Applied Jobs</span>
               </div>
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
-                12
-              </span>
+              {appliedJobsCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {appliedJobsCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -486,9 +520,6 @@ export default function CandidateDashboardPage() {
                 <MessageSquare className="w-4 h-4 text-slate-500" />
                 <span>Messages</span>
               </div>
-              <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">
-                5
-              </span>
             </button>
 
             <button
@@ -536,7 +567,7 @@ export default function CandidateDashboardPage() {
         <main className="flex-1 flex flex-col gap-6 min-w-0">
           {/* 1. HERO PROFILE CARD */}
           <div className="relative overflow-hidden bg-gradient-to-br from-[#F0F5FF] via-[#EEF2FF] to-[#FAF5FF] rounded-3xl border border-blue-100/80 p-5 sm:p-7 shadow-xs">
-            {/* Watermark Script Text on Right (Mockup Match) */}
+            {/* Watermark Script Text on Right */}
             <div className="absolute right-6 top-8 select-none pointer-events-none hidden xl:block text-right">
               <span className="font-serif italic text-2xl lg:text-3xl font-normal text-indigo-400/40 tracking-wide">
                 Better Opportunities Ahead →
@@ -548,14 +579,8 @@ export default function CandidateDashboardPage() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 sm:gap-6">
                 {/* Avatar with Camera icon */}
                 <div className="relative shrink-0">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden ring-4 ring-white shadow-lg bg-blue-100">
-                    <Image
-                      src="/reviewer-1.jpg"
-                      alt={name}
-                      width={112}
-                      height={112}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden ring-4 ring-white shadow-lg bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-black text-2xl sm:text-3xl select-none">
+                    {getInitials(name || currentUser?.userId || "Candidate")}
                   </div>
                   <button
                     onClick={() => setEditModalOpen(true)}
@@ -570,57 +595,76 @@ export default function CandidateDashboardPage() {
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                      {name}
+                      {name || currentUser?.userId || "Candidate"}
                     </h1>
                     <span className="inline-flex items-center text-blue-600" title="Verified Candidate">
                       <CheckCircle className="w-5 h-5 fill-blue-600 text-white" />
                     </span>
                   </div>
 
-                  <p className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <span>{headline}</span>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-slate-600 font-normal">{experience}</span>
-                  </p>
+                  {(headline || experience) ? (
+                    <p className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      {headline && <span>{headline}</span>}
+                      {headline && experience && <span className="text-slate-300">|</span>}
+                      {experience && <span className="text-slate-600 font-normal">{experience}</span>}
+                    </p>
+                  ) : (
+                    <button
+                      onClick={() => setEditModalOpen(true)}
+                      className="text-xs text-blue-600 hover:underline font-medium flex items-center gap-1"
+                    >
+                      + Add target job role & experience
+                    </button>
+                  )}
 
-                  {/* Contact Badges */}
+                  {/* Contact Badges - ONLY SHOW FILLED ONES */}
                   <div className="flex flex-wrap items-center gap-y-1.5 gap-x-4 text-[11px] sm:text-xs text-slate-600 pt-0.5">
-                    <span className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                      {location}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-slate-400" />
-                      {email}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" />
-                      {phone}
-                    </span>
-                  </div>
-
-                  {/* Bio */}
-                  <p className="text-xs sm:text-[13px] text-slate-600 max-w-2xl leading-relaxed pt-1">
-                    {bio}
-                  </p>
-
-                  {/* Primary Skills Tags */}
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {skills.slice(0, 5).map((skill, i) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1 rounded-full text-[11px] font-semibold bg-white text-slate-700 border border-slate-200/80 shadow-2xs"
-                      >
-                        {skill}
+                    {location && (
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        {location}
                       </span>
-                    ))}
+                    )}
+                    {email && (
+                      <span className="flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
+                        {email}
+                      </span>
+                    )}
+                    {phone && (
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        {phone}
+                      </span>
+                    )}
                   </div>
+
+                  {/* Bio - ONLY SHOW IF FILLED */}
+                  {bio ? (
+                    <p className="text-xs sm:text-[13px] text-slate-600 max-w-2xl leading-relaxed pt-1">
+                      {bio}
+                    </p>
+                  ) : null}
+
+                  {/* Primary Skills Tags - ONLY SHOW IF ADDED */}
+                  {skills.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {skills.slice(0, 5).map((skill, i) => (
+                        <span
+                          key={i}
+                          className="px-3 py-1 rounded-full text-[11px] font-semibold bg-white text-slate-700 border border-slate-200/80 shadow-2xs"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Right Side: Circular Gauge & Edit Profile Button */}
               <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between w-full lg:w-auto gap-4 pt-4 lg:pt-0 border-t lg:border-t-0 border-blue-200/40">
-                {/* 85% Completion Gauge */}
+                {/* Dynamic Completion Gauge */}
                 <div className="flex items-center gap-3">
                   <div className="relative w-14 h-14 shrink-0 flex items-center justify-center">
                     <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
@@ -632,8 +676,8 @@ export default function CandidateDashboardPage() {
                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                       />
                       <path
-                        className="text-blue-600"
-                        strokeDasharray="85, 100"
+                        className="text-blue-600 transition-all duration-500"
+                        strokeDasharray={`${profileCompletion}, 100`}
                         strokeWidth="3.5"
                         strokeLinecap="round"
                         stroke="currentColor"
@@ -641,11 +685,11 @@ export default function CandidateDashboardPage() {
                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                       />
                     </svg>
-                    <span className="absolute text-[11px] font-black text-slate-900">85%</span>
+                    <span className="absolute text-[11px] font-black text-slate-900">{profileCompletion}%</span>
                   </div>
                   <div className="text-left">
                     <p className="text-[11px] font-bold text-slate-800">Profile</p>
-                    <p className="text-[10px] text-emerald-600 font-semibold">85% Complete</p>
+                    <p className="text-[10px] text-emerald-600 font-semibold">{profileCompletion}% Complete</p>
                   </div>
                 </div>
 
@@ -661,7 +705,7 @@ export default function CandidateDashboardPage() {
             </div>
           </div>
 
-          {/* 2. STATS ROW (4 Cards) */}
+          {/* 2. STATS ROW (4 Cards) - REAL DATA ONLY */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             {/* Card 1: Applied Jobs */}
             <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center gap-3 sm:gap-4 hover:border-purple-200 transition">
@@ -669,7 +713,7 @@ export default function CandidateDashboardPage() {
                 <Send className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">12</p>
+                <p className="text-xl sm:text-2xl font-black text-slate-900">{appliedJobsCount}</p>
                 <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Applied Jobs</p>
               </div>
             </div>
@@ -680,7 +724,7 @@ export default function CandidateDashboardPage() {
                 <Bookmark className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">5</p>
+                <p className="text-xl sm:text-2xl font-black text-slate-900">{savedJobsCount}</p>
                 <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Saved Jobs</p>
               </div>
             </div>
@@ -691,7 +735,7 @@ export default function CandidateDashboardPage() {
                 <Calendar className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">3</p>
+                <p className="text-xl sm:text-2xl font-black text-slate-900">{interviewsCount}</p>
                 <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Interviews</p>
               </div>
             </div>
@@ -702,7 +746,7 @@ export default function CandidateDashboardPage() {
                 <Eye className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">2</p>
+                <p className="text-xl sm:text-2xl font-black text-slate-900">{profileViewsCount}</p>
                 <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Profile Views</p>
               </div>
             </div>
@@ -784,7 +828,9 @@ export default function CandidateDashboardPage() {
                   </button>
                 </div>
 
-                <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed">{bio}</p>
+                <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed">
+                  {bio || "No summary provided yet. Click Edit to add details about your background, career goals and experience."}
+                </p>
 
                 {/* 2x2 Details Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
@@ -796,7 +842,7 @@ export default function CandidateDashboardPage() {
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                         Experience
                       </p>
-                      <p className="text-xs font-bold text-slate-800 mt-0.5">{experience}</p>
+                      <p className="text-xs font-bold text-slate-800 mt-0.5">{experience || "Not specified"}</p>
                     </div>
                   </div>
 
@@ -808,7 +854,7 @@ export default function CandidateDashboardPage() {
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                         Education
                       </p>
-                      <p className="text-xs font-bold text-slate-800 mt-0.5">{education}</p>
+                      <p className="text-xs font-bold text-slate-800 mt-0.5">{education || "Not specified"}</p>
                     </div>
                   </div>
 
@@ -820,7 +866,7 @@ export default function CandidateDashboardPage() {
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                         Location
                       </p>
-                      <p className="text-xs font-bold text-slate-800 mt-0.5">{location}</p>
+                      <p className="text-xs font-bold text-slate-800 mt-0.5">{location || "Not specified"}</p>
                     </div>
                   </div>
 
@@ -832,7 +878,7 @@ export default function CandidateDashboardPage() {
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                         Languages
                       </p>
-                      <p className="text-xs font-bold text-slate-800 mt-0.5">{languages}</p>
+                      <p className="text-xs font-bold text-slate-800 mt-0.5">{languages || "Not specified"}</p>
                     </div>
                   </div>
                 </div>
@@ -873,49 +919,65 @@ export default function CandidateDashboardPage() {
                 </div>
 
                 {/* Application list items */}
-                <div className="space-y-3">
-                  {applications.map((app) => (
-                    <div
-                      key={app.id}
-                      className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100 transition flex items-center justify-between gap-3 group cursor-pointer"
-                      onClick={() => showToast(`Application status for ${app.role}: ${app.status}`)}
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <div
-                          className={`w-10 h-10 rounded-2xl ${app.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-xs`}
-                        >
-                          {app.avatarText}
+                {applications.length > 0 ? (
+                  <div className="space-y-3">
+                    {applications.map((app) => (
+                      <div
+                        key={app.id}
+                        className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100 transition flex items-center justify-between gap-3 group cursor-pointer"
+                        onClick={() => showToast(`Application status for ${app.role}: ${app.status}`)}
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div
+                            className={`w-10 h-10 rounded-2xl ${app.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-xs`}
+                          >
+                            {app.avatarText}
+                          </div>
+                          <div>
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                              {app.role}
+                            </h4>
+                            <p className="text-[11px] text-slate-500">
+                              {app.company} • {app.location}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                            {app.role}
-                          </h4>
-                          <p className="text-[11px] text-slate-500">
-                            {app.company} • {app.location}
-                          </p>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            app.status === "Applied"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : app.status === "Viewed"
-                              ? "bg-orange-50 text-orange-700 border border-orange-200"
-                              : "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                          }`}
-                        >
-                          {app.status}
-                        </span>
-                        <span className="text-[11px] text-slate-400 hidden sm:inline-block">
-                          {app.date}
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition" />
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              app.status === "Applied"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : app.status === "Viewed"
+                                ? "bg-orange-50 text-orange-700 border border-orange-200"
+                                : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                            }`}
+                          >
+                            {app.status}
+                          </span>
+                          <span className="text-[11px] text-slate-400 hidden sm:inline-block">
+                            {app.date}
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 rounded-2xl bg-slate-50/50 border border-dashed border-slate-200 text-center flex flex-col items-center justify-center gap-1.5">
+                    <Briefcase className="w-8 h-8 text-slate-300" />
+                    <p className="text-xs font-bold text-slate-700 mt-1">No job applications yet</p>
+                    <p className="text-[11px] text-slate-400 max-w-sm">
+                      When you apply to jobs, your real-time application and interview status will appear here.
+                    </p>
+                    <Link
+                      href="/jobs"
+                      className="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition"
+                    >
+                      Browse Open Jobs
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -936,16 +998,20 @@ export default function CandidateDashboardPage() {
                   </button>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((skill, index) => (
-                    <span
-                      key={index}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80 transition"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+                {skills.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((skill, index) => (
+                      <span
+                        key={index}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80 transition"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No skills added yet. Click Edit to add your technical skills.</p>
+                )}
               </div>
 
               {/* Resume Card */}
@@ -955,34 +1021,34 @@ export default function CandidateDashboardPage() {
                     <FileText className="w-4 h-4 text-blue-600" />
                     <h2 className="text-base font-black text-slate-900 tracking-tight">Resume</h2>
                   </div>
-                  <button
-                    onClick={() => showToast("Viewing all resume versions...")}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                  >
-                    View All
-                  </button>
                 </div>
 
-                {/* PDF File Card */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0 border border-rose-100">
-                      PDF
+                {resumeName ? (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0 border border-rose-100">
+                        PDF
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">{resumeName}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{resumeDate}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 truncate">{resumeName}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{resumeDate}</p>
-                    </div>
+
+                    <button
+                      onClick={() => showToast(`Downloading ${resumeName}...`)}
+                      className="w-9 h-9 rounded-xl hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shrink-0 cursor-pointer"
+                      title="Download Resume"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
                   </div>
-
-                  <button
-                    onClick={() => showToast(`Downloading ${resumeName}...`)}
-                    className="w-9 h-9 rounded-xl hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shrink-0 cursor-pointer"
-                    title="Download Resume"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-slate-50/60 border border-dashed border-slate-200 text-center">
+                    <p className="text-xs font-medium text-slate-500">No resume uploaded yet</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Upload your CV to apply for jobs faster</p>
+                  </div>
+                )}
 
                 {/* Upload Button */}
                 <button
@@ -990,7 +1056,7 @@ export default function CandidateDashboardPage() {
                   className="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 text-xs font-bold flex items-center justify-center gap-2 transition hover:bg-blue-50/50 cursor-pointer"
                 >
                   <Upload className="w-4 h-4 text-blue-600" />
-                  <span>Upload New Resume</span>
+                  <span>{resumeName ? "Upload New Resume" : "Upload Resume"}</span>
                 </button>
               </div>
 
@@ -1404,9 +1470,10 @@ export default function CandidateDashboardPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20"
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                 >
-                  Save Changes
+                  {isSaving ? "Saving to server..." : "Save Changes"}
                 </button>
               </div>
             </form>

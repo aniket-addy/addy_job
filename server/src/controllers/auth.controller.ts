@@ -34,30 +34,39 @@ const formatUser = (user: IUser) => {
     customId: user.customId || user.userId || 'us01',
     email: user.email,
     role: user.role,
-    name: user.name || (user.role === 'company' ? user.companyName : 'User'),
-    targetRole: user.targetRole,
-    experience: user.experience,
-    highestQualification: user.highestQualification,
-    course: user.course,
-    courseType: user.courseType,
-    specialization: user.specialization,
-    university: user.university,
-    startingYear: user.startingYear,
-    passingYear: user.passingYear,
-    gradingSystem: user.gradingSystem,
-    gradeScore: user.gradeScore,
-    skills: user.skills,
-    workStatus: user.workStatus,
-    preferredLocation: user.preferredLocation,
-    expectedSalary: user.expectedSalary,
-    companyName: user.companyName,
-    workEmail: user.workEmail,
-    industry: user.industry,
-    companySize: user.companySize,
-    location: user.location,
-    phone: user.phone,
-    gstNumber: user.gstNumber,
-    status: user.status,
+    name: user.name || (user.role === 'company' ? user.companyName : user.userId || 'Candidate'),
+    headline: user.headline || user.targetRole || '',
+    bio: user.bio || '',
+    languages: user.languages || '',
+    targetRole: user.targetRole || '',
+    experience: user.experience || '',
+    highestQualification: user.highestQualification || '',
+    course: user.course || '',
+    courseType: user.courseType || '',
+    specialization: user.specialization || '',
+    university: user.university || '',
+    startingYear: user.startingYear || '',
+    passingYear: user.passingYear || '',
+    gradingSystem: user.gradingSystem || '',
+    gradeScore: user.gradeScore || '',
+    skills: user.skills || [],
+    workStatus: user.workStatus || '',
+    preferredLocation: user.preferredLocation || '',
+    expectedSalary: user.expectedSalary || '',
+    resumeName: user.resumeName || '',
+    resumeDate: user.resumeDate || '',
+    appliedJobsCount: user.appliedJobsCount ?? 0,
+    savedJobsCount: user.savedJobsCount ?? 0,
+    interviewsCount: user.interviewsCount ?? 0,
+    profileViewsCount: user.profileViewsCount ?? 0,
+    companyName: user.companyName || '',
+    workEmail: user.workEmail || '',
+    industry: user.industry || '',
+    companySize: user.companySize || '',
+    location: user.location || '',
+    phone: user.phone || '',
+    gstNumber: user.gstNumber || '',
+    status: user.status || 'Pending',
     createdAt: user.createdAt,
   };
 };
@@ -145,28 +154,29 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       password,
       role: role === 'company' ? 'company' : 'job_seeker',
       name: candidateName,
-      targetRole: targetRole || 'Frontend Developer',
-      experience: experience || '1-3 Years',
-      highestQualification,
-      course,
-      courseType,
-      specialization,
-      university,
-      startingYear,
-      passingYear,
-      gradingSystem,
-      gradeScore,
+      headline: targetRole || '',
+      targetRole: targetRole || '',
+      experience: experience || '',
+      highestQualification: highestQualification || '',
+      course: course || '',
+      courseType: courseType || '',
+      specialization: specialization || '',
+      university: university || '',
+      startingYear: startingYear || '',
+      passingYear: passingYear || '',
+      gradingSystem: gradingSystem || '',
+      gradeScore: gradeScore || '',
       skills: Array.isArray(skills) ? skills : typeof skills === 'string' && skills.length > 0 ? skills.split(',').map((s: string) => s.trim()) : [],
-      workStatus,
-      preferredLocation,
-      expectedSalary,
+      workStatus: workStatus || '',
+      preferredLocation: preferredLocation || '',
+      expectedSalary: expectedSalary || '',
       companyName: finalCompanyName,
       workEmail: workEmail || normalizedEmail,
-      industry: industry || 'Information Technology',
-      companySize: companySize || '11-50 employees',
-      location: location || 'Bengaluru, India',
-      phone: phone ? String(phone).trim() : undefined,
-      gstNumber: gstNumber ? String(gstNumber).trim().toUpperCase() : undefined,
+      industry: industry || '',
+      companySize: companySize || '',
+      location: location || '',
+      phone: phone ? String(phone).trim() : '',
+      gstNumber: gstNumber ? String(gstNumber).trim().toUpperCase() : '',
       status: role === 'company' ? 'Pending' : 'Approved',
     });
 
@@ -430,3 +440,160 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 };
+
+// @desc    Update current user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+export const updateProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ success: false, message: 'Not authorized, token missing' });
+      return;
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+
+    const isDbReady = await ensureDBConnection();
+    if (!isDbReady) {
+      res.status(503).json({ success: false, message: 'Database service is temporarily unavailable.' });
+      return;
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+
+    const {
+      name,
+      fullName,
+      headline,
+      targetRole,
+      experience,
+      location,
+      phone,
+      mobile,
+      bio,
+      highestQualification,
+      course,
+      courseType,
+      specialization,
+      university,
+      startingYear,
+      passingYear,
+      gradingSystem,
+      gradeScore,
+      languages,
+      skills,
+      preferredLocation,
+      expectedSalary,
+      workStatus,
+      resumeName,
+      resumeDate,
+    } = req.body;
+
+    if (name !== undefined) user.name = name;
+    if (fullName !== undefined) user.name = fullName;
+    if (headline !== undefined) user.headline = headline;
+    if (targetRole !== undefined) user.targetRole = targetRole;
+    if (experience !== undefined) user.experience = experience;
+    if (location !== undefined) user.location = location;
+    if (phone !== undefined) user.phone = phone;
+    if (mobile !== undefined) user.phone = mobile;
+    if (bio !== undefined) user.bio = bio;
+    if (highestQualification !== undefined) user.highestQualification = highestQualification;
+    if (course !== undefined) user.course = course;
+    if (courseType !== undefined) user.courseType = courseType;
+    if (specialization !== undefined) user.specialization = specialization;
+    if (university !== undefined) user.university = university;
+    if (startingYear !== undefined) user.startingYear = startingYear;
+    if (passingYear !== undefined) user.passingYear = passingYear;
+    if (gradingSystem !== undefined) user.gradingSystem = gradingSystem;
+    if (gradeScore !== undefined) user.gradeScore = gradeScore;
+    if (languages !== undefined) user.languages = languages;
+    if (preferredLocation !== undefined) user.preferredLocation = preferredLocation;
+    if (expectedSalary !== undefined) user.expectedSalary = expectedSalary;
+    if (workStatus !== undefined) user.workStatus = workStatus;
+    if (resumeName !== undefined) user.resumeName = resumeName;
+    if (resumeDate !== undefined) user.resumeDate = resumeDate;
+
+    if (skills !== undefined) {
+      user.skills = Array.isArray(skills)
+        ? skills
+        : typeof skills === 'string'
+        ? skills.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+    }
+
+    await user.save();
+
+    // Sync to UserProfile collection & disk backup
+    const customId = user.userId || user.customId || 'us01';
+    try {
+      await UserProfile.findOneAndUpdate(
+        { userId: customId },
+        {
+          fullName: user.name,
+          mobile: user.phone,
+          location: user.location,
+          targetRole: user.targetRole || user.headline,
+          headline: user.headline,
+          bio: user.bio,
+          languages: user.languages,
+          resumeName: user.resumeName,
+          resumeDate: user.resumeDate,
+          experience: user.experience,
+          skills: user.skills,
+          highestQualification: user.highestQualification,
+          course: user.course,
+          courseType: user.courseType,
+          specialization: user.specialization,
+          university: user.university,
+          startingYear: user.startingYear,
+          passingYear: user.passingYear,
+          gradingSystem: user.gradingSystem,
+          gradeScore: user.gradeScore,
+          preferredLocation: user.preferredLocation,
+          expectedSalary: user.expectedSalary,
+          workStatus: user.workStatus,
+        },
+        { upsert: true, new: true }
+      );
+
+      saveProfileToFile(customId, {
+        userId: customId,
+        fullName: user.name,
+        email: user.email,
+        mobile: user.phone,
+        location: user.location,
+        headline: user.headline,
+        bio: user.bio,
+        skills: user.skills,
+        experience: user.experience,
+        course: user.course,
+        university: user.university,
+        languages: user.languages,
+        resumeName: user.resumeName,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (syncErr: any) {
+      console.warn('Warning syncing UserProfile:', syncErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully!',
+      user: formatUser(user),
+    });
+  } catch (error: any) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update profile.',
+    });
+  }
+};
+
