@@ -56,6 +56,17 @@ export default function CandidateDashboardPage() {
 
   // Profile State
   const [name, setName] = useState("Rahul Sharma");
+
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+    if (user.name) setName(user.name);
+    if (user.email) setEmail(user.email);
+  }, []);
+
   const [headline, setHeadline] = useState("Frontend Developer");
   const [experience, setExperience] = useState("2+ Years Experience");
   const [location, setLocation] = useState("Noida, Uttar Pradesh");
@@ -229,7 +240,7 @@ export default function CandidateDashboardPage() {
 
   const handleLogout = () => {
     clearAuthSession();
-    router.push("/login");
+    window.location.href = "/";
   };
 
   return (

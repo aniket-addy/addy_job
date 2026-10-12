@@ -98,10 +98,21 @@ interface PurchasedResume {
 export default function CompanyDashboardPage() {
   const router = useRouter();
 
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+    if (user.name) setCompanyName(user.name);
+    if (user.email) setContactEmail(user.email);
+  }, []);
+
   // Active Tab
   const [activeTab, setActiveTab] = useState<
     "dashboard" | "profile" | "jobs" | "applicants" | "resumes" | "subscription" | "settings"
   >("dashboard");
+
 
   // Company Profile Info
   const [companyName, setCompanyName] = useState("Acme Global Technologies");
@@ -823,7 +834,7 @@ export default function CompanyDashboardPage() {
   // Logout
   const handleLogout = () => {
     clearAuthSession();
-    router.push("/login");
+    window.location.href = "/";
   };
 
   // Metrics calculation

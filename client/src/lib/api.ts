@@ -8,6 +8,19 @@ export interface UserSession {
   name: string;
   targetRole?: string;
   experience?: string;
+  highestQualification?: string;
+  course?: string;
+  courseType?: string;
+  specialization?: string;
+  university?: string;
+  startingYear?: string;
+  passingYear?: string;
+  gradingSystem?: string;
+  gradeScore?: string;
+  skills?: string[];
+  workStatus?: string;
+  preferredLocation?: string;
+  expectedSalary?: string;
   companyName?: string;
   workEmail?: string;
   industry?: string;
@@ -39,9 +52,17 @@ export const clearAuthSession = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('career_token');
     localStorage.removeItem('career_user');
+    sessionStorage.clear();
+
+    // Expire cookies
+    document.cookie = 'career_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    document.cookie = 'career_user=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+
     window.dispatchEvent(new Event('auth_change'));
+    window.dispatchEvent(new Event('storage'));
   }
 };
+
 
 // Get stored user from localStorage
 export const getStoredUser = (): UserSession | null => {
@@ -70,6 +91,19 @@ export async function registerUser(payload: {
   name?: string;
   targetRole?: string;
   experience?: string;
+  highestQualification?: string;
+  course?: string;
+  courseType?: string;
+  specialization?: string;
+  university?: string;
+  startingYear?: string;
+  passingYear?: string;
+  gradingSystem?: string;
+  gradeScore?: string;
+  skills?: string[];
+  workStatus?: string;
+  preferredLocation?: string;
+  expectedSalary?: string;
   companyName?: string;
   workEmail?: string;
   industry?: string;

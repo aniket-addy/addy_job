@@ -18,6 +18,7 @@ import {
   Briefcase,
   CheckCircle2,
 } from "lucide-react";
+import { clearAuthSession } from "@/lib/api";
 
 interface AdminHeaderProps {
   onToggleSidebar: () => void;
@@ -32,6 +33,11 @@ export default function AdminHeader({
 }: AdminHeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  const handleLogout = () => {
+    clearAuthSession();
+    window.location.href = "/";
+  };
 
   const notifications = [
     {
@@ -190,13 +196,14 @@ export default function AdminHeader({
                 </button>
               </div>
               <div className="border-t border-slate-100 pt-1">
-                <Link
-                  href="/"
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Logout</span>
-                </Link>
+                </button>
               </div>
             </div>
           )}

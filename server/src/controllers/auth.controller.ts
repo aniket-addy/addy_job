@@ -1,6 +1,13 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { User, IUser } from '../models/user.model.js';
+import { UserCredential } from '../models/credential.model.js';
+import { UserProfile } from '../models/profile.model.js';
+import {
+  getNextCustomUserId,
+  saveAuthToFile,
+  saveProfileToFile,
+} from '../utils/databaseStorage.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'addy_job_jwt_secret_super_secure_key_2025';
 
@@ -9,6 +16,7 @@ const generateToken = (user: IUser) => {
   return jwt.sign(
     {
       id: user._id,
+      userId: user.userId || user.customId,
       email: user.email,
       role: user.role,
     },
@@ -21,11 +29,26 @@ const generateToken = (user: IUser) => {
 const formatUser = (user: IUser) => {
   return {
     id: user._id,
+    userId: user.userId || user.customId || 'us01',
+    customId: user.customId || user.userId || 'us01',
     email: user.email,
     role: user.role,
     name: user.name || (user.role === 'company' ? user.companyName : 'User'),
     targetRole: user.targetRole,
     experience: user.experience,
+    highestQualification: user.highestQualification,
+    course: user.course,
+    courseType: user.courseType,
+    specialization: user.specialization,
+    university: user.university,
+    startingYear: user.startingYear,
+    passingYear: user.passingYear,
+    gradingSystem: user.gradingSystem,
+    gradeScore: user.gradeScore,
+    skills: user.skills,
+    workStatus: user.workStatus,
+    preferredLocation: user.preferredLocation,
+    expectedSalary: user.expectedSalary,
     companyName: user.companyName,
     workEmail: user.workEmail,
     industry: user.industry,
@@ -52,6 +75,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       name,
       targetRole,
       experience,
+      highestQualification,
+      course,
+      courseType,
+      specialization,
+      university,
+      startingYear,
+      passingYear,
+      gradingSystem,
+      gradeScore,
+      skills,
+      workStatus,
+      preferredLocation,
+      expectedSalary,
       // Company fields
       companyName,
       workEmail,
@@ -84,17 +120,35 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Generate sequential user ID in format: us01, us02, us03...
+    const customUserId = await getNextCustomUserId();
+
     // Create user object based on role
     const candidateName = fullName || name || (role === 'job_seeker' ? 'Candidate User' : '');
     const finalCompanyName = companyName || (role === 'company' ? 'Company Partner' : '');
 
     const newUser = new User({
+      userId: customUserId,
+      customId: customUserId,
       email: normalizedEmail,
       password,
       role: role === 'company' ? 'company' : 'job_seeker',
       name: candidateName,
       targetRole: targetRole || 'Frontend Developer',
       experience: experience || '1-3 Years',
+      highestQualification,
+      course,
+      courseType,
+      specialization,
+      university,
+      startingYear,
+      passingYear,
+      gradingSystem,
+      gradeScore,
+      skills: Array.isArray(skills) ? skills : typeof skills === 'string' && skills.length > 0 ? skills.split(',').map((s: string) => s.trim()) : [],
+      workStatus,
+      preferredLocation,
+      expectedSalary,
       companyName: finalCompanyName,
       workEmail: workEmail || normalizedEmail,
       industry: industry || 'Information Technology',
@@ -106,6 +160,92 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
 
     await newUser.save();
+
+    // 1. Save Credentials in separate collection (user_credentials)
+    try {
+      const newCredential = new UserCredential({
+        userId: customUserId,
+        email: normalizedEmail,
+        password: newUser.password, // hashed password
+        role: role === 'company' ? 'company' : 'job_seeker',
+      });
+      await newCredential.save();
+    } catch (credErr: any) {
+      console.warn('Warning saving to user_credentials collection:', credErr.message);
+    }
+
+    // 2. Save Profile in separate collection (user_profiles)
+    try {
+      const newProfile = new UserProfile({
+        userId: customUserId,
+        fullName: candidateName,
+        email: normalizedEmail,
+        mobile: phone,
+        workStatus,
+        highestQualification,
+        course,
+        courseType,
+        specialization,
+        university,
+        startingYear,
+        passingYear,
+        gradingSystem,
+        gradeScore,
+        skills: Array.isArray(skills) ? skills : typeof skills === 'string' && skills.length > 0 ? skills.split(',').map((s: string) => s.trim()) : [],
+        targetRole: targetRole || 'Frontend Developer',
+        preferredLocation,
+        expectedSalary,
+        companyName: finalCompanyName,
+        workEmail: workEmail || normalizedEmail,
+        industry,
+        companySize,
+        location,
+        phone,
+        gstNumber,
+      });
+      await newProfile.save();
+    } catch (profErr: any) {
+      console.warn('Warning saving to user_profiles collection:', profErr.message);
+    }
+
+    // 3. Save to physical database/auth folder (server/database/auth/us01.json)
+    saveAuthToFile(customUserId, {
+      userId: customUserId,
+      email: normalizedEmail,
+      passwordHash: newUser.password,
+      role: role === 'company' ? 'company' : 'job_seeker',
+      createdAt: new Date().toISOString(),
+    });
+
+    // 4. Save to physical database/profiles folder (server/database/profiles/us01.json)
+    saveProfileToFile(customUserId, {
+      userId: customUserId,
+      fullName: candidateName,
+      email: normalizedEmail,
+      mobile: phone,
+      workStatus,
+      highestQualification,
+      course,
+      courseType,
+      specialization,
+      university,
+      startingYear,
+      passingYear,
+      gradingSystem,
+      gradeScore,
+      skills: Array.isArray(skills) ? skills : typeof skills === 'string' && skills.length > 0 ? skills.split(',').map((s: string) => s.trim()) : [],
+      targetRole: targetRole || 'Frontend Developer',
+      preferredLocation,
+      expectedSalary,
+      companyName: finalCompanyName,
+      workEmail: workEmail || normalizedEmail,
+      industry,
+      companySize,
+      location,
+      phone,
+      gstNumber,
+      createdAt: new Date().toISOString(),
+    });
 
     const token = generateToken(newUser);
 
@@ -174,8 +314,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Find user in database
-    const user = await User.findOne({ email: normalizedEmail });
+    // Find user in database by email OR customId / userId (e.g. us01)
+    const user = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { userId: normalizedEmail.toLowerCase() },
+        { customId: normalizedEmail.toLowerCase() },
+      ],
+    });
     if (!user) {
       res.status(401).json({
         success: false,

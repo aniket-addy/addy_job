@@ -2,12 +2,27 @@ import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 export interface IUser extends Document {
+  userId?: string; // e.g. "us01", "us02"
+  customId?: string; // e.g. "us01", "us02"
   email: string;
   password?: string;
   role: 'job_seeker' | 'company' | 'admin';
   name?: string;
   targetRole?: string;
   experience?: string;
+  highestQualification?: string;
+  course?: string;
+  courseType?: string;
+  specialization?: string;
+  university?: string;
+  startingYear?: string;
+  passingYear?: string;
+  gradingSystem?: string;
+  gradeScore?: string;
+  skills?: string[];
+  workStatus?: string;
+  preferredLocation?: string;
+  expectedSalary?: string;
   companyName?: string;
   workEmail?: string;
   industry?: string;
@@ -23,6 +38,16 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
+    userId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    customId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
     email: {
       type: String,
       required: [true, 'Email address is required'],
@@ -56,6 +81,58 @@ const userSchema = new Schema<IUser>(
       type: String,
       trim: true,
       default: '1-3 Years',
+    },
+    highestQualification: {
+      type: String,
+      trim: true,
+    },
+    course: {
+      type: String,
+      trim: true,
+    },
+    courseType: {
+      type: String,
+      trim: true,
+    },
+    specialization: {
+      type: String,
+      trim: true,
+    },
+    university: {
+      type: String,
+      trim: true,
+    },
+    startingYear: {
+      type: String,
+      trim: true,
+    },
+    passingYear: {
+      type: String,
+      trim: true,
+    },
+    gradingSystem: {
+      type: String,
+      trim: true,
+    },
+    gradeScore: {
+      type: String,
+      trim: true,
+    },
+    skills: {
+      type: [String],
+      default: [],
+    },
+    workStatus: {
+      type: String,
+      trim: true,
+    },
+    preferredLocation: {
+      type: String,
+      trim: true,
+    },
+    expectedSalary: {
+      type: String,
+      trim: true,
     },
     // Company fields
     companyName: {
