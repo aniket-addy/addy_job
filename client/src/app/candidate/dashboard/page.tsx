@@ -36,7 +36,10 @@ import {
   Camera,
   Home,
   CheckCircle,
-  ArrowRight
+  ArrowRight,
+  Menu,
+  MoreVertical,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   getStoredUser,
@@ -123,6 +126,7 @@ export default function CandidateDashboardPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [uploadResumeModalOpen, setUploadResumeModalOpen] = useState(false);
   const [completeProfileModalOpen, setCompleteProfileModalOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -295,14 +299,33 @@ export default function CandidateDashboardPage() {
       )}
 
       {/* TOP HEADER BAR */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5" />
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs px-3 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-2">
+        {/* Brand Logo & Mobile Toggle */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 lg:hidden">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open navigation menu"
+              title="Menu"
+              className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open sidebar menu (3 dots)"
+              title="Menu (3 dots)"
+              className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+          </div>
+
+          <Link href="/" className="flex items-center gap-2 sm:gap-2.5 group">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-xl font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+            <span className="text-base sm:text-xl font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
               Career<span className="text-blue-600">Connect</span>
             </span>
           </Link>
@@ -423,6 +446,190 @@ export default function CandidateDashboardPage() {
           </div>
         </div>
       </header>
+
+      {/* CANDIDATE MOBILE DRAWER (Phone View) */}
+      {mobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+
+          <aside className="relative z-10 w-72 max-w-[85vw] bg-white h-full flex flex-col shadow-2xl animate-in slide-in-from-left duration-200 select-none">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+              <Link
+                href="/"
+                onClick={() => setMobileSidebarOpen(false)}
+                className="flex items-center gap-2.5"
+              >
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <span className="text-base font-black tracking-tight text-slate-900">
+                  Career<span className="text-blue-600">Connect</span>
+                </span>
+              </Link>
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                aria-label="Close menu"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Navigation links */}
+            <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-1">
+              <button
+                onClick={() => {
+                  setActiveSidebarTab("dashboard");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSidebarTab === "dashboard"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4 text-slate-500" />
+                <span>Dashboard</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSidebarTab("profile");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSidebarTab === "profile"
+                    ? "bg-blue-100/70 text-blue-700 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <User className="w-4 h-4 text-blue-600" />
+                <span>My Profile</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSidebarTab("resume");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSidebarTab === "resume"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <FileText className="w-4 h-4 text-slate-500" />
+                <span>My Resume</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSidebarTab("applied");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSidebarTab === "applied"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Send className="w-4 h-4 text-slate-500" />
+                  <span>Applied Jobs</span>
+                </div>
+                {appliedJobsCount > 0 && (
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                    {appliedJobsCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSidebarTab("saved");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSidebarTab === "saved"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Bookmark className="w-4 h-4 text-slate-500" />
+                <span>Saved Jobs</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSidebarTab("alerts");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSidebarTab === "alerts"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Bell className="w-4 h-4 text-slate-500" />
+                <span>Job Alerts</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSidebarTab("messages");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSidebarTab === "messages"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <MessageSquare className="w-4 h-4 text-slate-500" />
+                <span>Messages</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSidebarTab("settings");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeSidebarTab === "settings"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Settings className="w-4 h-4 text-slate-500" />
+                <span>Settings</span>
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                  {getInitials(name || currentUser?.userId || "C")}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">{name || "Candidate"}</p>
+                  <p className="text-[10px] text-slate-500 truncate">{email}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* MAIN CONTAINER: SIDEBAR + CONTENT */}
       <div className="flex-1 flex max-w-[1536px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 gap-6">
@@ -1602,6 +1809,66 @@ export default function CandidateDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Mobile Bottom Navigation for Candidate */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex items-center justify-around shadow-lg">
+        <button
+          onClick={() => setActiveSidebarTab("dashboard")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeSidebarTab === "dashboard" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Home className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Home</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSidebarTab("applied")}
+          className={`relative flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeSidebarTab === "applied" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Send className="w-5 h-5" />
+          {appliedJobsCount > 0 && (
+            <span className="absolute -top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 text-white text-[8px] font-bold flex items-center justify-center">
+              {appliedJobsCount}
+            </span>
+          )}
+          <span className="text-[10px] mt-0.5">Applied</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSidebarTab("resume")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeSidebarTab === "resume" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <FileText className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Resume</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSidebarTab("profile")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeSidebarTab === "profile" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <User className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Profile</span>
+        </button>
+
+        <button
+          onClick={() => setMobileSidebarOpen(true)}
+          title="Open menu (3 dots)"
+          aria-label="Open menu (3 dots)"
+          className="flex flex-col items-center justify-center p-1 text-slate-500 hover:text-blue-600 transition cursor-pointer group"
+        >
+          <div className="w-5 h-5 flex items-center justify-center">
+            <MoreHorizontal className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </div>
+          <span className="text-[10px] mt-0.5 font-medium group-hover:text-blue-600">Menu</span>
+        </button>
+      </div>
     </div>
   );
 }
