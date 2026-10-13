@@ -22,9 +22,15 @@ import { getStoredUser, clearAuthSession, UserSession } from "@/lib/api";
 
 interface NavbarProps {
   activeTab?: string;
+  actionButtonText?: string;
+  actionButtonHref?: string;
 }
 
-export default function Navbar({ activeTab }: NavbarProps) {
+export default function Navbar({
+  activeTab,
+  actionButtonText,
+  actionButtonHref,
+}: NavbarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -71,12 +77,12 @@ export default function Navbar({ activeTab }: NavbarProps) {
     <>
       <nav className="w-full bg-white/95 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16 sm:h-20 gap-2 sm:gap-4 lg:gap-8">
           {/* Logo Left */}
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <Link href="/" className="flex items-center gap-2 sm:gap-2.5 group shrink-0">
               {/* AddyJob Logo */}
-              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-xs shrink-0 group-hover:scale-105 transition-transform flex items-center justify-center bg-black">
+              <div className="relative w-8 h-8 sm:w-9 sm:h-9 md:w-9 md:h-9 lg:w-10 lg:h-10 rounded-xl overflow-hidden shadow-xs shrink-0 group-hover:scale-105 transition-transform flex items-center justify-center bg-black">
                 <Image
                   src="/addyjob-logo.png"
                   alt="AddyJob Logo"
@@ -86,28 +92,28 @@ export default function Navbar({ activeTab }: NavbarProps) {
                   priority
                 />
               </div>
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 font-sans">
+              <span className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight text-slate-900 font-sans whitespace-nowrap">
                 Addy<span className="text-blue-600">Job</span>
               </span>
             </Link>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center gap-8 lg:gap-10">
+          {/* Desktop & Tablet Navigation Links */}
+          <div className="hidden md:flex items-center gap-3 lg:gap-8 xl:gap-10 shrink-0">
             {navLinks.map((link) => {
               const isActive = getIsActive(link.href, link.name);
               return (
                 <Link
                   key={link.name}
                   href={link.href}
-                  className="relative py-2 text-sm lg:text-[15px] font-medium transition-colors group"
+                  className="relative py-2 text-xs md:text-[13px] lg:text-[15px] font-medium transition-colors group whitespace-nowrap shrink-0"
                 >
                   <span
-                    className={
+                    className={`whitespace-nowrap ${
                       isActive
                         ? "text-blue-600 font-semibold"
                         : "text-slate-600 hover:text-slate-900"
-                    }
+                    }`}
                   >
                     {link.name}
                   </span>
@@ -121,31 +127,31 @@ export default function Navbar({ activeTab }: NavbarProps) {
           </div>
 
           {/* Right Action Icons & Profile */}
-          <div className="hidden md:flex items-center gap-4 lg:gap-5 relative">
+          <div className="hidden md:flex items-center gap-2 sm:gap-3 lg:gap-5 relative shrink-0">
             {/* Search Link */}
             <Link
               href="/jobs"
               aria-label="Search Jobs"
-              className="p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-colors"
+              className="p-1.5 lg:p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-colors shrink-0"
             >
-              <Search className="w-5 h-5 stroke-[2]" />
+              <Search className="w-4 h-4 lg:w-5 lg:h-5 stroke-[2]" />
             </Link>
 
             {/* When Logged In: Show Bell, Profile Avatar with Dropdown, and Dashboard Button */}
             {mounted && currentUser ? (
               <>
                 {/* Notification Bell with Badge */}
-                <div className="relative">
+                <div className="relative shrink-0">
                   <button
                     onClick={() => {
                       setNotificationsOpen(!notificationsOpen);
                       setProfileOpen(false);
                     }}
                     aria-label="Notifications"
-                    className="relative p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-colors cursor-pointer"
+                    className="relative p-1.5 lg:p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-colors cursor-pointer shrink-0"
                   >
-                    <Bell className="w-5 h-5 stroke-[2]" />
-                    <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                    <Bell className="w-4 h-4 lg:w-5 lg:h-5 stroke-[2]" />
+                    <span className="absolute top-1 right-1 lg:top-1.5 lg:right-1.5 w-3.5 h-3.5 lg:w-4 lg:h-4 bg-rose-500 text-white text-[9px] lg:text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
                       1
                     </span>
                   </button>
@@ -172,14 +178,14 @@ export default function Navbar({ activeTab }: NavbarProps) {
                 </div>
 
                 {/* Profile Avatar & Dropdown */}
-                <div className="relative pl-1">
+                <div className="relative pl-0.5 lg:pl-1 shrink-0">
                   <button
                     onClick={() => {
                       setProfileOpen(!profileOpen);
                       setNotificationsOpen(false);
                     }}
                     title={currentUser.name || "My Profile"}
-                    className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-slate-200/90 shadow-xs hover:ring-blue-500 transition-all cursor-pointer flex items-center justify-center bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-sm hover:scale-105"
+                    className="w-8 h-8 lg:w-10 lg:h-10 rounded-full overflow-hidden ring-2 ring-slate-200/90 shadow-xs hover:ring-blue-500 transition-all cursor-pointer flex items-center justify-center bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs lg:text-sm hover:scale-105 shrink-0"
                   >
                     <Image
                       src={
@@ -219,7 +225,7 @@ export default function Navbar({ activeTab }: NavbarProps) {
                             onClick={() => setProfileOpen(false)}
                             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition"
                           >
-                            <Briefcase className="w-4 h-4 text-indigo-500" />
+                            <Briefcase className="w-4 h-4 text-indigo-500 shrink-0" />
                             <span>Employer Dashboard</span>
                           </Link>
                         ) : currentUser.role === "admin" ? (
@@ -228,7 +234,7 @@ export default function Navbar({ activeTab }: NavbarProps) {
                             onClick={() => setProfileOpen(false)}
                             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50/70 hover:bg-blue-100 transition"
                           >
-                            <ShieldCheck className="w-4 h-4 text-blue-600" />
+                            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
                             <span>Super Admin Portal</span>
                           </Link>
                         ) : (
@@ -237,7 +243,7 @@ export default function Navbar({ activeTab }: NavbarProps) {
                             onClick={() => setProfileOpen(false)}
                             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition"
                           >
-                            <User className="w-4 h-4 text-blue-500" />
+                            <User className="w-4 h-4 text-blue-500 shrink-0" />
                             <span>Candidate Profile / Dashboard</span>
                           </Link>
                         )}
@@ -247,7 +253,7 @@ export default function Navbar({ activeTab }: NavbarProps) {
                           onClick={handleLogout}
                           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 transition cursor-pointer text-left"
                         >
-                          <LogOut className="w-4 h-4" />
+                          <LogOut className="w-4 h-4 shrink-0" />
                           <span>Log Out</span>
                         </button>
                       </div>
@@ -259,35 +265,35 @@ export default function Navbar({ activeTab }: NavbarProps) {
                 {currentUser.role === "company" ? (
                   <Link
                     href="/company/dashboard"
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02]"
+                    className="flex items-center gap-1.5 px-3 lg:px-4 py-1.5 lg:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02] whitespace-nowrap shrink-0"
                   >
-                    <Briefcase className="w-3.5 h-3.5" />
-                    <span>Company Dashboard</span>
+                    <Briefcase className="w-3.5 h-3.5 shrink-0" />
+                    <span className="whitespace-nowrap">Company Dashboard</span>
                   </Link>
                 ) : currentUser.role === "admin" ? (
                   <Link
                     href="/admin"
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02]"
+                    className="flex items-center gap-1.5 px-3 lg:px-4 py-1.5 lg:py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02] whitespace-nowrap shrink-0"
                   >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Admin Dashboard</span>
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                    <span className="whitespace-nowrap">Admin Dashboard</span>
                   </Link>
                 ) : null}
               </>
             ) : (
-              /* When Logged Out: Show ONLY Sign In & Create Account buttons */
-              <div className="flex items-center gap-2">
+              /* When Logged Out: Show ONLY Sign In & Action buttons */
+              <div className="flex items-center gap-1.5 lg:gap-2.5 shrink-0">
                 <Link
                   href="/login"
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-blue-600 rounded-xl hover:bg-slate-50 transition-colors"
+                  className="px-2.5 lg:px-3.5 py-1.5 lg:py-2 text-xs font-semibold text-slate-700 hover:text-blue-600 rounded-xl hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
                 >
                   Sign In
                 </Link>
                 <Link
-                  href="/signup"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02]"
+                  href={actionButtonHref || "/signup"}
+                  className="flex items-center gap-1.5 px-3 lg:px-4 py-1.5 lg:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02] whitespace-nowrap shrink-0"
                 >
-                  <span>Create Account</span>
+                  <span className="whitespace-nowrap">{actionButtonText || "Create Account"}</span>
                 </Link>
               </div>
             )}
@@ -412,11 +418,11 @@ export default function Navbar({ activeTab }: NavbarProps) {
                   Sign In
                 </Link>
                 <Link
-                  href="/signup"
+                  href={actionButtonHref || "/signup"}
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full flex items-center justify-center py-2.5 px-3 bg-blue-600 text-white rounded-xl text-xs font-bold transition shadow-sm"
                 >
-                  Create Account
+                  {actionButtonText || "Create Account"}
                 </Link>
               </div>
             </div>

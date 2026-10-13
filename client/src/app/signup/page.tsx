@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { registerUser, setAuthSession } from "@/lib/api";
+import EmployerSignupView from "@/components/EmployerSignupView";
 
 export type UserRole = "job_seeker" | "company";
 
@@ -139,6 +140,17 @@ function SignupContent() {
     }
   };
 
+  if (step === 2 && selectedRole === "company") {
+    return (
+      <EmployerSignupView
+        onSwitchToJobSeeker={() => {
+          setSelectedRole("job_seeker");
+          setStep(2);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       <Navbar />
@@ -151,7 +163,7 @@ function SignupContent() {
             <div className="text-center mb-5 sm:mb-6">
               <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold mb-2 border border-blue-100">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Join CareerConnect</span>
+                <span>Join AddyJob</span>
               </div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
                 How would you like to join?
@@ -237,19 +249,19 @@ function SignupContent() {
                 onClick={() => setSelectedRole("company")}
                 className={`p-5 rounded-2xl border-2 transition-all duration-200 flex flex-col justify-between cursor-pointer group hover:-translate-y-0.5 hover:shadow-md ${
                   selectedRole === "company"
-                    ? "border-indigo-600 bg-indigo-50/40 shadow-sm"
-                    : "border-slate-200 hover:border-slate-300 bg-white"
+                    ? "border-[#7C3AED] bg-[#EDE9FE]/40 shadow-sm"
+                    : "border-slate-200 hover:border-[#DDD6FE] bg-white"
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center transition-transform group-hover:scale-105">
+                    <div className="w-10 h-10 rounded-xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center transition-transform group-hover:scale-105">
                       <Building2 className="w-5 h-5" />
                     </div>
                     <div
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
                         selectedRole === "company"
-                          ? "border-indigo-600 bg-indigo-600 text-white"
+                          ? "border-[#7C3AED] bg-[#7C3AED] text-white"
                           : "border-slate-300"
                       }`}
                     >
@@ -268,15 +280,15 @@ function SignupContent() {
 
                   <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
                     <li className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#7C3AED] shrink-0" />
                       <span>Post openings to 50,000+ candidates</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#7C3AED] shrink-0" />
                       <span>Screen & shortlist verified resumes</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#7C3AED] shrink-0" />
                       <span>Manage entire hiring & interview pipeline</span>
                     </li>
                   </ul>
@@ -291,8 +303,8 @@ function SignupContent() {
                     }}
                     className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                       selectedRole === "company"
-                        ? "bg-indigo-600 text-white shadow-sm"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        ? "bg-[#7C3AED] text-white shadow-sm"
+                        : "bg-slate-100 text-slate-700 hover:bg-[#EDE9FE] hover:text-[#7C3AED]"
                     }`}
                   >
                     <span>Sign up as Employer</span>
@@ -338,9 +350,22 @@ function SignupContent() {
                 <span>Change Account Type</span>
               </button>
 
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                Step 2 of 2
-              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedRole("company");
+                    setStep(2);
+                  }}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Employer Signup</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  Step 2 of 2
+                </span>
+              </div>
             </div>
 
             {/* Role Header */}

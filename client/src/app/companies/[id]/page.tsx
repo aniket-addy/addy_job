@@ -38,7 +38,7 @@ import {
   Phone,
 } from "lucide-react";
 
-export default function CompanyDetailPage() {
+function CompanyDetailPageContent() {
   const params = useParams();
   const companyId = params?.id as string;
 
@@ -628,5 +628,19 @@ export default function CompanyDetailPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function CompanyDetailPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-sm font-semibold text-slate-500">
+          Loading company details...
+        </div>
+      }
+    >
+      <CompanyDetailPageContent />
+    </React.Suspense>
   );
 }

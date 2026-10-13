@@ -26,7 +26,7 @@ import {
   Upload,
 } from "lucide-react";
 
-export default function JobDetailPage() {
+function JobDetailPageContent() {
   const params = useParams();
   const jobId = params?.id as string;
 
@@ -575,5 +575,19 @@ export default function JobDetailPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function JobDetailPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-sm font-semibold text-slate-500">
+          Loading job details...
+        </div>
+      }
+    >
+      <JobDetailPageContent />
+    </React.Suspense>
   );
 }

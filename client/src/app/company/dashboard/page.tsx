@@ -40,6 +40,7 @@ import {
   Globe,
   Share2,
   Pencil,
+  Menu,
 } from "lucide-react";
 import { getStoredUser, clearAuthSession } from "@/lib/api";
 
@@ -103,6 +104,16 @@ export default function CompanyDashboardPage() {
     "dashboard" | "profile" | "jobs" | "applicants" | "resumes" | "subscription" | "settings"
   >("dashboard");
 
+  // Mobile sidebar drawer state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const handleTabSwitch = (
+    tab: "dashboard" | "profile" | "jobs" | "applicants" | "resumes" | "subscription" | "settings"
+  ) => {
+    setActiveTab(tab);
+    setIsMobileSidebarOpen(false);
+  };
+
   // Company Profile Info
   const [companyName, setCompanyName] = useState("Acme Global Technologies");
   const [tagline, setTagline] = useState("Innovating enterprise software solutions");
@@ -134,6 +145,7 @@ export default function CompanyDashboardPage() {
   const [planValidity, setPlanValidity] = useState("Valid until Dec 31, 2026");
   const [totalResumesPurchased, setTotalResumesPurchased] = useState(50);
   const [resumesUsed, setResumesUsed] = useState(15);
+  const [activePlanCard, setActivePlanCard] = useState<"starter" | "pro" | "enterprise">("pro");
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -154,14 +166,14 @@ export default function CompanyDashboardPage() {
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [jobTitle, setJobTitle] = useState("");
   const [jobDepartment, setJobDepartment] = useState("Engineering");
-  const [jobLocation, setJobLocation] = useState("Bengaluru, Karnataka");
+  const [jobLocation, setJobLocation] = useState("");
   const [jobWorkplace, setJobWorkplace] = useState("Remote");
   const [jobType, setJobType] = useState("Full-time");
-  const [jobExperience, setJobExperience] = useState("3 - 5 years");
-  const [jobSalary, setJobSalary] = useState("₹18L - ₹24L/yr");
-  const [jobOpenings, setJobOpenings] = useState("2");
-  const [jobPostedBy, setJobPostedBy] = useState("Talent Acquisition Team");
-  const [jobTags, setJobTags] = useState("React, Next.js, TypeScript, Tailwind");
+  const [jobExperience, setJobExperience] = useState("");
+  const [jobSalary, setJobSalary] = useState("");
+  const [jobOpenings, setJobOpenings] = useState("1");
+  const [jobPostedBy, setJobPostedBy] = useState("");
+  const [jobTags, setJobTags] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobResponsibilities, setJobResponsibilities] = useState("");
   const [jobRequirements, setJobRequirements] = useState("");
@@ -629,26 +641,18 @@ export default function CompanyDashboardPage() {
     setEditingJobId(null);
     setJobTitle("");
     setJobDepartment("Engineering");
-    setJobLocation("Bengaluru, Karnataka");
+    setJobLocation("");
     setJobWorkplace("Remote");
     setJobType("Full-time");
-    setJobExperience("3 - 5 years");
-    setJobSalary("₹18L - ₹24L/yr");
-    setJobOpenings("2");
-    setJobPostedBy("Talent Acquisition Team");
-    setJobTags("React, Next.js, TypeScript, Tailwind");
-    setJobDescription(
-      "We are looking for an experienced professional to join our team and build scalable, modern applications. You will collaborate closely with cross-functional teams to design, architect, and deliver exceptional digital solutions."
-    );
-    setJobResponsibilities(
-      "Architect and ship modern, performant web applications using best coding practices.\nCollaborate with UX designers to translate telemetry into elegant dashboards.\nOptimize runtime performance, code quality, and core web vitals.\nMentor team members and participate in code reviews."
-    );
-    setJobRequirements(
-      "3+ years of professional industry experience in relevant technologies.\nStrong understanding of system design, state management, and modern API integrations.\nProven ability to solve complex problems and write clean, maintainable code.\nExcellent communication and cross-team collaboration skills."
-    );
-    setJobBenefits(
-      "Flexible Remote / Hybrid work arrangement with home office allowance\nCompetitive stock options (ESOPs) & annual bonuses\nComprehensive medical insurance for employee and dependents\nAnnual learning & skill development budget"
-    );
+    setJobExperience("");
+    setJobSalary("");
+    setJobOpenings("1");
+    setJobPostedBy("");
+    setJobTags("");
+    setJobDescription("");
+    setJobResponsibilities("");
+    setJobRequirements("");
+    setJobBenefits("");
     setIsPostJobModalOpen(true);
   };
 
@@ -848,7 +852,7 @@ export default function CompanyDashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex antialiased selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex antialiased selection:bg-[#DDD6FE] selection:text-[#5B21B6]">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed top-20 right-6 z-[999] bg-slate-900 border border-slate-700 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-4">
@@ -860,24 +864,46 @@ export default function CompanyDashboardPage() {
         </div>
       )}
 
-      {/* LEFT SIDEBAR (Clean Light Style - Matching Candidate / Super Admin) */}
-      <aside className="w-72 bg-white border-r border-slate-200/80 flex flex-col shrink-0 sticky top-0 h-screen z-30 select-none shadow-xs">
+      {/* Mobile Backdrop Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          onClick={() => setIsMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 lg:hidden transition-opacity duration-300"
+          aria-hidden="true"
+        />
+      )}
+
+      {/* LEFT SIDEBAR (Clean Light Style - Responsive drawer on mobile/tablet, sticky on lg) */}
+      <aside
+        className={`fixed top-0 bottom-0 left-0 z-50 w-72 h-screen bg-white border-r border-slate-200/80 flex flex-col shrink-0 select-none shadow-2xl lg:shadow-none transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:translate-x-0 ${
+          isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         {/* Sidebar Header */}
         <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-2xl bg-[#EDE9FE] border border-[#DDD6FE] flex items-center justify-center text-[#7C3AED] shadow-xs group-hover:scale-105 transition-transform">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
               <span className="text-base font-black tracking-tight text-slate-900 block">
-                Career<span className="text-blue-600">Connect</span>
+                Addy<span className="text-[#7C3AED]">Job</span>
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#7C3AED] flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3" />
                 Company Admin
               </span>
             </div>
           </Link>
+
+          {/* Mobile Close Button */}
+          <button
+            onClick={() => setIsMobileSidebarOpen(false)}
+            aria-label="Close navigation sidebar"
+            className="lg:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Middle Navigation (Scrollable) */}
@@ -887,73 +913,73 @@ export default function CompanyDashboardPage() {
           </div>
 
           <button
-            onClick={() => setActiveTab("dashboard")}
+            onClick={() => handleTabSwitch("dashboard")}
             className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
               activeTab === "dashboard"
-                ? "bg-blue-50 text-blue-600 font-extrabold shadow-2xs"
+                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <LayoutDashboard className="w-4 h-4 shrink-0 text-blue-600" />
+            <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === "dashboard" ? "text-[#7C3AED]" : "text-slate-500"}`} />
             <span className="flex-1 text-left">Dashboard</span>
           </button>
 
           <button
-            onClick={() => setActiveTab("profile")}
+            onClick={() => handleTabSwitch("profile")}
             className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
               activeTab === "profile"
-                ? "bg-blue-50 text-blue-600 font-extrabold shadow-2xs"
+                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <Building2 className="w-4 h-4 shrink-0 text-slate-500" />
+            <Building2 className={`w-4 h-4 shrink-0 ${activeTab === "profile" ? "text-[#7C3AED]" : "text-slate-500"}`} />
             <span className="flex-1 text-left">Company Profile</span>
           </button>
 
           <button
-            onClick={() => setActiveTab("jobs")}
+            onClick={() => handleTabSwitch("jobs")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
               activeTab === "jobs"
-                ? "bg-blue-50 text-blue-600 font-extrabold shadow-2xs"
+                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
             <div className="flex items-center gap-3.5">
-              <Briefcase className="w-4 h-4 shrink-0 text-slate-500" />
+              <Briefcase className={`w-4 h-4 shrink-0 ${activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500"}`} />
               <span>Job Postings</span>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
               {totalJobsCount}
             </span>
           </button>
 
           <button
-            onClick={() => setActiveTab("applicants")}
+            onClick={() => handleTabSwitch("applicants")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
               activeTab === "applicants"
-                ? "bg-blue-50 text-blue-600 font-extrabold shadow-2xs"
+                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
             <div className="flex items-center gap-3.5">
-              <Users className="w-4 h-4 shrink-0 text-slate-500" />
+              <Users className={`w-4 h-4 shrink-0 ${activeTab === "applicants" ? "text-[#7C3AED]" : "text-slate-500"}`} />
               <span>Applications</span>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-200">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
               {totalApplicantsCount}
             </span>
           </button>
 
           <button
-            onClick={() => setActiveTab("resumes")}
+            onClick={() => handleTabSwitch("resumes")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
               activeTab === "resumes"
-                ? "bg-blue-50 text-blue-600 font-extrabold shadow-2xs"
+                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
             <div className="flex items-center gap-3.5">
-              <FolderDown className="w-4 h-4 shrink-0 text-slate-500" />
+              <FolderDown className={`w-4 h-4 shrink-0 ${activeTab === "resumes" ? "text-[#7C3AED]" : "text-slate-500"}`} />
               <span>Resumes Purchased</span>
             </div>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
@@ -962,15 +988,15 @@ export default function CompanyDashboardPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("subscription")}
+            onClick={() => handleTabSwitch("subscription")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
               activeTab === "subscription"
-                ? "bg-blue-50 text-blue-600 font-extrabold shadow-2xs"
+                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
             <div className="flex items-center gap-3.5">
-              <CreditCard className="w-4 h-4 shrink-0 text-slate-500" />
+              <CreditCard className={`w-4 h-4 shrink-0 ${activeTab === "subscription" ? "text-[#7C3AED]" : "text-slate-500"}`} />
               <span>Our Subscription</span>
             </div>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
@@ -979,14 +1005,14 @@ export default function CompanyDashboardPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("settings")}
+            onClick={() => handleTabSwitch("settings")}
             className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
               activeTab === "settings"
-                ? "bg-blue-50 text-blue-600 font-extrabold shadow-2xs"
+                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             }`}
           >
-            <Settings className="w-4 h-4 shrink-0 text-slate-500" />
+            <Settings className={`w-4 h-4 shrink-0 ${activeTab === "settings" ? "text-[#7C3AED]" : "text-slate-500"}`} />
             <span className="flex-1 text-left">Settings</span>
           </button>
 
@@ -1006,8 +1032,11 @@ export default function CompanyDashboardPage() {
                 />
               </div>
               <button
-                onClick={() => setIsBuyCreditsModalOpen(true)}
-                className="mt-3 w-full py-1.5 px-3 rounded-xl bg-white hover:bg-blue-50 text-blue-600 text-[11px] font-bold border border-slate-200 hover:border-blue-300 transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                onClick={() => {
+                  setIsMobileSidebarOpen(false);
+                  setIsBuyCreditsModalOpen(true);
+                }}
+                className="mt-3 w-full py-1.5 px-3 rounded-xl bg-white hover:bg-[#F5F3FF] text-[#7C3AED] text-[11px] font-bold border border-slate-200 hover:border-[#DDD6FE] transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Buy More Credits</span>
@@ -1016,10 +1045,13 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
 
-        {/* Sidebar Footer: Logged in company & Logout */}
+        {/* Sidebar Footer: Logged in company & Logout (Light Lavender RA Avatar Badge) */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/60">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm">
+            <div
+              style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
+              className="w-10 h-10 rounded-2xl border flex items-center justify-center font-black text-sm shrink-0 shadow-xs"
+            >
               {companyName.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -1040,52 +1072,68 @@ export default function CompanyDashboardPage() {
       {/* RIGHT CONTENT WRAPPER */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         {/* TOP BAR */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 py-4 flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-4 flex-1 max-w-lg">
-            <div className="relative w-full">
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2.5 sm:gap-4 shadow-xs">
+          <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-2xl min-w-0">
+            {/* Hamburger Button for Mobile / Tablet */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              aria-label="Open navigation menu"
+              className="lg:hidden p-2 -ml-1 text-slate-600 hover:text-[#7C3AED] hover:bg-purple-50 rounded-xl border border-slate-200 shrink-0 transition cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Mobile & Tablet Brand Logo */}
+            <div className="flex items-center gap-1.5 lg:hidden shrink-0">
+              <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                Addy<span className="text-[#7C3AED]">Job</span>
+              </span>
+            </div>
+
+            <div className="relative w-full min-w-0">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search candidates, roles, or resume database..."
-                className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white text-xs text-slate-800 placeholder-slate-400 pl-10 pr-4 py-2.5 rounded-full border border-transparent focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-hidden transition"
+                placeholder="Search candidates, roles..."
+                className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white text-xs text-slate-800 placeholder-slate-400 pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 rounded-full border border-transparent focus:border-purple-300 focus:ring-4 focus:ring-purple-100 outline-hidden transition"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-3 sm:gap-4">
+          {/* Right Action Buttons (Hidden on mobile & tablet per user request, visible only on desktop lg+) */}
+          <div className="hidden lg:flex items-center gap-2 sm:gap-4 shrink-0">
             {/* Post Job Quick Action Button */}
             <button
               onClick={() => setIsPostJobModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition hover:scale-102"
+              className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center gap-1.5 sm:gap-2 cursor-pointer transition hover:scale-102 whitespace-nowrap shrink-0"
             >
-              <PlusCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Post a New Job</span>
-              <span className="sm:hidden">Post Job</span>
+              <PlusCircle className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Post a New Job</span>
             </button>
 
             {/* Resume Credit Indicator */}
             <button
               onClick={() => setIsBuyCreditsModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-2 transition cursor-pointer"
+              className="px-2.5 sm:px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1.5 sm:gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
             >
-              <FolderDown className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{remainingCredits} Credits</span>
+              <FolderDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="whitespace-nowrap">{remainingCredits} Credits</span>
             </button>
           </div>
         </header>
 
         {/* MAIN BODY PER TAB */}
-        <main className="flex-1 p-6 sm:p-8 space-y-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl w-full mx-auto pb-24 md:pb-8">
           {/* TAB 1: DASHBOARD OVERVIEW */}
           {activeTab === "dashboard" && (
             <div className="space-y-8 animate-in fade-in duration-200">
               {/* Executive Welcome Banner (Light Modern Gradient) */}
-              <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-[#F0F5FF] via-[#EEF2FF] to-[#FAF5FF] border border-blue-100/80 shadow-xs">
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-[#FAF5FF] via-[#F3E8FF]/60 to-[#EDE9FE] border border-purple-200/80 shadow-xs">
+                <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 sm:gap-6">
                   <div>
-                    <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wider inline-block mb-2">
+                    <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE] uppercase tracking-wider inline-block mb-2">
                       Employer Hub • {companyName}
                     </span>
                     <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
@@ -1097,32 +1145,32 @@ export default function CompanyDashboardPage() {
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
                     <button
                       onClick={() => setIsPostJobModalOpen(true)}
-                      className="px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 transition cursor-pointer hover:scale-102"
+                      className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center justify-center gap-2 transition cursor-pointer hover:scale-102 whitespace-nowrap shrink-0"
                     >
-                      <Plus className="w-4 h-4" />
-                      <span>Post New Job</span>
+                      <Plus className="w-4 h-4 shrink-0" />
+                      <span className="whitespace-nowrap">Post New Job</span>
                     </button>
                     <button
-                      onClick={() => setActiveTab("resumes")}
-                      className="px-5 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-200 shadow-xs flex items-center gap-2 transition cursor-pointer"
+                      onClick={() => handleTabSwitch("resumes")}
+                      className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-200 shadow-xs flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      <FolderDown className="w-4 h-4 text-emerald-600" />
-                      <span>View Resumes ({remainingCredits} Left)</span>
+                      <FolderDown className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="whitespace-nowrap">View Resumes ({remainingCredits} Left)</span>
                     </button>
                   </div>
                 </div>
               </div>
 
               {/* 6 KEY METRICS TILES */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                 {/* 1. Kitne Post Hai */}
-                <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-blue-300 transition">
+                <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-purple-300 transition">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-bold text-slate-500">Total Job Posts</span>
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center">
                       <Briefcase className="w-4 h-4" />
                     </div>
                   </div>
@@ -1135,16 +1183,16 @@ export default function CompanyDashboardPage() {
                 </div>
 
                 {/* 2. Kitne Applications Aye Hai */}
-                <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition">
+                <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-purple-300 transition">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-bold text-slate-500">Applications</span>
-                    <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center">
                       <Users className="w-4 h-4" />
                     </div>
                   </div>
                   <div>
                     <p className="text-2xl font-black text-slate-900">{totalApplicantsCount}</p>
-                    <p className="text-[10px] text-indigo-600 font-bold mt-0.5">
+                    <p className="text-[10px] text-[#7C3AED] font-bold mt-0.5">
                       {inPipelineCount} In Review
                     </p>
                   </div>
@@ -1198,7 +1246,7 @@ export default function CompanyDashboardPage() {
                 <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between hover:border-purple-300 transition">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-bold text-slate-500">Subscription</span>
-                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center">
                       <Crown className="w-4 h-4" />
                     </div>
                   </div>
@@ -1212,109 +1260,121 @@ export default function CompanyDashboardPage() {
               {/* TWO COLUMN GRID: Live Applications & Active Job Listings */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* LEFT: Live Applications Tracker */}
-                <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5">
+                <div className="lg:col-span-8 bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-xs space-y-4 sm:space-y-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h2 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                        <Users className="w-4 h-4 text-blue-600" />
-                        <span>Recent Candidate Applications</span>
-                      </h2>
-                      <p className="text-xs text-slate-500">
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                          <Users className="w-4 h-4 text-[#7C3AED]" />
+                          <span>Recent Candidate Applications</span>
+                        </h2>
+                        <span className="sm:hidden text-[9px] font-bold text-[#7C3AED] bg-[#EDE9FE] px-2 py-0.5 rounded-full border border-[#DDD6FE]">
+                          Scroll →
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
                         Take immediate action to hire, interview, or reject applicants.
                       </p>
                     </div>
 
                     <button
                       onClick={() => setActiveTab("applicants")}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                      className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] flex items-center gap-1 cursor-pointer shrink-0"
                     >
                       <span>View All ({totalApplicantsCount})</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {/* Applicants List */}
-                  <div className="space-y-3">
-                    {applicants.slice(0, 5).map((app) => (
-                      <div
-                        key={app.id}
-                        className="p-4 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-slate-100/70 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                      >
-                        <div className="flex items-center gap-3.5">
-                          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
-                            {app.candidateName.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">
-                                {app.candidateName}
-                              </h4>
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                {app.matchScore}% Match
-                              </span>
+                  {/* Applicants List - Horizontally scrollable on mobile, natural full width on desktop (Exact like Image 2) */}
+                  <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0 pb-2">
+                    <div className="space-y-3 min-w-[680px] sm:min-w-0 pr-3 sm:pr-0">
+                      {applicants.slice(0, 5).map((app) => (
+                        <div
+                          key={app.id}
+                          className="p-4 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-slate-100/70 transition flex items-center justify-between gap-6 whitespace-nowrap shadow-xs"
+                        >
+                          {/* Left: Full Candidate Details */}
+                          <div className="flex items-center gap-3.5 shrink-0">
+                            <div
+                              style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
+                              className="w-11 h-11 rounded-2xl border font-black text-sm flex items-center justify-center shrink-0 shadow-xs"
+                            >
+                              {app.candidateName.slice(0, 2).toUpperCase()}
                             </div>
-                            <p className="text-xs text-slate-600 mt-0.5">{app.appliedRole}</p>
-                            <p className="text-[11px] text-slate-400 flex items-center gap-2 mt-1">
-                              <span>{app.experience}</span>
-                              <span>•</span>
-                              <span>{app.location}</span>
-                              <span>•</span>
-                              <span>{app.appliedDate}</span>
-                            </p>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                                  {app.candidateName}
+                                </h4>
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {app.matchScore}% Match
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 mt-0.5">{app.appliedRole}</p>
+                              <p className="text-[11px] text-slate-400 flex items-center gap-2 mt-1">
+                                <span>{app.experience}</span>
+                                <span>•</span>
+                                <span>{app.location}</span>
+                                <span>•</span>
+                                <span>{app.appliedDate}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Right: Status Badge & Action Buttons (Exact like Image 2) */}
+                          <div className="flex items-center gap-2.5 shrink-0 pl-2">
+                            <span
+                              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
+                                app.status === "Hired"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : app.status === "Rejected"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                  : app.status === "Interview"
+                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                  : app.status === "Shortlisted"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]"
+                              }`}
+                            >
+                              {app.status}
+                            </span>
+
+                            {/* Quick Hire Button */}
+                            {app.status !== "Hired" && (
+                              <button
+                                onClick={() => handleUpdateStatus(app.id, "Hired")}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                title="Hire this candidate"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Hire</span>
+                              </button>
+                            )}
+
+                            {/* Quick Reject Button */}
+                            {app.status !== "Rejected" && (
+                              <button
+                                onClick={() => handleUpdateStatus(app.id, "Rejected")}
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                title="Reject application"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Reject</span>
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => setSelectedApplicant(app)}
+                              className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition cursor-pointer shadow-2xs"
+                              title="View Full Profile & Resume"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
-
-                        {/* Status badge & Quick Action buttons */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                              app.status === "Hired"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : app.status === "Rejected"
-                                ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                : app.status === "Interview"
-                                ? "bg-purple-50 text-purple-700 border border-purple-200"
-                                : app.status === "Shortlisted"
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                : "bg-blue-50 text-blue-700 border border-blue-200"
-                            }`}
-                          >
-                            {app.status}
-                          </span>
-
-                          {/* Quick Hire / Reject Buttons */}
-                          {app.status !== "Hired" && (
-                            <button
-                              onClick={() => handleUpdateStatus(app.id, "Hired")}
-                              className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                              title="Hire this candidate"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Hire</span>
-                            </button>
-                          )}
-
-                          {app.status !== "Rejected" && (
-                            <button
-                              onClick={() => handleUpdateStatus(app.id, "Rejected")}
-                              className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
-                              title="Reject application"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                              <span>Reject</span>
-                            </button>
-                          )}
-
-                          <button
-                            onClick={() => setSelectedApplicant(app)}
-                            className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition cursor-pointer"
-                            title="View Full Profile & Resume"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -1324,12 +1384,12 @@ export default function CompanyDashboardPage() {
                   <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                        <Briefcase className="w-4 h-4 text-blue-600" />
+                        <Briefcase className="w-4 h-4 text-[#7C3AED]" />
                         <span>Active Job Openings</span>
                       </h3>
                       <button
                         onClick={openNewJobModal}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                        className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] cursor-pointer"
                       >
                         + Post
                       </button>
@@ -1357,7 +1417,7 @@ export default function CompanyDashboardPage() {
                             {job.location} • {job.salary}
                           </p>
                           <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/60 text-[11px]">
-                            <span className="text-blue-600 font-bold">
+                            <span className="text-[#7C3AED] font-bold">
                               {job.applicantsCount} Applicants
                             </span>
                             <span className="text-slate-400">{job.postedOn}</span>
@@ -1376,9 +1436,9 @@ export default function CompanyDashboardPage() {
                   </div>
 
                   {/* Resume Credits Quick Purchase Widget */}
-                  <div className="bg-gradient-to-br from-blue-50/60 via-indigo-50/40 to-slate-50 rounded-3xl border border-blue-100 p-6 shadow-xs space-y-4">
+                  <div className="bg-gradient-to-br from-purple-50/60 via-violet-50/40 to-slate-50 rounded-3xl border border-purple-100 p-6 shadow-xs space-y-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center">
                         <FolderDown className="w-5 h-5" />
                       </div>
                       <div>
@@ -1394,7 +1454,7 @@ export default function CompanyDashboardPage() {
                     </p>
                     <button
                       onClick={() => setIsBuyCreditsModalOpen(true)}
-                      className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold shadow-md shadow-violet-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Buy Resume Credit Packs</span>
@@ -1408,14 +1468,14 @@ export default function CompanyDashboardPage() {
           {/* TAB 2: COMPANY PROFILE */}
           {activeTab === "profile" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200/80">
                 <div>
                   <h2 className="text-xl font-black text-slate-900">Company Profile & Branding</h2>
                   <p className="text-xs text-slate-500">
                     This public information is displayed to candidates on job postings and company pages.
                   </p>
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
                   <ShieldCheck className="w-4 h-4" />
                   Verified Employer
                 </span>
@@ -1427,7 +1487,7 @@ export default function CompanyDashboardPage() {
                   {/* Sleek Brand Cover Banner (Click to See, Update, Remove) */}
                   <div
                     onClick={() => setImageModalState({ isOpen: true, type: "banner", mode: "menu" })}
-                    className="relative w-full h-44 sm:h-56 bg-gradient-to-r from-slate-950 via-indigo-950 to-blue-950 overflow-hidden cursor-pointer group"
+                    className="relative w-full h-36 sm:h-52 md:h-56 bg-gradient-to-r from-slate-950 via-purple-950 to-slate-900 overflow-hidden cursor-pointer group"
                     style={
                       bannerImage
                         ? {
@@ -1440,7 +1500,7 @@ export default function CompanyDashboardPage() {
                   >
                     {/* Subtle geometric dot pattern (from Image 1) */}
                     <div className="absolute inset-0 opacity-25 bg-[radial-gradient(#ffffff_1.2px,transparent_1.2px)] [background-size:20px_20px] pointer-events-none" />
-                    <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
                     {/* Banner Hover Overlay */}
                     <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -1451,11 +1511,11 @@ export default function CompanyDashboardPage() {
                     </div>
 
                     {/* Top Right Header Controls */}
-                    <div className="absolute top-4 right-4 sm:right-6 flex items-center gap-2.5 z-10">
+                    <div className="absolute top-3 right-3 sm:top-4 sm:right-6 flex items-center gap-2 z-10">
                       {/* Verified Employer Pill (from Image 1) */}
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/15 text-white text-xs font-semibold shadow-sm">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/15 text-white text-[11px] sm:text-xs font-semibold shadow-sm">
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Verified Employer</span>
+                        <span className="hidden xs:inline">Verified Employer</span>
                       </span>
 
                       {/* Cover Options Action Button */}
@@ -1465,7 +1525,7 @@ export default function CompanyDashboardPage() {
                           e.stopPropagation();
                           setImageModalState({ isOpen: true, type: "banner", mode: "menu" });
                         }}
-                        className="px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/25 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        className="px-2.5 sm:px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/25 text-white text-[11px] sm:text-xs font-semibold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
                       >
                         <Camera className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Cover Options</span>
@@ -1474,13 +1534,13 @@ export default function CompanyDashboardPage() {
                   </div>
 
                   {/* Profile Details Container (Below Banner) */}
-                  <div className="px-6 sm:px-8 pb-6">
+                  <div className="px-4 sm:px-8 pb-6">
                     {/* Avatar overlapping banner + Right side action buttons */}
-                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-12 sm:-mt-14 mb-4 relative z-10">
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-10 sm:-mt-14 mb-4 relative z-10">
                       {/* Company Avatar Card (Click to See, Update, Remove) */}
                       <div
                         onClick={() => setImageModalState({ isOpen: true, type: "profile", mode: "menu" })}
-                        className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white border-4 border-white shadow-xl p-1.5 flex items-center justify-center shrink-0 relative group cursor-pointer"
+                        className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl bg-white border-4 border-white shadow-xl p-1 flex items-center justify-center shrink-0 relative group cursor-pointer"
                         title="Click to view, update or remove logo"
                       >
                         {profileImage ? (
@@ -1507,17 +1567,17 @@ export default function CompanyDashboardPage() {
                         </div>
 
                         {/* Small camera badge bottom right */}
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md border-2 border-white">
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#7C3AED] text-white flex items-center justify-center shadow-md border-2 border-white">
                           <Camera className="w-3 h-3" />
                         </div>
                       </div>
 
                       {/* Right: Actions (Follow, Website, Share from Image 1) */}
-                      <div className="flex items-center gap-2 self-start sm:self-end shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 self-start sm:self-end shrink-0 w-full sm:w-auto">
                         <Link
                           href="/companies/1"
                           target="_blank"
-                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+                          className="flex-1 sm:flex-initial justify-center px-3.5 sm:px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                           <span>View Public Page</span>
@@ -1527,7 +1587,7 @@ export default function CompanyDashboardPage() {
                           href={website.startsWith("http") ? website : `https://${website}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+                          className="flex-1 sm:flex-initial justify-center px-3 sm:px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
                         >
                           <Globe className="w-3.5 h-3.5 text-slate-400" />
                           <span>Website</span>
@@ -1541,7 +1601,7 @@ export default function CompanyDashboardPage() {
                               showToast("Company profile link copied to clipboard!");
                             }
                           }}
-                          className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition shadow-xs cursor-pointer"
+                          className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition shadow-xs cursor-pointer shrink-0"
                           title="Share"
                         >
                           <Share2 className="w-3.5 h-3.5" />
@@ -1555,8 +1615,8 @@ export default function CompanyDashboardPage() {
                         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
                           {companyName}
                         </h1>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 fill-blue-100" />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#7C3AED] fill-[#EDE9FE]" />
                           <span>Verified</span>
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
@@ -1588,8 +1648,8 @@ export default function CompanyDashboardPage() {
                           <span>Founded 2018</span>
                         </span>
                         <span className="text-slate-300">•</span>
-                        <span className="flex items-center gap-1 font-semibold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-md border border-blue-200/60">
-                          <FileText className="w-3 h-3 text-blue-600" />
+                        <span className="flex items-center gap-1 font-semibold text-[#7C3AED] bg-[#EDE9FE] px-2 py-0.5 rounded-md border border-[#DDD6FE]">
+                          <FileText className="w-3 h-3 text-[#7C3AED]" />
                           <span>GST: {gstNumber}</span>
                         </span>
                         {contactPhone && (
@@ -1622,7 +1682,7 @@ export default function CompanyDashboardPage() {
                         name="companyName"
                         defaultValue={companyName}
                         required
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1632,7 +1692,7 @@ export default function CompanyDashboardPage() {
                         type="text"
                         name="tagline"
                         defaultValue={tagline}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1642,7 +1702,7 @@ export default function CompanyDashboardPage() {
                         type="text"
                         name="industry"
                         defaultValue={industry}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1652,7 +1712,7 @@ export default function CompanyDashboardPage() {
                         type="text"
                         name="companySize"
                         defaultValue={companySize}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1662,7 +1722,7 @@ export default function CompanyDashboardPage() {
                         type="text"
                         name="headquarters"
                         defaultValue={headquarters}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1672,7 +1732,7 @@ export default function CompanyDashboardPage() {
                         type="url"
                         name="website"
                         defaultValue={website}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1682,7 +1742,7 @@ export default function CompanyDashboardPage() {
                         type="email"
                         name="contactEmail"
                         defaultValue={contactEmail}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1692,7 +1752,7 @@ export default function CompanyDashboardPage() {
                         type="text"
                         name="contactPhone"
                         defaultValue={contactPhone}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1702,8 +1762,7 @@ export default function CompanyDashboardPage() {
                         type="text"
                         name="gstNumber"
                         defaultValue={gstNumber}
-                        placeholder="29AAAAA0000A1Z5"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono uppercase tracking-wider focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono uppercase tracking-wider focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
 
@@ -1724,14 +1783,14 @@ export default function CompanyDashboardPage() {
                       name="aboutCompany"
                       rows={4}
                       defaultValue={aboutCompany}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden resize-none"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden resize-none"
                     />
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-slate-100">
                     <button
                       type="submit"
-                      className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition cursor-pointer"
+                      className="px-6 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold shadow-md shadow-violet-500/20 transition cursor-pointer"
                     >
                       Save Company Profile
                     </button>
@@ -1760,70 +1819,86 @@ export default function CompanyDashboardPage() {
           {/* TAB 3: JOB POSTINGS (Kitne Post Hai) */}
           {activeTab === "jobs" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200/80">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">Job Postings Management</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-black text-slate-900">Job Postings Management</h2>
+                    <span className="sm:hidden text-[9px] font-bold text-[#7C3AED] bg-[#EDE9FE] px-2 py-0.5 rounded-full border border-[#DDD6FE]">
+                      Scroll →
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500">
                     Total {totalJobsCount} job openings created ({activeJobsCount} currently active)
                   </p>
                 </div>
                 <button
                   onClick={openNewJobModal}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition hover:scale-102"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center justify-center gap-2 cursor-pointer transition hover:scale-102"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Post a New Job</span>
                 </button>
               </div>
 
-              {/* Jobs Table */}
-              <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+              {/* HORIZONTALLY SCROLLABLE JOBS TABLE: Single-row scrollable across all mobile & desktop screens */}
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-left text-xs min-w-[850px]">
                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200/80">
                       <tr>
-                        <th className="py-3.5 px-6">Job Role & ID</th>
-                        <th className="py-3.5 px-6">Department & Mode</th>
-                        <th className="py-3.5 px-6">Location</th>
-                        <th className="py-3.5 px-6">Salary & Exp</th>
-                        <th className="py-3.5 px-6">Applications</th>
-                        <th className="py-3.5 px-6">Status</th>
-                        <th className="py-3.5 px-6 text-right">Actions</th>
+                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Job Role & ID</th>
+                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Department & Mode</th>
+                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Location</th>
+                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Salary & Exp</th>
+                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Applications</th>
+                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Status</th>
+                        <th className="py-3.5 px-4 sm:px-6 text-right whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
                       {jobs.map((job) => (
                         <tr key={job.id} className="hover:bg-slate-50/60 transition">
-                          <td className="py-4 px-6 font-bold text-slate-900">
+                          <td className="py-4 px-4 sm:px-6 font-bold text-slate-900 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span>{job.title}</span>
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[10px] text-slate-400 font-mono">{job.id}</span>
                               {job.openings && (
-                                <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded font-medium">
+                                <span
+                                  style={{ backgroundColor: "#EDE9FE", color: "#7C3AED", borderColor: "#DDD6FE" }}
+                                  className="text-[10px] px-2 py-0.5 rounded-md font-bold border"
+                                >
                                   {job.openings} Openings
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="py-4 px-6">
+                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
                             <div className="font-semibold text-slate-700">{job.department}</div>
                             <span className="text-[10px] text-slate-500 font-medium">{job.workplace || "Remote"} • {job.type}</span>
                           </td>
-                          <td className="py-4 px-6 text-slate-600">{job.location}</td>
-                          <td className="py-4 px-6">
-                            <div className="font-semibold text-emerald-600">{job.salary}</div>
-                            <div className="text-[10px] text-slate-400">{job.experience || "0 - 1 years"}</div>
+                          <td className="py-4 px-4 sm:px-6 text-slate-600 whitespace-nowrap">{job.location}</td>
+                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
+                            <div className="font-bold text-emerald-600 text-xs tracking-tight whitespace-nowrap">
+                              {job.salary}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap">
+                              {job.experience || "0 - 1 years"}
+                            </div>
                           </td>
-                          <td className="py-4 px-6">
-                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                              {job.applicantsCount} Candidates
+                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
+                            <span
+                              style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
+                              className="px-3 py-1 rounded-full text-[11px] font-extrabold border shadow-2xs inline-flex items-center gap-1.5 whitespace-nowrap"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#7C3AED]" />
+                              <span>{job.applicantsCount} Candidates</span>
                             </span>
                           </td>
-                          <td className="py-4 px-6">
+                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
                             <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
                                 job.status === "Active"
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                   : "bg-slate-100 text-slate-600 border border-slate-200"
@@ -1832,53 +1907,56 @@ export default function CompanyDashboardPage() {
                               {job.status}
                             </span>
                           </td>
-                          <td className="py-4 px-6 text-right space-x-1.5">
-                            <button
-                              onClick={() => openEditJobModal(job)}
-                              className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold cursor-pointer transition inline-flex items-center gap-1"
-                              title="Edit Job Details"
-                            >
-                              <Pencil className="w-3 h-3" />
-                              <span>Edit</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setJobs((prev) => {
-                                  const updated = prev.map((j) =>
-                                    j.id === job.id
-                                      ? {
-                                          ...j,
-                                          status: (j.status === "Active" ? "Paused" : "Active") as "Active" | "Paused" | "Closed",
-                                        }
-                                      : j
-                                  );
-                                  try {
-                                    localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
-                                  } catch (err) {}
-                                  return updated;
-                                });
-                                showToast(`Job status updated for ${job.title}`);
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold cursor-pointer transition"
-                            >
-                              {job.status === "Active" ? "Pause" : "Activate"}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setJobs((prev) => {
-                                  const updated = prev.filter((j) => j.id !== job.id);
-                                  try {
-                                    localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
-                                  } catch (err) {}
-                                  return updated;
-                                });
-                                showToast(`Job ${job.title} deleted`);
-                              }}
-                              className="p-1 rounded-lg text-rose-500 hover:bg-rose-50 cursor-pointer transition"
-                              title="Delete job"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          <td className="py-4 px-4 sm:px-6 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                              <button
+                                onClick={() => openEditJobModal(job)}
+                                style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
+                                className="px-2.5 py-1.5 rounded-lg hover:bg-[#DDD6FE] text-xs font-bold cursor-pointer transition inline-flex items-center gap-1 border shadow-2xs"
+                                title="Edit Job Details"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setJobs((prev) => {
+                                    const updated = prev.map((j) =>
+                                      j.id === job.id
+                                        ? {
+                                            ...j,
+                                            status: (j.status === "Active" ? "Paused" : "Active") as "Active" | "Paused" | "Closed",
+                                          }
+                                        : j
+                                    );
+                                    try {
+                                      localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+                                    } catch (err) {}
+                                    return updated;
+                                  });
+                                  showToast(`Job status updated for ${job.title}`);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition border border-slate-200/60 shadow-2xs"
+                              >
+                                {job.status === "Active" ? "Pause" : "Activate"}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setJobs((prev) => {
+                                    const updated = prev.filter((j) => j.id !== job.id);
+                                    try {
+                                      localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+                                    } catch (err) {}
+                                    return updated;
+                                  });
+                                  showToast(`Job ${job.title} deleted`);
+                                }}
+                                className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-100 cursor-pointer transition shadow-2xs"
+                                title="Delete job"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1894,14 +1972,19 @@ export default function CompanyDashboardPage() {
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">Candidate Applications</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-black text-slate-900">Candidate Applications</h2>
+                    <span className="sm:hidden text-[9px] font-bold text-[#7C3AED] bg-[#EDE9FE] px-2 py-0.5 rounded-full border border-[#DDD6FE]">
+                      Scroll →
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-500">
                     Review submissions, schedule interviews, and mark candidates as Hired or Rejected.
                   </p>
                 </div>
 
                 {/* Status Filter Tabs */}
-                <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
                   {(
                     [
                       "ALL",
@@ -1916,9 +1999,9 @@ export default function CompanyDashboardPage() {
                     <button
                       key={st}
                       onClick={() => setApplicantFilter(st)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
                         applicantFilter === st
-                          ? "bg-white text-blue-600 shadow-sm"
+                          ? "bg-white text-[#7C3AED] shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
@@ -1928,137 +2011,142 @@ export default function CompanyDashboardPage() {
                 </div>
               </div>
 
-              {/* Applicant Cards List */}
-              <div className="space-y-4">
-                {filteredApplicants.length === 0 ? (
-                  <div className="p-12 text-center rounded-3xl bg-white border border-slate-200/80 shadow-xs">
-                    <Users className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-                    <p className="text-sm font-bold text-slate-900">No applications match this filter</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Try selecting another status tab or clear the search query.
-                    </p>
-                  </div>
-                ) : (
-                  filteredApplicants.map((app) => (
-                    <div
-                      key={app.id}
-                      className="p-5 rounded-3xl bg-white border border-slate-200/80 hover:border-blue-300 transition shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5"
-                    >
-                      {/* Left Candidate Info */}
-                      <div className="flex items-start sm:items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white font-black text-lg flex items-center justify-center shrink-0 shadow-xs">
-                          {app.candidateName.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-sm sm:text-base font-black text-slate-900">
-                              {app.candidateName}
-                            </h3>
-                            <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              {app.matchScore}% Match Score
-                            </span>
-                            <span
-                              className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
-                                app.status === "Hired"
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : app.status === "Rejected"
-                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                  : app.status === "Interview"
-                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
-                                  : app.status === "Shortlisted"
-                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                  : "bg-blue-50 text-blue-700 border border-blue-200"
-                              }`}
-                            >
-                              {app.status}
-                            </span>
-                          </div>
-
-                          <p className="text-xs text-slate-600 font-semibold mt-1">
-                            Applied For: <span className="text-slate-900">{app.appliedRole}</span>
-                          </p>
-
-                          <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-[11px] text-slate-400 mt-1">
-                            <span className="flex items-center gap-1 text-slate-600">
-                              <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                              {app.experience}
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1 text-slate-600">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                              {app.location}
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1 text-slate-600">
-                              <Mail className="w-3.5 h-3.5 text-slate-400" />
-                              {app.email}
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1 text-slate-600">
-                              <Phone className="w-3.5 h-3.5 text-slate-400" />
-                              {app.phone}
-                            </span>
-                          </div>
-
-                          {/* Skills Pills */}
-                          <div className="flex flex-wrap gap-1.5 mt-2.5">
-                            {app.skills.map((s, i) => (
-                              <span
-                                key={i}
-                                className="px-2.5 py-0.5 rounded-lg text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200"
-                              >
-                                {s}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Action Buttons */}
-                      <div className="flex flex-wrap items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100 w-full lg:w-auto justify-end">
-                        <button
-                          onClick={() => setSelectedApplicant(app)}
-                          className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-blue-600" />
-                          <span>View Resume</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleUpdateStatus(app.id, "Shortlisted")}
-                          className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold transition cursor-pointer"
-                        >
-                          Shortlist
-                        </button>
-
-                        <button
-                          onClick={() => handleUpdateStatus(app.id, "Interview")}
-                          className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition cursor-pointer"
-                        >
-                          Interview
-                        </button>
-
-                        {/* HIRE BUTTON */}
-                        <button
-                          onClick={() => handleUpdateStatus(app.id, "Hired")}
-                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <UserCheck className="w-4 h-4" />
-                          <span>Hire Candidate</span>
-                        </button>
-
-                        {/* REJECT BUTTON */}
-                        <button
-                          onClick={() => handleUpdateStatus(app.id, "Rejected")}
-                          className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <UserX className="w-4 h-4" />
-                          <span>Reject</span>
-                        </button>
-                      </div>
+              {/* Applicant Cards List - Horizontally scrollable on mobile */}
+              <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0 pb-3">
+                <div className="space-y-4 w-max min-w-full lg:w-full min-w-[1100px] lg:min-w-0 pr-3 sm:pr-0">
+                  {filteredApplicants.length === 0 ? (
+                    <div className="p-12 text-center rounded-3xl bg-white border border-slate-200/80 shadow-xs">
+                      <Users className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                      <p className="text-sm font-bold text-slate-900">No applications match this filter</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Try selecting another status tab or clear the search query.
+                      </p>
                     </div>
-                  ))
-                )}
+                  ) : (
+                    filteredApplicants.map((app) => (
+                      <div
+                        key={app.id}
+                        className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 hover:border-[#DDD6FE] transition shadow-xs flex items-center justify-between gap-6 whitespace-nowrap w-full min-w-[1100px] lg:min-w-0"
+                      >
+                        {/* Left Candidate Info */}
+                        <div className="flex items-center gap-3.5 sm:gap-4 shrink-0">
+                          <div
+                            style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
+                            className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border font-black text-base sm:text-lg flex items-center justify-center shrink-0 shadow-xs"
+                          >
+                            {app.candidateName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm sm:text-base font-black text-slate-900 whitespace-nowrap">
+                                {app.candidateName}
+                              </h3>
+                              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                {app.matchScore}% Match Score
+                              </span>
+                              <span
+                                className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase whitespace-nowrap ${
+                                  app.status === "Hired"
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : app.status === "Rejected"
+                                    ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                    : app.status === "Interview"
+                                    ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                    : app.status === "Shortlisted"
+                                    ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                    : "bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]"
+                                }`}
+                              >
+                                {app.status}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-600 font-semibold mt-1 whitespace-nowrap">
+                              Applied For: <span className="text-slate-900">{app.appliedRole}</span>
+                            </p>
+
+                            <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1 whitespace-nowrap">
+                              <span className="flex items-center gap-1 text-slate-600">
+                                <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                                {app.experience}
+                              </span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1 text-slate-600">
+                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                {app.location}
+                              </span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1 text-slate-600">
+                                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                                {app.email}
+                              </span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1 text-slate-600">
+                                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                {app.phone}
+                              </span>
+                            </div>
+
+                            {/* Skills Pills */}
+                            <div className="flex items-center gap-1.5 mt-2 whitespace-nowrap">
+                              {app.skills.map((s, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2.5 py-0.5 rounded-lg text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap"
+                                >
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Action Buttons */}
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pl-4 whitespace-nowrap">
+                          <button
+                            onClick={() => setSelectedApplicant(app)}
+                            className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-[#7C3AED]" />
+                            <span>View Resume</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleUpdateStatus(app.id, "Shortlisted")}
+                            className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold transition cursor-pointer whitespace-nowrap shadow-2xs"
+                          >
+                            Shortlist
+                          </button>
+
+                          <button
+                            onClick={() => handleUpdateStatus(app.id, "Interview")}
+                            className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition cursor-pointer whitespace-nowrap shadow-2xs"
+                          >
+                            Interview
+                          </button>
+
+                          {/* HIRE BUTTON */}
+                          <button
+                            onClick={() => handleUpdateStatus(app.id, "Hired")}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                            <span>Hire Candidate</span>
+                          </button>
+
+                          {/* REJECT BUTTON */}
+                          <button
+                            onClick={() => handleUpdateStatus(app.id, "Rejected")}
+                            className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+                          >
+                            <UserX className="w-4 h-4" />
+                            <span>Reject</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2075,7 +2163,7 @@ export default function CompanyDashboardPage() {
                 </div>
                 <button
                   onClick={() => setIsBuyCreditsModalOpen(true)}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition hover:scale-102"
+                  className="px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center gap-2 cursor-pointer transition hover:scale-102"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Buy More Resume Credits</span>
@@ -2092,7 +2180,7 @@ export default function CompanyDashboardPage() {
 
                 <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500">Resumes Downloaded</span>
-                  <p className="text-3xl font-black text-indigo-600 mt-1">{resumesUsed}</p>
+                  <p className="text-3xl font-black text-[#6D28D9] mt-1">{resumesUsed}</p>
                   <p className="text-xs text-slate-500 mt-1">Unlocked candidate contacts</p>
                 </div>
 
@@ -2104,7 +2192,7 @@ export default function CompanyDashboardPage() {
               </div>
 
               {/* Purchased Resumes List */}
-              <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs p-4 sm:p-6 space-y-4">
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <FolderDown className="w-4 h-4 text-emerald-600" />
                   <span>Unlocked Resumes Vault</span>
@@ -2114,10 +2202,10 @@ export default function CompanyDashboardPage() {
                   {purchasedResumes.map((res) => (
                     <div
                       key={res.id}
-                      className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-slate-100/70 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-slate-100/70 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
                     >
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-600 font-black text-xs flex items-center justify-center shrink-0 border border-rose-200">
+                      <div className="flex items-center gap-3 sm:gap-3.5">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-rose-50 text-rose-600 font-black text-xs flex items-center justify-center shrink-0 border border-rose-200">
                           PDF
                         </div>
                         <div>
@@ -2131,7 +2219,7 @@ export default function CompanyDashboardPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                         <div className="text-right text-[11px] text-slate-500 hidden md:block">
                           <p>{res.email}</p>
                           <p>{res.phone}</p>
@@ -2140,7 +2228,7 @@ export default function CompanyDashboardPage() {
                           onClick={() =>
                             showToast(`Downloading verified resume for ${res.candidateName}...`)
                           }
-                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+                          className="w-full sm:w-auto justify-center px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>Download CV</span>
@@ -2170,15 +2258,15 @@ export default function CompanyDashboardPage() {
               </div>
 
               {/* Current Active Plan Overview Card */}
-              <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-blue-50/80 via-indigo-50/50 to-white border border-blue-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#EDE9FE]/70 via-purple-50/50 to-white border border-[#DDD6FE] shadow-xs hover:shadow-xl hover:shadow-violet-500/10 hover:border-[#7C3AED]/50 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6">
                 <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600 block mb-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#7C3AED] block mb-1">
                     Current Active Tier
                   </span>
                   <h3 className="text-2xl font-black text-slate-900">{currentPlan}</h3>
                   <p className="text-xs text-slate-500 mt-1">{planValidity}</p>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-200/80 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 pt-4 border-t border-slate-200/80 text-xs">
                     <div>
                       <span className="text-slate-400 text-[10px] uppercase font-bold">Job Posts</span>
                       <p className="font-bold text-slate-900">Unlimited</p>
@@ -2202,135 +2290,228 @@ export default function CompanyDashboardPage() {
 
                 <button
                   onClick={() => setIsUpgradePlanModalOpen(true)}
-                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-md transition hover:scale-105 cursor-pointer shrink-0"
+                  className="w-full md:w-auto text-center px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-md transition hover:scale-105 cursor-pointer shrink-0"
                 >
                   Upgrade to Enterprise
                 </button>
               </div>
 
               {/* Subscription Tier Comparison */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div
+                onMouseLeave={() => setActivePlanCard("pro")}
+                className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch pt-4"
+              >
                 {/* Tier 1: Starter */}
-                <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-base font-black text-slate-900">Starter Recruiter</h4>
+                <div
+                  onClick={() => setActivePlanCard("starter")}
+                  onMouseEnter={() => setActivePlanCard("starter")}
+                  onTouchStart={() => setActivePlanCard("starter")}
+                  className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.99] ${
+                    activePlanCard === "starter"
+                      ? "border-2 border-[#7C3AED] shadow-2xl shadow-violet-500/20 -translate-y-2.5 scale-[1.01] ring-4 ring-[#EDE9FE]/70"
+                      : "border border-slate-200/90 hover:border-[#7C3AED]/70 shadow-xs hover:shadow-2xl hover:shadow-violet-500/15 hover:-translate-y-2.5 hover:scale-[1.01]"
+                  }`}
+                >
+                  {/* Subtle Ambient Hover Glow */}
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-b from-[#EDE9FE]/60 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
+                      activePlanCard === "starter" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    }`}
+                  />
+
+                  <div className="relative z-10">
+                    <h4
+                      className={`text-base font-black transition-colors duration-200 ${
+                        activePlanCard === "starter" ? "text-[#7C3AED]" : "text-slate-900 group-hover:text-[#7C3AED]"
+                      }`}
+                    >
+                      Starter Recruiter
+                    </h4>
                     <p className="text-xs text-slate-500 mt-1">For small startups hiring occasionally</p>
-                    <p className="text-2xl font-black text-slate-900 mt-4">
+                    <p
+                      className={`text-2xl font-black mt-4 transition-colors duration-200 ${
+                        activePlanCard === "starter" ? "text-[#7C3AED]" : "text-slate-900 group-hover:text-[#7C3AED]"
+                      }`}
+                    >
                       ₹4,999 <span className="text-xs text-slate-500 font-normal">/ month</span>
                     </p>
 
-                    <ul className="space-y-2.5 text-xs text-slate-600 mt-6">
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                    <ul className="space-y-3 text-xs text-slate-600 mt-6">
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>Up to 5 Active Job Posts</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>15 Resume Downloads / mo</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>Standard Candidate Matching</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>1 Recruiter Seat</span>
                       </li>
                     </ul>
                   </div>
 
-                  <button
-                    onClick={() => showToast("You are already on a higher plan (Pro Growth)!")}
-                    className="mt-6 w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition cursor-pointer"
-                  >
-                    Downgrade
-                  </button>
+                  <div className="mt-8 pt-2 relative z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showToast("You are already on a higher plan (Pro Growth)!");
+                      }}
+                      className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-2xs ${
+                        activePlanCard === "starter"
+                          ? "bg-[#EDE9FE] text-[#7C3AED]"
+                          : "bg-slate-100 hover:bg-slate-200 group-hover:bg-[#EDE9FE] group-hover:text-[#7C3AED] text-slate-600"
+                      }`}
+                    >
+                      Downgrade
+                    </button>
+                  </div>
                 </div>
 
                 {/* Tier 2: Pro Growth (Current) */}
-                <div className="p-6 rounded-3xl bg-gradient-to-b from-blue-50/40 to-white border-2 border-blue-600 shadow-md relative flex flex-col justify-between">
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black bg-blue-600 text-white uppercase tracking-wider shadow-xs">
+                <div
+                  onClick={() => setActivePlanCard("pro")}
+                  onMouseEnter={() => setActivePlanCard("pro")}
+                  onTouchStart={() => setActivePlanCard("pro")}
+                  className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#EDE9FE]/50 via-white to-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-visible active:scale-[0.99] ${
+                    activePlanCard === "pro"
+                      ? "border-2 border-[#7C3AED] shadow-2xl shadow-violet-500/30 -translate-y-3.5 scale-[1.02] ring-4 ring-[#EDE9FE]"
+                      : "border-2 border-[#7C3AED] shadow-lg shadow-violet-500/10 -translate-y-1 hover:-translate-y-3.5 hover:scale-[1.02] hover:shadow-2xl hover:shadow-violet-500/30 hover:ring-4 hover:ring-[#EDE9FE]"
+                  }`}
+                >
+                  {/* Badge */}
+                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-black bg-[#7C3AED] group-hover:bg-[#6D28D9] group-hover:scale-105 text-white uppercase tracking-wider shadow-md transition-all duration-200 whitespace-nowrap z-20">
                     Current Plan
                   </span>
 
-                  <div>
-                    <h4 className="text-base font-black text-slate-900">Professional Growth</h4>
+                  {/* Ambient Shimmer */}
+                  <div
+                    className={`absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#EDE9FE]/70 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
+                      activePlanCard === "pro" ? "opacity-100" : "opacity-60 group-hover:opacity-100"
+                    }`}
+                  />
+
+                  <div className="relative z-10">
+                    <h4 className="text-base font-black text-slate-900 group-hover:text-[#7C3AED] transition-colors duration-200">
+                      Professional Growth
+                    </h4>
                     <p className="text-xs text-slate-500 mt-1">For growing teams and fast hiring</p>
-                    <p className="text-2xl font-black text-slate-900 mt-4">
+                    <p className="text-2xl font-black text-slate-900 group-hover:text-[#7C3AED] mt-4 transition-colors duration-200">
                       ₹12,999 <span className="text-xs text-slate-500 font-normal">/ month</span>
                     </p>
 
-                    <ul className="space-y-2.5 text-xs text-slate-700 mt-6">
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                    <ul className="space-y-3 text-xs text-slate-700 mt-6">
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span className="font-bold">Unlimited Job Postings</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span className="font-bold">50 Resume Downloads / mo</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>Direct Candidate Contact Info</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
-                        <span>AI Applicant Matching & Scoring</span>
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <span>AI Applicant Matching &amp; Scoring</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>5 Recruiter Seats</span>
                       </li>
                     </ul>
                   </div>
 
-                  <button
-                    onClick={() => showToast("Professional Growth is your active plan!")}
-                    className="mt-6 w-full py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold transition cursor-default shadow-xs"
-                  >
-                    Active Plan
-                  </button>
+                  <div className="mt-8 pt-2 relative z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showToast("Professional Growth is your active plan!");
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] group-hover:shadow-lg group-hover:shadow-violet-500/30 text-white text-xs font-bold transition-all duration-200 cursor-default shadow-xs"
+                    >
+                      Active Plan
+                    </button>
+                  </div>
                 </div>
 
                 {/* Tier 3: Enterprise */}
-                <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-base font-black text-slate-900">Enterprise Scaled</h4>
+                <div
+                  onClick={() => setActivePlanCard("enterprise")}
+                  onMouseEnter={() => setActivePlanCard("enterprise")}
+                  onTouchStart={() => setActivePlanCard("enterprise")}
+                  className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.99] ${
+                    activePlanCard === "enterprise"
+                      ? "border-2 border-amber-400 shadow-2xl shadow-amber-500/25 -translate-y-2.5 scale-[1.01] ring-4 ring-amber-100/70"
+                      : "border border-slate-200/90 hover:border-amber-400 shadow-xs hover:shadow-2xl hover:shadow-amber-500/20 hover:-translate-y-2.5 hover:scale-[1.01] hover:ring-4 hover:ring-amber-50"
+                  }`}
+                >
+                  {/* Subtle Ambient Hover Glow */}
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-b from-amber-50/70 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
+                      activePlanCard === "enterprise" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    }`}
+                  />
+
+                  <div className="relative z-10">
+                    <h4
+                      className={`text-base font-black transition-colors duration-200 ${
+                        activePlanCard === "enterprise" ? "text-amber-600" : "text-slate-900 group-hover:text-amber-600"
+                      }`}
+                    >
+                      Enterprise Scaled
+                    </h4>
                     <p className="text-xs text-slate-500 mt-1">For large corporations with high volume hiring</p>
-                    <p className="text-2xl font-black text-slate-900 mt-4">
+                    <p
+                      className={`text-2xl font-black mt-4 transition-colors duration-200 ${
+                        activePlanCard === "enterprise" ? "text-amber-600" : "text-slate-900 group-hover:text-amber-600"
+                      }`}
+                    >
                       ₹29,999 <span className="text-xs text-slate-500 font-normal">/ month</span>
                     </p>
 
-                    <ul className="space-y-2.5 text-xs text-slate-600 mt-6">
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                    <ul className="space-y-3 text-xs text-slate-600 mt-6">
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>Unlimited Job Postings</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>250 Resume Downloads / mo</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>Dedicated Account Manager</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
-                        <span>Custom ATS & HRMS Webhooks</span>
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <span>Custom ATS &amp; HRMS Webhooks</span>
                       </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600" />
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
                         <span>Unlimited Recruiter Seats</span>
                       </li>
                     </ul>
                   </div>
 
-                  <button
-                    onClick={() => setIsUpgradePlanModalOpen(true)}
-                    className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs transition cursor-pointer shadow-xs"
-                  >
-                    Upgrade to Enterprise
-                  </button>
+                  <div className="mt-8 pt-2 relative z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsUpgradePlanModalOpen(true);
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs group-hover:shadow-lg group-hover:shadow-amber-500/30 group-hover:scale-[1.01] transition-all duration-200 cursor-pointer shadow-xs"
+                    >
+                      Upgrade to Enterprise
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2346,7 +2527,7 @@ export default function CompanyDashboardPage() {
                 </p>
               </div>
 
-              <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4 text-xs">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-xs space-y-3 sm:space-y-4 text-xs">
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
                   <div>
                     <p className="font-bold text-slate-900">Email Notification for New Applications</p>
@@ -2357,7 +2538,7 @@ export default function CompanyDashboardPage() {
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer"
+                    className="w-5 h-5 rounded-md accent-[#7C3AED] cursor-pointer"
                   />
                 </div>
 
@@ -2371,7 +2552,7 @@ export default function CompanyDashboardPage() {
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer"
+                    className="w-5 h-5 rounded-md accent-[#7C3AED] cursor-pointer"
                   />
                 </div>
 
@@ -2385,23 +2566,84 @@ export default function CompanyDashboardPage() {
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="w-5 h-5 rounded-md accent-blue-600 cursor-pointer"
+                    className="w-5 h-5 rounded-md accent-[#7C3AED] cursor-pointer"
                   />
                 </div>
               </div>
             </div>
           )}
         </main>
+
+        {/* MOBILE BOTTOM NAVIGATION BAR (Fixed at bottom on phones/small screens) */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 py-1.5 flex items-center justify-around shadow-lg">
+          <button
+            onClick={() => handleTabSwitch("dashboard")}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer ${
+              activeTab === "dashboard" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5" />
+            <span>Dashboard</span>
+          </button>
+
+          <button
+            onClick={() => handleTabSwitch("jobs")}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer relative ${
+              activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Briefcase className="w-5 h-5" />
+            <span>Jobs</span>
+            {totalJobsCount > 0 && (
+              <span className="absolute top-0 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#EDE9FE] text-[#7C3AED]">
+                {totalJobsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => handleTabSwitch("applicants")}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer relative ${
+              activeTab === "applicants" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            <span>Applicants</span>
+            {totalApplicantsCount > 0 && (
+              <span className="absolute top-0 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#EDE9FE] text-[#7C3AED]">
+                {totalApplicantsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => handleTabSwitch("resumes")}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer ${
+              activeTab === "resumes" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <FolderDown className="w-5 h-5" />
+            <span>Resumes</span>
+          </button>
+
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+          >
+            <Menu className="w-5 h-5" />
+            <span>More</span>
+          </button>
+        </nav>
       </div>
 
       {/* MODAL 1: POST OR EDIT JOB (Complete /jobs/1 specification matching) */}
       {isPostJobModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 my-6 max-h-[92vh] flex flex-col">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-3xl w-full p-4 sm:p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 my-auto max-h-[92vh] flex flex-col">
             {/* Modal Header */}
             <div className="flex items-start justify-between pb-4 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center shrink-0">
                   <Briefcase className="w-5 h-5" />
                 </div>
                 <div>
@@ -2427,7 +2669,7 @@ export default function CompanyDashboardPage() {
               {/* SECTION 1: ROLE IDENTITY & CLASSIFICATION */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                  <span className="w-2 h-2 rounded-full bg-[#7C3AED]"></span>
                   1. Role Classification & Details
                 </h4>
 
@@ -2440,9 +2682,8 @@ export default function CompanyDashboardPage() {
                       type="text"
                       value={jobTitle}
                       onChange={(e) => setJobTitle(e.target.value)}
-                      placeholder="e.g. Senior Frontend Engineer (React/Next.js)"
                       required
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden font-medium"
                     />
                   </div>
 
@@ -2451,7 +2692,7 @@ export default function CompanyDashboardPage() {
                     <select
                       value={jobDepartment}
                       onChange={(e) => setJobDepartment(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden cursor-pointer font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden cursor-pointer font-medium"
                     >
                       <option value="Engineering">Engineering</option>
                       <option value="Product Design">Product Design (UI/UX)</option>
@@ -2469,7 +2710,7 @@ export default function CompanyDashboardPage() {
                     <select
                       value={jobWorkplace}
                       onChange={(e) => setJobWorkplace(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden cursor-pointer font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden cursor-pointer font-medium"
                     >
                       <option value="Remote">Remote</option>
                       <option value="Hybrid">Hybrid</option>
@@ -2482,7 +2723,7 @@ export default function CompanyDashboardPage() {
                     <select
                       value={jobType}
                       onChange={(e) => setJobType(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden cursor-pointer font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden cursor-pointer font-medium"
                     >
                       <option value="Full-time">Full-time</option>
                       <option value="Part-time">Part-time</option>
@@ -2497,8 +2738,7 @@ export default function CompanyDashboardPage() {
                       type="text"
                       value={jobExperience}
                       onChange={(e) => setJobExperience(e.target.value)}
-                      placeholder="e.g. 0 - 1 years, 3 - 5 years"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden font-medium"
                     />
                   </div>
                 </div>
@@ -2518,8 +2758,7 @@ export default function CompanyDashboardPage() {
                       type="text"
                       value={jobSalary}
                       onChange={(e) => setJobSalary(e.target.value)}
-                      placeholder="e.g. ₹18L - ₹24L/yr"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden font-medium"
                     />
                   </div>
 
@@ -2529,8 +2768,7 @@ export default function CompanyDashboardPage() {
                       type="text"
                       value={jobLocation}
                       onChange={(e) => setJobLocation(e.target.value)}
-                      placeholder="e.g. Bengaluru, Karnataka"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden font-medium"
                     />
                   </div>
 
@@ -2541,8 +2779,7 @@ export default function CompanyDashboardPage() {
                       min="1"
                       value={jobOpenings}
                       onChange={(e) => setJobOpenings(e.target.value)}
-                      placeholder="e.g. 2"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden font-medium"
                     />
                   </div>
                 </div>
@@ -2553,8 +2790,7 @@ export default function CompanyDashboardPage() {
                     type="text"
                     value={jobPostedBy}
                     onChange={(e) => setJobPostedBy(e.target.value)}
-                    placeholder="e.g. Talent Acquisition Team / PERSOL"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden font-medium"
                   />
                 </div>
               </div>
@@ -2573,8 +2809,7 @@ export default function CompanyDashboardPage() {
                   type="text"
                   value={jobTags}
                   onChange={(e) => setJobTags(e.target.value)}
-                  placeholder="e.g. React, Next.js, TypeScript, Tailwind, Node.js"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden font-medium"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden font-medium"
                 />
 
                 {/* Live Tag Badges Preview */}
@@ -2588,7 +2823,7 @@ export default function CompanyDashboardPage() {
                       .map((tag, idx) => (
                         <span
                           key={idx}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80"
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]"
                         >
                           {tag}
                         </span>
@@ -2611,8 +2846,7 @@ export default function CompanyDashboardPage() {
                     rows={3}
                     value={jobDescription}
                     onChange={(e) => setJobDescription(e.target.value)}
-                    placeholder="We are looking for an experienced Senior Frontend Engineer to architect and build our next-generation cloud dashboard..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden leading-relaxed resize-y font-normal"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden leading-relaxed resize-y font-normal"
                   />
                 </div>
 
@@ -2626,8 +2860,7 @@ export default function CompanyDashboardPage() {
                     rows={3}
                     value={jobResponsibilities}
                     onChange={(e) => setJobResponsibilities(e.target.value)}
-                    placeholder="Architect and ship modern, performant web applications using Next.js and TypeScript.&#10;Collaborate with UX designers to translate complex cloud telemetry into elegant dashboards.&#10;Optimize frontend asset loading, runtime performance, and core web vitals."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
                   />
                 </div>
 
@@ -2641,8 +2874,7 @@ export default function CompanyDashboardPage() {
                     rows={3}
                     value={jobRequirements}
                     onChange={(e) => setJobRequirements(e.target.value)}
-                    placeholder="4+ years of professional experience with React, Next.js, and TypeScript.&#10;Deep understanding of server components, state management, and modern CSS frameworks.&#10;Familiarity with REST and GraphQL APIs, WebSockets, and performance profiling."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
                   />
                 </div>
 
@@ -2656,24 +2888,23 @@ export default function CompanyDashboardPage() {
                     rows={3}
                     value={jobBenefits}
                     onChange={(e) => setJobBenefits(e.target.value)}
-                    placeholder="100% Remote flexibility with home-office setup allowance&#10;Competitive stock options (ESOPs) & annual bonuses&#10;Comprehensive medical insurance for employee and dependents&#10;₹1,00,000 annual learning & certification budget"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden leading-relaxed resize-y font-normal font-mono text-[11px]"
                   />
                 </div>
               </div>
 
               {/* Form Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 shrink-0 sticky bottom-0 bg-white">
+              <div className="flex flex-wrap items-center justify-end gap-2.5 sm:gap-3 pt-3 sm:pt-4 border-t border-slate-100 shrink-0 sticky bottom-0 bg-white">
                 <button
                   type="button"
                   onClick={() => setIsPostJobModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition cursor-pointer"
+                  className="flex-1 sm:flex-initial justify-center px-5 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-2"
+                  className="flex-1 sm:flex-initial justify-center px-6 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold shadow-md shadow-violet-500/20 transition cursor-pointer flex items-center gap-2"
                 >
                   <Check className="w-4 h-4" />
                   <span>{editingJobId ? "Save Changes" : "Publish Job Opening"}</span>
@@ -2686,8 +2917,8 @@ export default function CompanyDashboardPage() {
 
       {/* MODAL 2: BUY RESUME CREDITS (Clean Light Theme) */}
       {isBuyCreditsModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <FolderDown className="w-5 h-5 text-emerald-600" />
@@ -2749,11 +2980,14 @@ export default function CompanyDashboardPage() {
 
       {/* MODAL 3: VIEW APPLICANT DETAILS (Clean Light Theme) */}
       {selectedApplicant && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-sm flex items-center justify-center shadow-xs">
+                <div
+                  style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
+                  className="w-10 h-10 rounded-2xl border font-black text-sm flex items-center justify-center shadow-xs"
+                >
                   {selectedApplicant.candidateName.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
@@ -2809,7 +3043,7 @@ export default function CompanyDashboardPage() {
                   onClick={() =>
                     showToast(`Downloading CV for ${selectedApplicant.candidateName}...`)
                   }
-                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-3 py-1.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download</span>
@@ -2843,8 +3077,8 @@ export default function CompanyDashboardPage() {
 
       {/* MODAL 4: UPGRADE PLAN (Clean Light Theme) */}
       {isUpgradePlanModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Crown className="w-5 h-5 text-amber-500" />
@@ -2897,14 +3131,14 @@ export default function CompanyDashboardPage() {
         </div>
       )}
 
-      {/* MODAL 4: IMAGE ACTIONS MODAL (SEE, UPDATE, REMOVE) */}
+      {/* MODAL 5: IMAGE ACTIONS MODAL (SEE, UPDATE, REMOVE) */}
       {imageModalState.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95 duration-200 my-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95 duration-200 my-auto max-h-[92vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center">
                   <ImageIcon className="w-5 h-5" />
                 </div>
                 <div>
@@ -2955,7 +3189,7 @@ export default function CompanyDashboardPage() {
                       className="max-h-[300px] w-full object-cover rounded-xl"
                     />
                   ) : (
-                    <div className="w-full h-44 rounded-xl bg-gradient-to-r from-slate-950 via-indigo-950 to-blue-950 flex items-center justify-center text-white/70 text-xs font-semibold">
+                    <div className="w-full h-44 rounded-xl bg-gradient-to-r from-slate-950 via-purple-950 to-slate-900 flex items-center justify-center text-white/70 text-xs font-semibold">
                       Default Corporate Cover Gradient
                     </div>
                   )}
@@ -2978,7 +3212,7 @@ export default function CompanyDashboardPage() {
                         bannerInputRef.current?.click();
                       }
                     }}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>Upload New Image</span>
@@ -3010,7 +3244,7 @@ export default function CompanyDashboardPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-tr from-slate-900 to-indigo-900" />
+                      <div className="w-full h-full bg-gradient-to-tr from-slate-900 to-purple-900" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -3037,14 +3271,14 @@ export default function CompanyDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setImageModalState({ ...imageModalState, mode: "view" })}
-                    className="w-full p-3.5 rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-left transition flex items-center justify-between group cursor-pointer"
+                    className="w-full p-3.5 rounded-2xl border border-slate-200/90 hover:border-[#DDD6FE] hover:bg-[#EDE9FE]/40 text-left transition flex items-center justify-between group cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <div className="w-9 h-9 rounded-xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center group-hover:scale-105 transition-transform">
                         <Eye className="w-4 h-4" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-[#6D28D9]">
                           See Image (View Full Size)
                         </div>
                         <div className="text-[11px] text-slate-500">
@@ -3052,7 +3286,7 @@ export default function CompanyDashboardPage() {
                         </div>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-transform group-hover:translate-x-0.5" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#7C3AED] transition-transform group-hover:translate-x-0.5" />
                   </button>
 
                   {/* Option 2: UPDATE IMAGE */}

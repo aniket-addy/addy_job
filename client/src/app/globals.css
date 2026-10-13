@@ -29,3 +29,10 @@ body {
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+/* Touch, mobile and tablet card tap & active feedback */
+.touch-card {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
