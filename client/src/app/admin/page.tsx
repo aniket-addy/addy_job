@@ -386,6 +386,16 @@ export default function SuperAdminPage() {
       await updateCompanyStatus(id, "Approved");
       const overview = await fetchAdminOverview();
       if (overview) setOverviewStats(overview);
+      if (typeof window !== "undefined") {
+        const approvalEvent = {
+          companyId: id,
+          companyName: name,
+          status: "Approved",
+          timestamp: Date.now(),
+        };
+        localStorage.setItem("company_approval_event", JSON.stringify(approvalEvent));
+        window.dispatchEvent(new Event("company_status_changed"));
+      }
     } catch (err) {
       console.error("DB status update error:", err);
     }
@@ -404,6 +414,16 @@ export default function SuperAdminPage() {
       await updateCompanyStatus(id, "Rejected");
       const overview = await fetchAdminOverview();
       if (overview) setOverviewStats(overview);
+      if (typeof window !== "undefined") {
+        const rejectionEvent = {
+          companyId: id,
+          companyName: name,
+          status: "Rejected",
+          timestamp: Date.now(),
+        };
+        localStorage.setItem("company_approval_event", JSON.stringify(rejectionEvent));
+        window.dispatchEvent(new Event("company_status_changed"));
+      }
     } catch (err) {
       console.error("DB status update error:", err);
     }

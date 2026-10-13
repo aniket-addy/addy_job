@@ -41,8 +41,17 @@ import {
   Share2,
   Pencil,
   Menu,
+  Bell,
+  AlertTriangle,
+  Lock,
+  CheckCircle,
 } from "lucide-react";
-import { getStoredUser, clearAuthSession } from "@/lib/api";
+import {
+  getStoredUser,
+  clearAuthSession,
+  fetchCurrentUser,
+  markNotificationsAsRead,
+} from "@/lib/api";
 
 // Types
 interface PostedJob {
@@ -506,19 +515,82 @@ export default function CompanyDashboardPage() {
     },
   ]);
 
-  // Load user data from localStorage
+  // Company status & Notifications
+  const [companyStatus, setCompanyStatus] = useState<"Pending" | "Approved" | "Rejected">("Pending");
+  const [notifications, setNotifications] = useState<
+    Array<{
+      id: string;
+      title: string;
+      message: string;
+      type?: string;
+      read: boolean;
+      createdAt: string | Date;
+    }>
+  >([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const prevStatusRef = useRef<string | null>(null);
+
+  // Load user data from localStorage & real-time DB sync
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const user = getStoredUser();
-      if (user) {
-        if (user.companyName) setCompanyName(user.companyName);
-        else if (user.name) setCompanyName(user.name + " Corp");
-        if (user.email) setContactEmail(user.email);
-        if (user.industry) setIndustry(user.industry);
-        if (user.location) setHeadquarters(user.location);
-        if (user.phone) setContactPhone(user.phone);
-        if (user.gstNumber) setGstNumber(user.gstNumber);
-      }
+      const refreshCompanyStatus = async () => {
+        const user = getStoredUser();
+        if (user) {
+          if (user.status) {
+            const currentStat = (user.status as any) || "Pending";
+            setCompanyStatus(currentStat);
+            if (!prevStatusRef.current) prevStatusRef.current = currentStat;
+          }
+          if (user.notifications) setNotifications(user.notifications);
+          if (user.companyName) setCompanyName(user.companyName);
+          else if (user.name) setCompanyName(user.name + " Corp");
+          if (user.email) setContactEmail(user.email);
+          if (user.industry) setIndustry(user.industry);
+          if (user.location) setHeadquarters(user.location);
+          if (user.phone) setContactPhone(user.phone);
+          if (user.gstNumber) setGstNumber(user.gstNumber);
+        }
+
+        // Check cross-tab approval broadcast event
+        const storedEvent = localStorage.getItem("company_approval_event");
+        if (storedEvent) {
+          try {
+            const parsedEvent = JSON.parse(storedEvent);
+            if (parsedEvent.status) {
+              setCompanyStatus(parsedEvent.status);
+            }
+          } catch {}
+        }
+
+        // Fetch live status & notifications from backend
+        try {
+          const fresh = await fetchCurrentUser();
+          if (fresh) {
+            const freshStatus = (fresh.status as any) || "Pending";
+            if (prevStatusRef.current === "Pending" && freshStatus === "Approved") {
+              setToastMessage("🎉 Congratulations! Super Admin has approved your company. Subscription purchases and job postings are now unlocked!");
+            }
+            prevStatusRef.current = freshStatus;
+            setCompanyStatus(freshStatus);
+            if (fresh.notifications) {
+              setNotifications(fresh.notifications);
+            }
+          }
+        } catch (err) {}
+      };
+
+      refreshCompanyStatus();
+
+      const handleSync = () => {
+        refreshCompanyStatus();
+      };
+
+      window.addEventListener("auth_change", handleSync);
+      window.addEventListener("storage", handleSync);
+      window.addEventListener("company_status_changed", handleSync);
+
+      const interval = setInterval(refreshCompanyStatus, 4000);
+
       const savedCompanyProfile = localStorage.getItem("company_profile_data");
       if (savedCompanyProfile) {
         try {
@@ -548,6 +620,13 @@ export default function CompanyDashboardPage() {
           console.error(e);
         }
       }
+
+      return () => {
+        window.removeEventListener("auth_change", handleSync);
+        window.removeEventListener("storage", handleSync);
+        window.removeEventListener("company_status_changed", handleSync);
+        clearInterval(interval);
+      };
     }
   }, []);
 
@@ -636,8 +715,48 @@ export default function CompanyDashboardPage() {
     );
   };
 
+  const unreadNotifCount = notifications.filter((n) => !n.read).length;
+
+  const handleMarkAllNotificationsRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await markNotificationsAsRead();
+    } catch (err) {}
+  };
+
+  // Helper: Open Post Job with Approval Check
+  const handleOpenPostJob = () => {
+    if (companyStatus !== "Approved") {
+      showToast("⚠️ Account Pending Approval: Super Admin has not approved this company yet. You will be able to post jobs once approved.");
+      return;
+    }
+    openNewJobModal();
+  };
+
+  // Helper: Open Buy Credits with Approval Check
+  const handleOpenBuyCredits = () => {
+    if (companyStatus !== "Approved") {
+      showToast("⚠️ Account Pending Approval: Super Admin has not approved this company yet. You will be able to purchase credits once approved.");
+      return;
+    }
+    setIsBuyCreditsModalOpen(true);
+  };
+
+  // Helper: Open Upgrade Plan with Approval Check
+  const handleOpenUpgradePlan = () => {
+    if (companyStatus !== "Approved") {
+      showToast("⚠️ Account Pending Approval: Super Admin has not approved this company yet. You will be able to purchase subscription plans once approved.");
+      return;
+    }
+    setIsUpgradePlanModalOpen(true);
+  };
+
   // Modal Handlers: Open New Job / Edit Existing Job
   const openNewJobModal = () => {
+    if (companyStatus !== "Approved") {
+      showToast("⚠️ Account Pending Approval: Super Admin has not approved this company yet. You will be able to post jobs once approved.");
+      return;
+    }
     setEditingJobId(null);
     setJobTitle("");
     setJobDepartment("Engineering");
@@ -678,6 +797,10 @@ export default function CompanyDashboardPage() {
   // Action: Save Job (Create or Edit)
   const handleSaveJob = (e: React.FormEvent) => {
     e.preventDefault();
+    if (companyStatus !== "Approved") {
+      showToast("⚠️ Account Pending Approval: Super Admin has not approved this company yet. You will be able to post jobs once approved.");
+      return;
+    }
     if (!jobTitle.trim()) {
       showToast("Please enter a valid job title");
       return;
@@ -771,6 +894,11 @@ export default function CompanyDashboardPage() {
 
   // Action: Buy More Resume Credits
   const handleBuyCredits = (credits: number, price: string) => {
+    if (companyStatus !== "Approved") {
+      showToast("⚠️ Account Pending Approval: Super Admin has not approved this company yet. You will be able to purchase credits once approved.");
+      setIsBuyCreditsModalOpen(false);
+      return;
+    }
     setTotalResumesPurchased((prev) => prev + credits);
     setIsBuyCreditsModalOpen(false);
     showToast(`Successfully purchased ${credits} Resume Credits for ${price}!`);
@@ -1102,30 +1230,174 @@ export default function CompanyDashboardPage() {
             </div>
           </div>
 
-          {/* Right Action Buttons (Hidden on mobile & tablet per user request, visible only on desktop lg+) */}
-          <div className="hidden lg:flex items-center gap-2 sm:gap-4 shrink-0">
-            {/* Post Job Quick Action Button */}
-            <button
-              onClick={() => setIsPostJobModalOpen(true)}
-              className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center gap-1.5 sm:gap-2 cursor-pointer transition hover:scale-102 whitespace-nowrap shrink-0"
-            >
-              <PlusCircle className="w-4 h-4 shrink-0" />
-              <span className="whitespace-nowrap">Post a New Job</span>
-            </button>
+          {/* Right Action Container: Notifications + Actions */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Notification Bell Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="relative p-2 sm:p-2.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition cursor-pointer border border-slate-200/60"
+                title="Notifications"
+                aria-label="View notifications"
+              >
+                <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center ring-2 ring-white animate-pulse">
+                    {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
+                  </span>
+                )}
+              </button>
 
-            {/* Resume Credit Indicator */}
-            <button
-              onClick={() => setIsBuyCreditsModalOpen(true)}
-              className="px-2.5 sm:px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1.5 sm:gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <FolderDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span className="whitespace-nowrap">{remainingCredits} Credits</span>
-            </button>
+              {/* Notification Popover Dropdown */}
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95">
+                  <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-[#7C3AED]" />
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900">Notifications</h4>
+                      {unreadNotifCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-[#7C3AED]">
+                          {unreadNotifCount} new
+                        </span>
+                      )}
+                    </div>
+                    {unreadNotifCount > 0 && (
+                      <button
+                        onClick={handleMarkAllNotificationsRead}
+                        className="text-[11px] font-bold text-[#7C3AED] hover:underline cursor-pointer"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400">
+                        <Bell className="w-8 h-8 text-slate-300 mx-auto mb-2 opacity-60" />
+                        No notifications yet.
+                      </div>
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          className={`p-3.5 sm:p-4 flex items-start gap-3 transition hover:bg-slate-50/80 ${
+                            !notif.read ? "bg-violet-50/40" : ""
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-xl bg-violet-100 text-[#7C3AED] flex items-center justify-center shrink-0 mt-0.5">
+                            {notif.type === "approval" ? (
+                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                            ) : notif.type === "rejection" ? (
+                              <AlertTriangle className="w-4 h-4 text-rose-600" />
+                            ) : (
+                              <Bell className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <h5 className="text-xs font-bold text-slate-900 truncate">
+                                {notif.title}
+                              </h5>
+                              <span className="text-[10px] text-slate-400 shrink-0">
+                                {notif.createdAt
+                                  ? new Date(notif.createdAt).toLocaleDateString()
+                                  : "Just now"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                              {notif.message}
+                            </p>
+                          </div>
+                          {!notif.read && (
+                            <span className="w-2 h-2 rounded-full bg-[#7C3AED] shrink-0 mt-1.5" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Action Buttons (Hidden on mobile & tablet per user request, visible only on desktop lg+) */}
+            <div className="hidden lg:flex items-center gap-2 sm:gap-4 shrink-0">
+              {/* Post Job Quick Action Button */}
+              <button
+                onClick={handleOpenPostJob}
+                className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center gap-1.5 sm:gap-2 cursor-pointer transition hover:scale-102 whitespace-nowrap shrink-0"
+              >
+                <PlusCircle className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap">Post a New Job</span>
+              </button>
+
+              {/* Resume Credit Indicator */}
+              <button
+                onClick={handleOpenBuyCredits}
+                className="px-2.5 sm:px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1.5 sm:gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <FolderDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="whitespace-nowrap">{remainingCredits} Credits</span>
+              </button>
+            </div>
           </div>
         </header>
 
         {/* MAIN BODY PER TAB */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl w-full mx-auto pb-24 md:pb-8">
+          {/* STATUS BANNER (Awaiting Approval or Rejected) */}
+          {companyStatus === "Pending" && (
+            <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50/70 border border-amber-200 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-amber-900 shadow-xs animate-in fade-in">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 mt-0.5 sm:mt-0 shadow-xs">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-amber-950">
+                      Account Pending Super Admin Approval
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-800 uppercase tracking-wider">
+                      Pending
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-amber-800/90 mt-1 max-w-3xl leading-relaxed">
+                    Welcome to AddyJob! Your company registration is currently awaiting verification by the Super Admin. Subscription purchases, credit packs, and job postings will be enabled immediately once approved.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100/90 text-amber-800 text-xs font-bold border border-amber-200/80">
+                  <Lock className="w-3.5 h-3.5" /> Purchases Locked
+                </span>
+              </div>
+            </div>
+          )}
+
+          {companyStatus === "Rejected" && (
+            <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-rose-900 shadow-xs animate-in fade-in">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 text-rose-700 mt-0.5 sm:mt-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-rose-950">
+                      Company Verification Rejected
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-200 text-rose-800 uppercase tracking-wider">
+                      Rejected
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-rose-800/90 mt-1 max-w-3xl leading-relaxed">
+                    Your company verification request has been rejected by the Super Admin. Please verify your company details or contact support for assistance.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: DASHBOARD OVERVIEW */}
           {activeTab === "dashboard" && (
             <div className="space-y-8 animate-in fade-in duration-200">
@@ -1147,7 +1419,7 @@ export default function CompanyDashboardPage() {
 
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
                     <button
-                      onClick={() => setIsPostJobModalOpen(true)}
+                      onClick={handleOpenPostJob}
                       className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center justify-center gap-2 transition cursor-pointer hover:scale-102 whitespace-nowrap shrink-0"
                     >
                       <Plus className="w-4 h-4 shrink-0" />
@@ -2257,6 +2529,26 @@ export default function CompanyDashboardPage() {
                 </span>
               </div>
 
+              {/* Locked Warning for Pending Companies */}
+              {companyStatus !== "Approved" && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3.5 text-amber-900 shadow-xs animate-in fade-in">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-700">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                      Subscription Purchases Locked
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-800 uppercase">
+                        {companyStatus}
+                      </span>
+                    </h4>
+                    <p className="text-xs text-amber-800/90 mt-0.5">
+                      Your company account status is currently <span className="font-bold underline">{companyStatus}</span>. You cannot purchase subscription packages or upgrade tiers until Super Admin approves your company profile.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Current Active Plan Overview Card */}
               <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#EDE9FE]/70 via-purple-50/50 to-white border border-[#DDD6FE] shadow-xs hover:shadow-xl hover:shadow-violet-500/10 hover:border-[#7C3AED]/50 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6">
                 <div>
@@ -2289,10 +2581,15 @@ export default function CompanyDashboardPage() {
                 </div>
 
                 <button
-                  onClick={() => setIsUpgradePlanModalOpen(true)}
-                  className="w-full md:w-auto text-center px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-md transition hover:scale-105 cursor-pointer shrink-0"
+                  onClick={handleOpenUpgradePlan}
+                  className={`w-full md:w-auto text-center px-6 py-3 rounded-2xl font-bold text-xs shadow-md transition shrink-0 flex items-center justify-center gap-2 cursor-pointer ${
+                    companyStatus === "Approved"
+                      ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white hover:scale-105"
+                      : "bg-amber-100/90 text-amber-900 border border-amber-300/80 hover:bg-amber-200"
+                  }`}
                 >
-                  Upgrade to Enterprise
+                  {companyStatus !== "Approved" && <Lock className="w-3.5 h-3.5" />}
+                  <span>{companyStatus === "Approved" ? "Upgrade to Enterprise" : "Upgrade Locked (Pending Approval)"}</span>
                 </button>
               </div>
 
@@ -2505,11 +2802,16 @@ export default function CompanyDashboardPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setIsUpgradePlanModalOpen(true);
+                        handleOpenUpgradePlan();
                       }}
-                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs group-hover:shadow-lg group-hover:shadow-amber-500/30 group-hover:scale-[1.01] transition-all duration-200 cursor-pointer shadow-xs"
+                      className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all duration-200 shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                        companyStatus === "Approved"
+                          ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white group-hover:shadow-lg group-hover:shadow-amber-500/30 group-hover:scale-[1.01]"
+                          : "bg-amber-100/90 text-amber-900 border border-amber-300 hover:bg-amber-200"
+                      }`}
                     >
-                      Upgrade to Enterprise
+                      {companyStatus !== "Approved" && <Lock className="w-3.5 h-3.5" />}
+                      <span>{companyStatus === "Approved" ? "Upgrade to Enterprise" : "Upgrade Locked (Pending)"}</span>
                     </button>
                   </div>
                 </div>
@@ -3116,12 +3418,17 @@ export default function CompanyDashboardPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    if (companyStatus !== "Approved") {
+                      showToast("⚠️ Account Pending Approval: Super Admin has not approved this company yet. You will be able to purchase subscription plans once approved.");
+                      setIsUpgradePlanModalOpen(false);
+                      return;
+                    }
                     setCurrentPlan("Enterprise Scaled");
                     setTotalResumesPurchased((prev) => prev + 250);
                     setIsUpgradePlanModalOpen(false);
                     showToast("Upgraded to Enterprise Scaled Plan successfully!");
                   }}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-white font-bold shadow-md"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-white font-bold shadow-md cursor-pointer"
                 >
                   Confirm Upgrade
                 </button>
