@@ -54,8 +54,17 @@ export default function SuperAdminPage() {
   const [overviewStats, setOverviewStats] = useState<AdminOverviewStats | null>(null);
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentDateStr, setCurrentDateStr] = useState<string>("");
 
   useEffect(() => {
+    setCurrentDateStr(
+      new Date().toLocaleDateString("en-US", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    );
     const user = getStoredUser();
     if (!user) {
       window.location.href = "/login";
@@ -579,14 +588,7 @@ export default function SuperAdminPage() {
                     {/* Date Pill */}
                     <div className="flex items-center gap-2 px-3.5 py-2 bg-white rounded-xl border border-slate-200/90 text-xs font-semibold text-slate-700 shadow-sm">
                       <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                      <span>
-                        {new Date().toLocaleDateString("en-US", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </span>
+                      <span>{currentDateStr || "Today"}</span>
                     </div>
 
                     {/* View Reports Button */}
