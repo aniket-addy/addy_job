@@ -77,7 +77,7 @@ export default function PendingApprovals({
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
               <th className="py-2.5 px-3 w-8">
                 <input
                   type="checkbox"
@@ -115,7 +115,7 @@ export default function PendingApprovals({
                     }`}
                   >
                     {/* Checkbox */}
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -126,23 +126,23 @@ export default function PendingApprovals({
                     </td>
 
                     {/* Company */}
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2.5">
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5 whitespace-nowrap">
                         <div
                           className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-[11px] text-white shrink-0 ${company.logoBg}`}
                         >
                           {company.logoLetter}
                         </div>
-                        <span className="font-bold text-slate-800 truncate max-w-[150px] sm:max-w-none">
+                        <span className="font-bold text-slate-800 whitespace-nowrap">
                           {company.name}
                         </span>
                       </div>
                     </td>
 
                     {/* Plan */}
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 whitespace-nowrap">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getPlanBadge(
+                        className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border whitespace-nowrap ${getPlanBadge(
                           company.plan
                         )}`}
                       >
@@ -156,9 +156,9 @@ export default function PendingApprovals({
                     </td>
 
                     {/* Status */}
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
                           company.status === "Pending"
                             ? "bg-amber-50 text-amber-700 border border-amber-200"
                             : company.status === "Approved"
@@ -171,7 +171,7 @@ export default function PendingApprovals({
                     </td>
 
                     {/* Action */}
-                    <td className="py-3 px-3 text-right">
+                    <td className="py-3 px-3 text-right whitespace-nowrap">
                       {company.status === "Pending" ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <button

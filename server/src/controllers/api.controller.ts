@@ -1,8 +1,15 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 
 export const getHealth = (req: Request, res: Response) => {
+  const readyStates = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  const stateIndex = mongoose.connection.readyState;
+  const dbStatus = readyStates[stateIndex] ?? 'unknown';
+
   res.status(200).json({
     status: 'ok',
+    dbStatus,
+    dbReadyState: stateIndex,
     message: 'Backend server is running smoothly',
     timestamp: new Date().toISOString()
   });

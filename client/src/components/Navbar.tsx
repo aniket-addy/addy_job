@@ -45,18 +45,24 @@ export default function Navbar({
     const handleAuth = () => setCurrentUser(getStoredUser());
     window.addEventListener("auth_change", handleAuth);
     window.addEventListener("storage", handleAuth);
+    window.addEventListener("focus", handleAuth);
     return () => {
       window.removeEventListener("auth_change", handleAuth);
       window.removeEventListener("storage", handleAuth);
+      window.removeEventListener("focus", handleAuth);
     };
   }, []);
+
+  useEffect(() => {
+    setCurrentUser(getStoredUser());
+  }, [pathname]);
 
   const handleLogout = () => {
     clearAuthSession();
     setCurrentUser(null);
     setProfileOpen(false);
     setMobileMenuOpen(false);
-    router.push("/login");
+    window.location.href = "/";
   };
 
   const navLinks = [

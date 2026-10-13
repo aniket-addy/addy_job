@@ -90,7 +90,7 @@ export default function ApplicationsManager({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                 <th className="py-3 px-4">Candidate</th>
                 <th className="py-3 px-4">Applied Role</th>
                 <th className="py-3 px-4">Target Company</th>
@@ -109,43 +109,42 @@ export default function ApplicationsManager({
               ) : (
                 filteredApps.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-3">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5 whitespace-nowrap">
                         <div
-                          className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-sm ${item.avatarBg}`}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-[10px] shrink-0 shadow-xs ${item.avatarBg}`}
                         >
                           {item.avatarLetter}
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900 leading-tight">
-                            {item.candidateName}
-                          </p>
-                          <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                            <FileText className="w-3 h-3 text-blue-500" />
-                            Resume Verified
-                          </p>
-                        </div>
+                        <span className="font-bold text-slate-900 leading-tight">
+                          {item.candidateName}
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-xs text-slate-400 flex items-center gap-1 font-normal">
+                          <FileText className="w-3 h-3 text-blue-500 shrink-0" />
+                          Resume Verified
+                        </span>
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4 font-semibold text-slate-800">
+                    <td className="py-3.5 px-4 font-semibold text-slate-800 whitespace-nowrap">
                       {item.position}
                     </td>
 
-                    <td className="py-3.5 px-4 text-slate-600 font-medium">
+                    <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
                       <span className="flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         {item.company}
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-slate-400 text-[11px]">
+                    <td className="py-3.5 px-4 text-slate-400 text-[11px] whitespace-nowrap">
                       {item.appliedOn}
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border whitespace-nowrap ${
                           item.status === "Shortlisted"
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : item.status === "New"
@@ -161,7 +160,7 @@ export default function ApplicationsManager({
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <select
                         value={item.status}
                         onChange={(e) =>

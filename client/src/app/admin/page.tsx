@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -30,10 +30,22 @@ import ApplicationsManager from "@/components/admin/ApplicationsManager";
 import JobsModerator, { JobPosting } from "@/components/admin/JobsModerator";
 import CreatePlanModal from "@/components/admin/CreatePlanModal";
 import MobileBottomNav from "@/components/admin/MobileBottomNav";
+import { getStoredUser } from "@/lib/api";
 
 export default function SuperAdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+    if (user.role && user.role !== "admin") {
+      window.location.href = "/login";
+    }
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState<{
     text: string;

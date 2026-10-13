@@ -57,7 +57,7 @@ export default function RecentApplications({
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
               <th className="py-2.5 px-3">Candidate</th>
               <th className="py-2.5 px-3">Position</th>
               <th className="py-2.5 px-3">Company</th>
@@ -73,26 +73,26 @@ export default function RecentApplications({
                 className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
               >
                 {/* Candidate */}
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2.5">
+                <td className="py-3 px-3 whitespace-nowrap">
+                  <div className="flex items-center gap-2.5 whitespace-nowrap">
                     <div
                       className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] text-white shrink-0 ${app.avatarBg}`}
                     >
                       {app.avatarLetter}
                     </div>
-                    <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                    <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors whitespace-nowrap">
                       {app.candidateName}
                     </span>
                   </div>
                 </td>
 
                 {/* Position */}
-                <td className="py-3 px-3 text-slate-700 font-medium">
+                <td className="py-3 px-3 text-slate-700 font-medium whitespace-nowrap">
                   {app.position}
                 </td>
 
                 {/* Company */}
-                <td className="py-3 px-3 text-slate-500 font-medium">
+                <td className="py-3 px-3 text-slate-500 font-medium whitespace-nowrap">
                   {app.company}
                 </td>
 
@@ -102,9 +102,9 @@ export default function RecentApplications({
                 </td>
 
                 {/* Status */}
-                <td className="py-3 px-3">
+                <td className="py-3 px-3 whitespace-nowrap">
                   <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadge(
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${getStatusBadge(
                       app.status
                     )}`}
                   >

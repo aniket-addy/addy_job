@@ -3,11 +3,35 @@ export const API_BASE_URL =
 
 export interface UserSession {
   id: string;
+  userId?: string;
+  customId?: string;
   email: string;
   role: 'job_seeker' | 'company' | 'admin';
   name: string;
+  headline?: string;
+  bio?: string;
+  languages?: string;
   targetRole?: string;
   experience?: string;
+  highestQualification?: string;
+  course?: string;
+  courseType?: string;
+  specialization?: string;
+  university?: string;
+  startingYear?: string;
+  passingYear?: string;
+  gradingSystem?: string;
+  gradeScore?: string;
+  skills?: string[];
+  workStatus?: string;
+  preferredLocation?: string;
+  expectedSalary?: string;
+  resumeName?: string;
+  resumeDate?: string;
+  appliedJobsCount?: number;
+  savedJobsCount?: number;
+  interviewsCount?: number;
+  profileViewsCount?: number;
   companyName?: string;
   workEmail?: string;
   industry?: string;
@@ -39,9 +63,17 @@ export const clearAuthSession = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('career_token');
     localStorage.removeItem('career_user');
+    sessionStorage.clear();
+
+    // Expire cookies
+    document.cookie = 'career_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    document.cookie = 'career_user=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+
     window.dispatchEvent(new Event('auth_change'));
+    window.dispatchEvent(new Event('storage'));
   }
 };
+
 
 // Get stored user from localStorage
 export const getStoredUser = (): UserSession | null => {
@@ -70,6 +102,19 @@ export async function registerUser(payload: {
   name?: string;
   targetRole?: string;
   experience?: string;
+  highestQualification?: string;
+  course?: string;
+  courseType?: string;
+  specialization?: string;
+  university?: string;
+  startingYear?: string;
+  passingYear?: string;
+  gradingSystem?: string;
+  gradeScore?: string;
+  skills?: string[];
+  workStatus?: string;
+  preferredLocation?: string;
+  expectedSalary?: string;
   companyName?: string;
   workEmail?: string;
   industry?: string;
@@ -163,3 +208,46 @@ export async function fetchCurrentUser(): Promise<UserSession | null> {
     return null;
   }
 }
+
+// Update User Profile API call
+export async function updateUserProfile(
+  payload: Partial<UserSession>
+): Promise<{ success: boolean; message: string; user?: UserSession }> {
+  const token = getAuthToken();
+  if (!token) {
+    return { success: false, message: 'You are not logged in.' };
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return {
+        success: false,
+        message: data.message || 'Failed to update profile.',
+      };
+    }
+
+    if (data.user) {
+      setAuthSession(token, data.user);
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error('API update profile error:', error);
+    return {
+      success: false,
+      message: 'Failed to update profile. Please verify network connection.',
+    };
+  }
+}
+

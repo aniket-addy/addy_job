@@ -41,6 +41,11 @@ import {
   Share2,
   Pencil,
   Menu,
+<<<<<<< HEAD
+=======
+  MoreVertical,
+  MoreHorizontal,
+>>>>>>> eeefec736d04d57323243303f7e5bc1132a3a40c
 } from "lucide-react";
 import { getStoredUser, clearAuthSession } from "@/lib/api";
 
@@ -99,10 +104,22 @@ interface PurchasedResume {
 export default function CompanyDashboardPage() {
   const router = useRouter();
 
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+    if (user.name) setCompanyName(user.name);
+    if (user.email) setContactEmail(user.email);
+  }, []);
+
   // Active Tab
   const [activeTab, setActiveTab] = useState<
     "dashboard" | "profile" | "jobs" | "applicants" | "resumes" | "subscription" | "settings"
   >("dashboard");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
 
   // Mobile sidebar drawer state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -827,7 +844,7 @@ export default function CompanyDashboardPage() {
   // Logout
   const handleLogout = () => {
     clearAuthSession();
-    router.push("/login");
+    window.location.href = "/";
   };
 
   // Metrics calculation
@@ -864,6 +881,7 @@ export default function CompanyDashboardPage() {
         </div>
       )}
 
+<<<<<<< HEAD
       {/* Mobile Backdrop Overlay */}
       {isMobileSidebarOpen && (
         <div
@@ -879,6 +897,10 @@ export default function CompanyDashboardPage() {
           isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
+=======
+      {/* LEFT SIDEBAR (Desktop Light Style) */}
+      <aside className="hidden lg:flex w-72 bg-white border-r border-slate-200/80 flex-col shrink-0 sticky top-0 h-screen z-30 select-none shadow-xs">
+>>>>>>> eeefec736d04d57323243303f7e5bc1132a3a40c
         {/* Sidebar Header */}
         <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 group">
@@ -1069,9 +1091,200 @@ export default function CompanyDashboardPage() {
         </div>
       </aside>
 
+      {/* MOBILE DRAWER SIDEBAR (Phone View) */}
+      {mobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+
+          {/* Drawer Content */}
+          <aside className="relative z-10 w-72 max-w-[85vw] bg-white h-full flex flex-col shadow-2xl animate-in slide-in-from-left duration-200 select-none">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+              <Link
+                href="/"
+                onClick={() => setMobileSidebarOpen(false)}
+                className="flex items-center gap-2.5"
+              >
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-sm">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-sm font-black tracking-tight text-slate-900 block">
+                    Career<span className="text-blue-600">Connect</span>
+                  </span>
+                  <span className="text-[10px] font-bold uppercase text-blue-600 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" />
+                    Company Admin
+                  </span>
+                </div>
+              </Link>
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                aria-label="Close menu"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Navigation items */}
+            <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-1">
+              <button
+                onClick={() => {
+                  setActiveTab("dashboard");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === "dashboard"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4 text-blue-600" />
+                <span>Dashboard</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("profile");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === "profile"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Building2 className="w-4 h-4 text-slate-500" />
+                <span>Company Profile</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("jobs");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === "jobs"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Briefcase className="w-4 h-4 text-slate-500" />
+                  <span>Job Postings</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600">
+                  {totalJobsCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("applicants");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === "applicants"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4 text-slate-500" />
+                  <span>Applications</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600">
+                  {totalApplicantsCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("resumes");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === "resumes"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FolderDown className="w-4 h-4 text-slate-500" />
+                  <span>Resumes Purchased</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600">
+                  {remainingCredits}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("subscription");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === "subscription"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <CreditCard className="w-4 h-4 text-slate-500" />
+                  <span>Our Subscription</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">
+                  PRO
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("settings");
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === "settings"
+                    ? "bg-blue-50 text-blue-600 font-extrabold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Settings className="w-4 h-4 text-slate-500" />
+                <span>Settings</span>
+              </button>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="p-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                  {companyName.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">{companyName}</p>
+                  <p className="text-[10px] text-slate-500 truncate">{contactEmail}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
       {/* RIGHT CONTENT WRAPPER */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto pb-16 lg:pb-0">
         {/* TOP BAR */}
+<<<<<<< HEAD
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2.5 sm:gap-4 shadow-xs">
           <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-2xl min-w-0">
             {/* Hamburger Button for Mobile / Tablet */}
@@ -1092,16 +1305,48 @@ export default function CompanyDashboardPage() {
 
             <div className="relative w-full min-w-0">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+=======
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4 shadow-xs">
+          {/* Mobile Sidebar & 3-Dots Toggles */}
+          <div className="flex items-center gap-1 lg:hidden shrink-0">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open navigation menu"
+              title="Menu"
+              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open sidebar menu (3 dots)"
+              title="Menu (3 dots)"
+              className="p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-lg min-w-0">
+            <div className="relative w-full">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+>>>>>>> eeefec736d04d57323243303f7e5bc1132a3a40c
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+<<<<<<< HEAD
                 placeholder="Search candidates, roles..."
                 className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white text-xs text-slate-800 placeholder-slate-400 pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 rounded-full border border-transparent focus:border-purple-300 focus:ring-4 focus:ring-purple-100 outline-hidden transition"
+=======
+                placeholder="Search..."
+                className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white text-xs text-slate-800 placeholder-slate-400 pl-9 pr-3 py-1.5 sm:py-2.5 rounded-full border border-transparent focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-hidden transition"
+>>>>>>> eeefec736d04d57323243303f7e5bc1132a3a40c
               />
             </div>
           </div>
 
+<<<<<<< HEAD
           {/* Right Action Buttons (Hidden on mobile & tablet per user request, visible only on desktop lg+) */}
           <div className="hidden lg:flex items-center gap-2 sm:gap-4 shrink-0">
             {/* Post Job Quick Action Button */}
@@ -1111,15 +1356,33 @@ export default function CompanyDashboardPage() {
             >
               <PlusCircle className="w-4 h-4 shrink-0" />
               <span className="whitespace-nowrap">Post a New Job</span>
+=======
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            {/* Post Job Quick Action Button */}
+            <button
+              onClick={() => setIsPostJobModalOpen(true)}
+              className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-1.5 sm:gap-2 cursor-pointer transition hover:scale-102"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">Post a New Job</span>
+              <span className="sm:hidden">Post</span>
+>>>>>>> eeefec736d04d57323243303f7e5bc1132a3a40c
             </button>
 
             {/* Resume Credit Indicator */}
             <button
               onClick={() => setIsBuyCreditsModalOpen(true)}
+<<<<<<< HEAD
               className="px-2.5 sm:px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1.5 sm:gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
             >
               <FolderDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span className="whitespace-nowrap">{remainingCredits} Credits</span>
+=======
+              className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-[11px] sm:text-xs font-bold text-slate-700 flex items-center gap-1.5 sm:gap-2 transition cursor-pointer"
+            >
+              <FolderDown className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{remainingCredits} <span className="hidden sm:inline">Credits</span></span>
+>>>>>>> eeefec736d04d57323243303f7e5bc1132a3a40c
             </button>
           </div>
         </header>
@@ -3344,6 +3607,57 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Mobile Bottom Navigation for Company */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex items-center justify-around shadow-lg">
+        <button
+          onClick={() => setActiveTab("dashboard")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeTab === "dashboard" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Home</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("jobs")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeTab === "jobs" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Briefcase className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Jobs</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("applicants")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeTab === "applicants" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Users className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Applicants</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("resumes")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeTab === "resumes" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <FolderDown className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Resumes</span>
+        </button>
+        <button
+          onClick={() => setMobileSidebarOpen(true)}
+          title="Open menu (3 dots)"
+          aria-label="Open menu (3 dots)"
+          className="flex flex-col items-center justify-center p-1 text-slate-500 hover:text-blue-600 transition cursor-pointer group"
+        >
+          <div className="w-5 h-5 flex items-center justify-center">
+            <MoreHorizontal className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </div>
+          <span className="text-[10px] mt-0.5 font-medium group-hover:text-blue-600">Menu</span>
+        </button>
+      </div>
     </div>
   );
 }

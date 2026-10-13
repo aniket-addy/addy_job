@@ -2,12 +2,36 @@ import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 export interface IUser extends Document {
+  userId?: string; // e.g. "us01", "us02"
+  customId?: string; // e.g. "us01", "us02"
   email: string;
   password?: string;
   role: 'job_seeker' | 'company' | 'admin';
   name?: string;
+  headline?: string;
+  bio?: string;
   targetRole?: string;
   experience?: string;
+  highestQualification?: string;
+  course?: string;
+  courseType?: string;
+  specialization?: string;
+  university?: string;
+  startingYear?: string;
+  passingYear?: string;
+  gradingSystem?: string;
+  gradeScore?: string;
+  skills?: string[];
+  languages?: string;
+  workStatus?: string;
+  preferredLocation?: string;
+  expectedSalary?: string;
+  resumeName?: string;
+  resumeDate?: string;
+  appliedJobsCount?: number;
+  savedJobsCount?: number;
+  interviewsCount?: number;
+  profileViewsCount?: number;
   companyName?: string;
   workEmail?: string;
   industry?: string;
@@ -23,6 +47,16 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
+    userId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    customId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
     email: {
       type: String,
       required: [true, 'Email address is required'],
@@ -47,15 +81,120 @@ const userSchema = new Schema<IUser>(
       type: String,
       trim: true,
     },
+    headline: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    bio: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     targetRole: {
       type: String,
       trim: true,
-      default: 'Frontend Developer',
+      default: '',
     },
     experience: {
       type: String,
       trim: true,
-      default: '1-3 Years',
+      default: '',
+    },
+    highestQualification: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    course: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    courseType: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    specialization: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    university: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    startingYear: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    passingYear: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    gradingSystem: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    gradeScore: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    skills: {
+      type: [String],
+      default: [],
+    },
+    languages: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    workStatus: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    preferredLocation: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    expectedSalary: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    resumeName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    resumeDate: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    appliedJobsCount: {
+      type: Number,
+      default: 0,
+    },
+    savedJobsCount: {
+      type: Number,
+      default: 0,
+    },
+    interviewsCount: {
+      type: Number,
+      default: 0,
+    },
+    profileViewsCount: {
+      type: Number,
+      default: 0,
     },
     // Company fields
     companyName: {

@@ -100,7 +100,7 @@ export default function JobsModerator({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                 <th className="py-3 px-4">Job Title & Company</th>
                 <th className="py-3 px-4">Job Type</th>
                 <th className="py-3 px-4">Location</th>
@@ -120,44 +120,45 @@ export default function JobsModerator({
               ) : (
                 filteredJobs.map((j) => (
                   <tr key={j.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div>
-                        <p className="font-bold text-slate-900 leading-tight">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
+                        <span className="font-bold text-slate-900">
                           {j.title}
-                        </p>
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                          <Building2 className="w-3 h-3 text-slate-400" />
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           {j.company}
-                        </p>
+                        </span>
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 whitespace-nowrap">
                         {j.type}
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-slate-600 font-medium">
+                    <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
                       <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         {j.location}
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 font-semibold text-slate-800">
+                    <td className="py-3.5 px-4 font-semibold text-slate-800 whitespace-nowrap">
                       {j.salary}
                     </td>
 
-                    <td className="py-3.5 px-4 text-slate-600 font-medium">
-                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold">
+                    <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold whitespace-nowrap">
                         {j.applicantsCount} applied
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border whitespace-nowrap ${
                           j.status === "Active"
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : j.status === "Pending"
@@ -171,8 +172,8 @@ export default function JobsModerator({
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                         {j.status === "Pending" && (
                           <button
                             onClick={() => onToggleStatus(j.id, "Active")}

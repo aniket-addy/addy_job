@@ -17,7 +17,9 @@ import {
   Building2,
   Briefcase,
   CheckCircle2,
+  MoreVertical,
 } from "lucide-react";
+import { clearAuthSession } from "@/lib/api";
 
 interface AdminHeaderProps {
   onToggleSidebar: () => void;
@@ -32,6 +34,11 @@ export default function AdminHeader({
 }: AdminHeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  const handleLogout = () => {
+    clearAuthSession();
+    window.location.href = "/";
+  };
 
   const notifications = [
     {
@@ -61,32 +68,42 @@ export default function AdminHeader({
   ];
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-2 sm:gap-4">
       {/* Left: Mobile Sidebar Toggle & Global Search */}
-      <div className="flex items-center gap-3 sm:gap-4 flex-1 max-w-2xl">
+      <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-2xl min-w-0">
         <button
           onClick={onToggleSidebar}
           aria-label="Toggle navigation sidebar"
-          className="lg:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+          title="Open Menu"
+          className="lg:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer shrink-0"
         >
           <Menu className="w-5 h-5" />
         </button>
 
         {/* Global Search Bar */}
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <div className="relative w-full max-w-xs sm:max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search companies, jobs, users..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-sm text-slate-800 placeholder-slate-400 rounded-xl border border-slate-200/80 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all"
+            placeholder="Search..."
+            className="w-full pl-9 pr-3 py-1.5 sm:py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-xs sm:text-sm text-slate-800 placeholder-slate-400 rounded-xl border border-slate-200/80 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all"
           />
         </div>
       </div>
 
-      {/* Right: Notification & Profile */}
-      <div className="flex items-center gap-2 sm:gap-4 relative">
+      {/* Right: 3-Dots Sidebar Toggle, Notification & Profile */}
+      <div className="flex items-center gap-1.5 sm:gap-4 relative shrink-0">
+        {/* Mobile 3-Dots Toggle Button for Quick Sidebar Open */}
+        <button
+          onClick={onToggleSidebar}
+          aria-label="Open sidebar menu (3 dots)"
+          title="Open sidebar menu"
+          className="lg:hidden p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+        >
+          <MoreVertical className="w-5 h-5" />
+        </button>
         {/* Notifications Dropdown */}
         <div className="relative">
           <button
@@ -190,13 +207,14 @@ export default function AdminHeader({
                 </button>
               </div>
               <div className="border-t border-slate-100 pt-1">
-                <Link
-                  href="/"
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Logout</span>
-                </Link>
+                </button>
               </div>
             </div>
           )}

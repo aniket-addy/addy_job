@@ -166,19 +166,19 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Email Address
+                Email Address or User ID
               </label>
               <div className="relative">
                 <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   placeholder={
                     role === "admin"
                       ? "sadmin@gmail.com"
                       : role === "company"
                       ? "recruiter@company.com"
-                      : "candidate@email.com"
+                      : "Email or User ID (e.g. us01)"
                   }
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

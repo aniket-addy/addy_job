@@ -54,7 +54,7 @@ export default function AdminSidebar({
 
   const handleAdminLogout = () => {
     clearAuthSession();
-    router.push("/login");
+    window.location.href = "/";
   };
 
   const menuItems = [
