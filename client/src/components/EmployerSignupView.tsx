@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { registerUser, setAuthSession } from "@/lib/api";
+import { registerUser, setAuthSession, fetchAdminPlans } from "@/lib/api";
 
 interface EmployerSignupViewProps {
   onSwitchToJobSeeker?: () => void;
@@ -57,6 +57,108 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
 
   // Pricing Billing Toggle: "monthly" | "yearly"
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+
+  // Dynamic Plans from Super Admin Database
+  const [dbPlans, setDbPlans] = useState<any[]>([]);
+
+  const loadPlans = async () => {
+    try {
+      const data = await fetchAdminPlans();
+      if (data && Array.isArray(data) && data.length > 0) {
+        const active = data.filter((p: any) => p.status !== "Inactive");
+        setDbPlans(active.length > 0 ? active : data);
+      }
+    } catch (err) {
+      console.error("Failed to load plans in EmployerSignupView:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadPlans();
+
+    const handleSync = () => {
+      loadPlans();
+    };
+
+    window.addEventListener("plans_updated", handleSync);
+    window.addEventListener("focus", handleSync);
+    window.addEventListener("storage", handleSync);
+
+    return () => {
+      window.removeEventListener("plans_updated", handleSync);
+      window.removeEventListener("focus", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, []);
+
+  const fallbackPlans = [
+    {
+      name: "Starter",
+      price: "₹2,999",
+      features: [
+        "Post up to 5 job listings",
+        "Access to basic candidate database",
+        "Standard job visibility",
+        "Email support",
+      ],
+    },
+    {
+      name: "Professional",
+      price: "₹7,999",
+      features: [
+        "Post up to 20 job listings",
+        "Access to advanced candidate database",
+        "Featured job visibility",
+        "Company profile branding",
+        "Priority support",
+      ],
+    },
+    {
+      name: "Enterprise",
+      price: "₹19,999",
+      features: [
+        "Unlimited job listings",
+        "Access to full candidate database",
+        "Premium job visibility",
+        "Advanced analytics & insights",
+        "Dedicated account manager",
+        "Custom solutions",
+      ],
+    },
+  ];
+
+  const getCardPriceInfo = (plan: any, cycle: "monthly" | "yearly") => {
+    const rawPrice = typeof plan === "string" ? plan : (plan?.price || "");
+    const digits = (rawPrice || "").replace(/[^\d]/g, "");
+    const num = parseInt(digits, 10);
+    const planCycle = (
+      typeof plan === "object"
+        ? (plan.billingCycle || (cycle === "yearly" ? "yearly" : "monthly"))
+        : (cycle === "yearly" ? "yearly" : "monthly")
+    ).toLowerCase();
+
+    const isYearly = planCycle === "yearly" || cycle === "yearly";
+    const billingUnit = isYearly ? "/ year" : "/ month";
+    const displayPrice = num > 0 ? `₹${num.toLocaleString("en-IN")}` : (rawPrice || "₹0");
+
+    return {
+      displayPrice,
+      billingUnit,
+      annualBilledText: isYearly ? "Billed annually (Save 20%)" : null,
+    };
+  };
+
+  const monthlyDbPlans = dbPlans.filter(
+    (p) => (p.billingCycle || "monthly").toLowerCase() === "monthly"
+  );
+  const yearlyDbPlans = dbPlans.filter(
+    (p) => (p.billingCycle || "").toLowerCase() === "yearly"
+  );
+
+  const activePlansToDisplay =
+    billingCycle === "yearly"
+      ? (yearlyDbPlans.length > 0 ? yearlyDbPlans : (monthlyDbPlans.length > 0 ? monthlyDbPlans : fallbackPlans))
+      : (monthlyDbPlans.length > 0 ? monthlyDbPlans : fallbackPlans);
 
   // FAQ open/close accordion state
   const [openFaq, setOpenFaq] = useState<number | null>(0); // First one open by default
@@ -176,7 +278,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
       <section className="relative overflow-hidden pt-8 pb-16 lg:pt-12 lg:pb-20 border-b border-slate-200/60 bg-gradient-to-b from-purple-50/50 via-white to-slate-50/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-start">
-            
+
             {/* Left Column: Brand Message, Feature Highlights & Visual */}
             <div className="lg:col-span-7 space-y-7">
               {/* Badge */}
@@ -344,7 +446,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
             {/* Right Column: "Create Company Account" Registration Card */}
             <div className="lg:col-span-5" id="employer-registration-card">
               <div className="bg-white rounded-2xl sm:rounded-3xl shadow-[0_15px_40px_rgba(0,0,0,0.06)] border border-slate-200/80 p-5 sm:p-8 relative">
-                
+
                 {/* Form Header */}
                 <div className="mb-5">
                   <div className="flex items-center justify-between">
@@ -384,7 +486,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
 
                 {/* Registration Form */}
                 <form onSubmit={handleFormSubmit} className="space-y-3.5">
-                  
+
                   {/* Field 1: Company Name */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -666,7 +768,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
       {/* 4. Pricing Plans Section */}
       <section className="py-16 lg:py-20 bg-[#F8FAFC]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
+
           {/* Header */}
           <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
@@ -685,11 +787,10 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
               <button
                 type="button"
                 onClick={() => setBillingCycle("monthly")}
-                className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                  billingCycle === "monthly"
-                    ? "bg-[#7C3AED] text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
+                className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${billingCycle === "monthly"
+                  ? "bg-[#7C3AED] text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+                  }`}
               >
                 Monthly
               </button>
@@ -700,11 +801,10 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                 <button
                   type="button"
                   onClick={() => setBillingCycle("yearly")}
-                  className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                    billingCycle === "yearly"
-                      ? "bg-[#7C3AED] text-white shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
+                  className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${billingCycle === "yearly"
+                    ? "bg-[#7C3AED] text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                    }`}
                 >
                   Yearly
                 </button>
@@ -712,214 +812,218 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
             </div>
           </div>
 
-          {/* 3 Pricing Cards */}
+          {/* Dynamic Pricing Cards (Reflecting Super Admin Database) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch max-w-6xl mx-auto pt-4">
-            
-            {/* Card 1: Starter */}
-            <div className="group relative bg-white rounded-3xl border border-slate-200 hover:border-[#7C3AED]/80 p-7 flex flex-col justify-between shadow-sm hover:shadow-2xl hover:shadow-violet-500/15 hover:-translate-y-2 hover:scale-[1.01] transition-all duration-300 ease-out cursor-pointer overflow-hidden">
-              {/* Subtle Ambient Hover Glow */}
-              <div className="absolute inset-0 bg-gradient-to-b from-[#EDE9FE]/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            {activePlansToDisplay.map((plan, index) => {
+              const themeIndex = index % 3;
+              const isPopular =
+                plan.isPopular ||
+                plan.badge === "Most Popular" ||
+                (activePlansToDisplay.length >= 2 && index === 1) ||
+                (typeof plan.name === "string" && (plan.name.toLowerCase().includes("pro") || plan.name.toLowerCase().includes("popular")));
 
-              <div className="relative z-10">
-                <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-[#7C3AED] group-hover:text-white transition-all duration-300 shadow-sm">
-                  <Send className="w-5 h-5" />
-                </div>
-                <h3 className="text-xl font-extrabold text-slate-900 group-hover:text-[#7C3AED] transition-colors duration-200">
-                  Starter
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Best for small businesses &amp; startups
-                </p>
+              const subtitle =
+                plan.subtitle ||
+                (themeIndex === 0
+                  ? "Best for small businesses & startups"
+                  : themeIndex === 1
+                    ? "Best for growing businesses"
+                    : "Best for large teams & enterprises");
 
-                {/* Price */}
-                <div className="mt-5 pb-5 border-b border-slate-100">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-[#7C3AED] transition-colors duration-200">
-                      {billingCycle === "monthly" ? "₹2,999" : "₹2,399"}
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium">/ month</span>
+              const priceInfo = getCardPriceInfo(plan, billingCycle);
+
+              // ---------------- CARD 2 THEME: PROFESSIONAL / MOST POPULAR ----------------
+              if (isPopular) {
+                return (
+                  <div
+                    key={plan._id || plan.id || index}
+                    className="group relative bg-white rounded-3xl border-2 border-[#7C3AED] p-7 flex flex-col justify-between shadow-xl shadow-violet-500/10 hover:shadow-2xl hover:shadow-violet-600/30 -translate-y-1 lg:-translate-y-2 hover:-translate-y-4 hover:scale-[1.02] transition-all duration-300 ease-out cursor-pointer overflow-visible ring-0 hover:ring-4 hover:ring-[#EDE9FE]"
+                  >
+                    {/* Badge */}
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-[#7C3AED] text-white font-extrabold text-[11px] shadow-sm tracking-wide z-20 group-hover:bg-[#6D28D9] group-hover:scale-105 transition-all duration-200">
+                      Most Popular
+                    </div>
+
+                    {/* Subtle Ambient Hover Glow */}
+                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-b from-[#EDE9FE]/60 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                    <div className="relative z-10">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-12 group-hover:bg-amber-400 group-hover:text-white transition-all duration-300 shadow-sm">
+                        <Star className="w-5 h-5 fill-amber-400 text-amber-500 group-hover:fill-white group-hover:text-white transition-colors duration-300" />
+                      </div>
+                      <h3 className="text-xl font-extrabold text-slate-900 group-hover:text-[#7C3AED] transition-colors duration-200">
+                        {plan.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {subtitle}
+                      </p>
+
+                      {/* Price */}
+                      <div className="mt-5 pb-5 border-b border-slate-100">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-[#7C3AED] transition-colors duration-200">
+                            {priceInfo.displayPrice}
+                          </span>
+                          <span className="text-xs text-slate-500 font-bold">{priceInfo.billingUnit}</span>
+                        </div>
+                        {billingCycle === "yearly" && priceInfo.annualBilledText && (
+                          <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                            {priceInfo.annualBilledText}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Features */}
+                      <ul className="mt-5 space-y-3 text-xs text-slate-600">
+                        {(plan.features || []).map((feat: string, fIdx: number) => (
+                          <li
+                            key={fIdx}
+                            className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                          >
+                            <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
+                            <span>{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="mt-8 pt-2 relative z-10">
+                      <button
+                        type="button"
+                        onClick={scrollToForm}
+                        className="w-full py-2.5 px-4 rounded-xl bg-[#7C3AED] group-hover:bg-[#6D28D9] text-white text-xs font-bold shadow-md shadow-violet-500/20 group-hover:shadow-xl group-hover:shadow-violet-600/35 group-hover:scale-[1.01] transition-all duration-300 cursor-pointer text-center active:scale-98"
+                      >
+                        Get Started
+                      </button>
+                    </div>
                   </div>
-                  {billingCycle === "yearly" && (
-                    <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-                      Billed annually (₹28,788/yr)
-                    </span>
-                  )}
-                </div>
+                );
+              }
 
-                {/* Features */}
-                <ul className="mt-5 space-y-3 text-xs text-slate-600">
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Post up to 5 job listings</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Access to basic candidate database</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Standard job visibility</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Email support</span>
-                  </li>
-                </ul>
-              </div>
+              // ---------------- CARD 3 THEME: ENTERPRISE (AMBER CROWN) ----------------
+              if (themeIndex === 2 || (typeof plan.name === "string" && plan.name.toLowerCase().includes("enterprise"))) {
+                return (
+                  <div
+                    key={plan._id || plan.id || index}
+                    className="group relative bg-white rounded-3xl border border-slate-200 hover:border-amber-500/80 p-7 flex flex-col justify-between shadow-sm hover:shadow-2xl hover:shadow-amber-500/15 hover:-translate-y-2 hover:scale-[1.01] transition-all duration-300 ease-out cursor-pointer overflow-hidden"
+                  >
+                    {/* Subtle Ambient Hover Glow */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-amber-50/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
-              <div className="mt-8 pt-2 relative z-10">
-                <button
-                  type="button"
-                  onClick={scrollToForm}
-                  className="w-full py-2.5 px-4 rounded-xl border border-slate-200 group-hover:border-[#7C3AED] bg-slate-50/50 group-hover:bg-[#7C3AED] text-slate-700 group-hover:text-white text-xs font-bold transition-all duration-300 cursor-pointer text-center shadow-sm group-hover:shadow-md group-hover:shadow-violet-500/25 active:scale-98"
-                >
-                  Get Started
-                </button>
-              </div>
-            </div>
+                    <div className="relative z-10">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:-rotate-6 group-hover:bg-amber-500 group-hover:text-white transition-all duration-300 shadow-sm">
+                        <Crown className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-xl font-extrabold text-slate-900 group-hover:text-amber-600 transition-colors duration-200">
+                        {plan.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {subtitle}
+                      </p>
 
-            {/* Card 2: Professional (Most Popular) */}
-            <div className="group relative bg-white rounded-3xl border-2 border-[#7C3AED] p-7 flex flex-col justify-between shadow-xl shadow-violet-500/10 hover:shadow-2xl hover:shadow-violet-600/30 -translate-y-1 lg:-translate-y-2 hover:-translate-y-4 hover:scale-[1.02] transition-all duration-300 ease-out cursor-pointer overflow-visible ring-0 hover:ring-4 hover:ring-[#EDE9FE]">
-              {/* Badge */}
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-[#7C3AED] text-white font-extrabold text-[11px] shadow-sm tracking-wide z-20 group-hover:bg-[#6D28D9] group-hover:scale-105 transition-all duration-200">
-                Most Popular
-              </div>
+                      {/* Price */}
+                      <div className="mt-5 pb-5 border-b border-slate-100">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-amber-600 transition-colors duration-200">
+                            {priceInfo.displayPrice}
+                          </span>
+                          <span className="text-xs text-slate-500 font-bold">{priceInfo.billingUnit}</span>
+                        </div>
+                        {billingCycle === "yearly" && priceInfo.annualBilledText && (
+                          <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                            {priceInfo.annualBilledText}
+                          </span>
+                        )}
+                      </div>
 
-              {/* Subtle Ambient Hover Glow */}
-              <div className="absolute inset-0 rounded-3xl bg-gradient-to-b from-[#EDE9FE]/60 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                      {/* Features */}
+                      <ul className="mt-5 space-y-3 text-xs text-slate-600">
+                        {(plan.features || []).map((feat: string, fIdx: number) => (
+                          <li
+                            key={fIdx}
+                            className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                          >
+                            <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
+                            <span>{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-              <div className="relative z-10">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-12 group-hover:bg-amber-400 group-hover:text-white transition-all duration-300 shadow-sm">
-                  <Star className="w-5 h-5 fill-amber-400 text-amber-500 group-hover:fill-white group-hover:text-white transition-colors duration-300" />
-                </div>
-                <h3 className="text-xl font-extrabold text-slate-900 group-hover:text-[#7C3AED] transition-colors duration-200">
-                  Professional
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Best for growing businesses
-                </p>
-
-                {/* Price */}
-                <div className="mt-5 pb-5 border-b border-slate-100">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-[#7C3AED] transition-colors duration-200">
-                      {billingCycle === "monthly" ? "₹7,999" : "₹6,399"}
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium">/ month</span>
+                    <div className="mt-8 pt-2 relative z-10">
+                      <button
+                        type="button"
+                        onClick={scrollToForm}
+                        className="w-full py-2.5 px-4 rounded-xl border border-slate-200 group-hover:border-amber-600 bg-slate-50/50 group-hover:bg-amber-500 text-slate-700 group-hover:text-white text-xs font-bold transition-all duration-300 cursor-pointer text-center shadow-sm group-hover:shadow-md group-hover:shadow-amber-500/25 active:scale-98"
+                      >
+                        Contact Sales
+                      </button>
+                    </div>
                   </div>
-                  {billingCycle === "yearly" && (
-                    <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-                      Billed annually (₹76,788/yr)
-                    </span>
-                  )}
-                </div>
+                );
+              }
 
-                {/* Features */}
-                <ul className="mt-5 space-y-3 text-xs text-slate-600">
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Post up to 20 job listings</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Access to advanced candidate database</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Featured job visibility</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Company profile branding</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Priority support</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="mt-8 pt-2 relative z-10">
-                <button
-                  type="button"
-                  onClick={scrollToForm}
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#7C3AED] group-hover:bg-[#6D28D9] text-white text-xs font-bold shadow-md shadow-violet-500/20 group-hover:shadow-xl group-hover:shadow-violet-600/35 group-hover:scale-[1.01] transition-all duration-300 cursor-pointer text-center active:scale-98"
+              // ---------------- CARD 1 THEME: STARTER / VIOLET ----------------
+              return (
+                <div
+                  key={plan._id || plan.id || index}
+                  className="group relative bg-white rounded-3xl border border-slate-200 hover:border-[#7C3AED]/80 p-7 flex flex-col justify-between shadow-sm hover:shadow-2xl hover:shadow-violet-500/15 hover:-translate-y-2 hover:scale-[1.01] transition-all duration-300 ease-out cursor-pointer overflow-hidden"
                 >
-                  Get Started
-                </button>
-              </div>
-            </div>
+                  {/* Subtle Ambient Hover Glow */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#EDE9FE]/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
-            {/* Card 3: Enterprise */}
-            <div className="group relative bg-white rounded-3xl border border-slate-200 hover:border-amber-500/80 p-7 flex flex-col justify-between shadow-sm hover:shadow-2xl hover:shadow-amber-500/15 hover:-translate-y-2 hover:scale-[1.01] transition-all duration-300 ease-out cursor-pointer overflow-hidden">
-              {/* Subtle Ambient Hover Glow */}
-              <div className="absolute inset-0 bg-gradient-to-b from-amber-50/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-[#7C3AED] group-hover:text-white transition-all duration-300 shadow-sm">
+                      <Send className="w-5 h-5" />
+                    </div>
+                    <h3 className="text-xl font-extrabold text-slate-900 group-hover:text-[#7C3AED] transition-colors duration-200">
+                      {plan.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {subtitle}
+                    </p>
 
-              <div className="relative z-10">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:-rotate-6 group-hover:bg-amber-500 group-hover:text-white transition-all duration-300 shadow-sm">
-                  <Crown className="w-5 h-5" />
-                </div>
-                <h3 className="text-xl font-extrabold text-slate-900 group-hover:text-amber-600 transition-colors duration-200">
-                  Enterprise
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Best for large teams &amp; enterprises
-                </p>
+                    {/* Price */}
+                    <div className="mt-5 pb-5 border-b border-slate-100">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-[#7C3AED] transition-colors duration-200">
+                          {priceInfo.displayPrice}
+                        </span>
+                        <span className="text-xs text-slate-500 font-bold">{priceInfo.billingUnit}</span>
+                      </div>
+                      {billingCycle === "yearly" && priceInfo.annualBilledText && (
+                        <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                          {priceInfo.annualBilledText}
+                        </span>
+                      )}
+                    </div>
 
-                {/* Price */}
-                <div className="mt-5 pb-5 border-b border-slate-100">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-amber-600 transition-colors duration-200">
-                      {billingCycle === "monthly" ? "₹19,999" : "₹15,999"}
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium">/ month</span>
+                    {/* Features */}
+                    <ul className="mt-5 space-y-3 text-xs text-slate-600">
+                      {(plan.features || []).map((feat: string, fIdx: number) => (
+                        <li
+                          key={fIdx}
+                          className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                        >
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  {billingCycle === "yearly" && (
-                    <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-                      Billed annually (₹191,988/yr)
-                    </span>
-                  )}
+
+                  <div className="mt-8 pt-2 relative z-10">
+                    <button
+                      type="button"
+                      onClick={scrollToForm}
+                      className="w-full py-2.5 px-4 rounded-xl border border-slate-200 group-hover:border-[#7C3AED] bg-slate-50/50 group-hover:bg-[#7C3AED] text-slate-700 group-hover:text-white text-xs font-bold transition-all duration-300 cursor-pointer text-center shadow-sm group-hover:shadow-md group-hover:shadow-violet-500/25 active:scale-98"
+                    >
+                      Get Started
+                    </button>
+                  </div>
                 </div>
-
-                {/* Features */}
-                <ul className="mt-5 space-y-3 text-xs text-slate-600">
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Unlimited job listings</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Access to full candidate database</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Premium job visibility</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Advanced analytics &amp; insights</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Dedicated account manager</span>
-                  </li>
-                  <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5">
-                    <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
-                    <span>Custom solutions</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="mt-8 pt-2 relative z-10">
-                <button
-                  type="button"
-                  onClick={scrollToForm}
-                  className="w-full py-2.5 px-4 rounded-xl border border-slate-200 group-hover:border-amber-600 bg-slate-50/50 group-hover:bg-amber-500 text-slate-700 group-hover:text-white text-xs font-bold transition-all duration-300 cursor-pointer text-center shadow-sm group-hover:shadow-md group-hover:shadow-amber-500/25 active:scale-98"
-                >
-                  Contact Sales
-                </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -927,7 +1031,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
       {/* 5. Frequently Asked Questions Section */}
       <section className="py-16 lg:py-20 bg-white border-t border-slate-200/60">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          
+
           <div className="text-center mb-10 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
               Frequently asked questions
@@ -972,7 +1076,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
       <footer className="bg-[#0B132B] text-slate-400 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-10">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-10 border-b border-slate-800/80">
-            
+
             {/* Column 1: Brand & Socials */}
             <div className="lg:col-span-2 space-y-4">
               <div className="flex items-center gap-2">

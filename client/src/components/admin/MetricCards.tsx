@@ -11,19 +11,42 @@ import {
 } from "lucide-react";
 import { AdminTab } from "./AdminSidebar";
 
+export interface MetricStats {
+  totalCompanies?: number;
+  approvedCompanies?: number;
+  pendingCompanies?: number;
+  totalJobs?: number;
+  activeJobs?: number;
+  expiredJobs?: number;
+  totalApplications?: number;
+  totalRevenue?: string;
+}
+
 interface MetricCardsProps {
   onSelectTab: (tab: AdminTab) => void;
   pendingCount: number;
+  stats?: MetricStats | null;
 }
 
-export default function MetricCards({ onSelectTab, pendingCount }: MetricCardsProps) {
+export default function MetricCards({ onSelectTab, pendingCount, stats }: MetricCardsProps) {
+  const totalComp = stats?.totalCompanies ?? 245;
+  const approvedComp = stats?.approvedCompanies ?? 198;
+  const pendComp = stats?.pendingCompanies ?? pendingCount;
+
+  const totalJobs = stats?.totalJobs ?? 1248;
+  const activeJobs = stats?.activeJobs ?? 842;
+  const expiredJobs = stats?.expiredJobs ?? 406;
+
+  const totalApps = stats?.totalApplications ?? 28476;
+  const revenue = stats?.totalRevenue ?? "₹ 12,45,230";
+
   const cards = [
     {
       id: "companies" as AdminTab,
       title: "Total Companies",
-      value: "245",
-      change: "↑ 12%",
-      subtext: `198 approved • ${pendingCount} pending`,
+      value: totalComp.toLocaleString("en-IN"),
+      change: "Live DB",
+      subtext: `${approvedComp} approved • ${pendComp} pending`,
       actionLabel: "Manage",
       icon: Building2,
       iconBg: "bg-purple-100 text-purple-600",
@@ -32,9 +55,9 @@ export default function MetricCards({ onSelectTab, pendingCount }: MetricCardsPr
     {
       id: "jobs" as AdminTab,
       title: "Total Job Postings",
-      value: "1,248",
-      change: "↑ 18%",
-      subtext: "Active: 842 • Expired: 406",
+      value: totalJobs.toLocaleString("en-IN"),
+      change: "Live DB",
+      subtext: `Active: ${activeJobs} • Expired: ${expiredJobs}`,
       actionLabel: "View All",
       icon: Briefcase,
       iconBg: "bg-rose-100 text-rose-500",
@@ -43,9 +66,9 @@ export default function MetricCards({ onSelectTab, pendingCount }: MetricCardsPr
     {
       id: "applications" as AdminTab,
       title: "Total Applications",
-      value: "28,476",
-      change: "↑ 22%",
-      subtext: "Today: 2,482",
+      value: totalApps.toLocaleString("en-IN"),
+      change: "Live DB",
+      subtext: `Candidate Submissions`,
       actionLabel: "View All",
       icon: FileCheck2,
       iconBg: "bg-blue-100 text-blue-600",
@@ -54,9 +77,9 @@ export default function MetricCards({ onSelectTab, pendingCount }: MetricCardsPr
     {
       id: "payments" as AdminTab,
       title: "Total Revenue",
-      value: "₹ 12,45,230",
-      change: "↑ 16%",
-      subtext: "This month",
+      value: revenue,
+      change: "Platform",
+      subtext: "Subscription & billing",
       actionLabel: "View Analytics",
       icon: CreditCard,
       iconBg: "bg-emerald-100 text-emerald-600",

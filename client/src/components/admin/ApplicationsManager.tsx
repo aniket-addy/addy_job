@@ -43,27 +43,25 @@ export default function ApplicationsManager({
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <FileCheck2 className="w-6 h-6 text-blue-600" />
-              <span>Job Seekers & Applications</span>
-            </h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Candidate Applications</h2>
             <p className="text-xs text-slate-500 mt-1">
-              Track candidate submissions, verify resumes, and monitor application flows.
+              Review submissions, schedule interviews, and mark candidates as Hired or Rejected.
             </p>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            {["All", "New", "Shortlisted", "Reviewed", "Hired", "Rejected"].map((f) => (
+          {/* Status Filter Tabs (Pill wrapper matching Image 1) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+            {["ALL", "Applied", "Reviewing", "Shortlisted", "Interview", "Hired", "Rejected"].map((f) => (
               <button
                 key={f}
+                type="button"
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-                  filter === f
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                  filter.toUpperCase() === f.toUpperCase()
+                    ? "bg-white text-[#7C3AED] shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 {f}

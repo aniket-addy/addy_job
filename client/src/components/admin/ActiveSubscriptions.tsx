@@ -51,12 +51,12 @@ export default function ActiveSubscriptions({
     <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-        <h3 className="text-base font-bold text-slate-900">Active Subscriptions</h3>
+        <h3 className="text-base font-bold text-slate-900">Plans & Pricing</h3>
         <button
-          onClick={() => onSelectTab("subscriptions")}
+          onClick={() => onSelectTab("plans")}
           className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
         >
-          View All
+          Manage Plans
         </button>
       </div>
 

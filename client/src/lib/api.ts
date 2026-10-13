@@ -251,3 +251,220 @@ export async function updateUserProfile(
   }
 }
 
+// ================= SUPER ADMIN APIs =================
+
+export interface AdminOverviewStats {
+  totalCompanies: number;
+  pendingCompanies: number;
+  approvedCompanies: number;
+  rejectedCompanies: number;
+  totalJobs: number;
+  activeJobs: number;
+  expiredJobs: number;
+  totalApplications: number;
+  totalCandidates: number;
+  plansCount: number;
+  totalRevenue: string;
+}
+
+export async function fetchAdminOverview(): Promise<AdminOverviewStats | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/overview`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data || null;
+  } catch (error) {
+    console.error('fetchAdminOverview error:', error);
+    return null;
+  }
+}
+
+export async function fetchAdminCompanies(): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/companies`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.companies || [];
+  } catch (error) {
+    console.error('fetchAdminCompanies error:', error);
+    return [];
+  }
+}
+
+export async function updateCompanyStatus(
+  id: string,
+  status: 'Approved' | 'Rejected' | 'Pending'
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/companies/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('updateCompanyStatus error:', error);
+    return { success: false, message: 'Failed to update status in database' };
+  }
+}
+
+export async function deleteAdminCompany(
+  id: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/companies/${id}`, {
+      method: 'DELETE',
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('deleteAdminCompany error:', error);
+    return { success: false, message: 'Failed to delete company' };
+  }
+}
+
+export async function fetchAdminJobs(): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/jobs`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.jobs || [];
+  } catch (error) {
+    console.error('fetchAdminJobs error:', error);
+    return [];
+  }
+}
+
+export async function updateAdminJobStatus(
+  id: string,
+  status: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/jobs/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('updateAdminJobStatus error:', error);
+    return { success: false, message: 'Failed to update job status' };
+  }
+}
+
+export async function deleteAdminJob(
+  id: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/jobs/${id}`, {
+      method: 'DELETE',
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('deleteAdminJob error:', error);
+    return { success: false, message: 'Failed to delete job' };
+  }
+}
+
+export async function fetchAdminApplications(): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/applications`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.applications || [];
+  } catch (error) {
+    console.error('fetchAdminApplications error:', error);
+    return [];
+  }
+}
+
+export async function updateAdminApplicationStatus(
+  id: string,
+  status: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/applications/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('updateAdminApplicationStatus error:', error);
+    return { success: false, message: 'Failed to update application status' };
+  }
+}
+
+export async function fetchAdminPlans(): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/plans`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.plans || [];
+  } catch (error) {
+    console.error('fetchAdminPlans error:', error);
+    return [];
+  }
+}
+
+export async function createAdminPlan(payload: {
+  name: string;
+  price: string;
+  yearlyPrice?: string;
+  billingCycle?: string;
+  features?: string[];
+  credits?: number;
+  status?: string;
+}): Promise<{ success: boolean; message: string; plan?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/plans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('createAdminPlan error:', error);
+    return { success: false, message: 'Failed to create plan' };
+  }
+}
+
+export async function updateAdminPlan(
+  id: string,
+  payload: {
+    name?: string;
+    price?: string;
+    yearlyPrice?: string;
+    billingCycle?: string;
+    features?: string[];
+    credits?: number;
+    status?: string;
+  }
+): Promise<{ success: boolean; message: string; plan?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/plans/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('updateAdminPlan error:', error);
+    return { success: false, message: 'Failed to update plan' };
+  }
+}
+
+export async function deleteAdminPlan(
+  id: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/plans/${id}`, {
+      method: 'DELETE',
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('deleteAdminPlan error:', error);
+    return { success: false, message: 'Failed to delete plan' };
+  }
+}
+
+

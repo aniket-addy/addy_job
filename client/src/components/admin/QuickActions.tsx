@@ -31,13 +31,13 @@ export default function QuickActions({
       iconColor: "text-purple-600 bg-white shadow-sm",
     },
     {
-      title: "Create Subscription Plan",
-      subtitle: "Add / Edit / Manage",
+      title: "Plans & Pricing",
+      subtitle: "Add / Edit / Delete",
       icon: PlusCircle,
       tab: "plans" as AdminTab,
       bg: "bg-pink-50 hover:bg-pink-100/80 border-pink-100 hover:border-pink-200",
       iconColor: "text-pink-600 bg-white shadow-sm",
-      isCustomAction: true,
+      isCustomAction: false,
     },
     {
       title: "Monitor Jobs",

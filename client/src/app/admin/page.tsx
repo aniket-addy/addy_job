@@ -30,11 +30,30 @@ import ApplicationsManager from "@/components/admin/ApplicationsManager";
 import JobsModerator, { JobPosting } from "@/components/admin/JobsModerator";
 import CreatePlanModal from "@/components/admin/CreatePlanModal";
 import MobileBottomNav from "@/components/admin/MobileBottomNav";
-import { getStoredUser } from "@/lib/api";
+import PlansPricingManager, { PlanItem } from "@/components/admin/PlansPricingManager";
+import {
+  getStoredUser,
+  fetchAdminOverview,
+  fetchAdminCompanies,
+  updateCompanyStatus,
+  fetchAdminJobs,
+  updateAdminJobStatus,
+  deleteAdminJob,
+  fetchAdminApplications,
+  updateAdminApplicationStatus,
+  fetchAdminPlans,
+  createAdminPlan,
+  updateAdminPlan,
+  deleteAdminPlan,
+  AdminOverviewStats,
+} from "@/lib/api";
 
 export default function SuperAdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [overviewStats, setOverviewStats] = useState<AdminOverviewStats | null>(null);
+  const [plans, setPlans] = useState<PlanItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const user = getStoredUser();
@@ -46,6 +65,49 @@ export default function SuperAdminPage() {
       window.location.href = "/login";
     }
   }, []);
+
+  const loadDatabaseData = async () => {
+    try {
+      setIsLoading(true);
+      const [overview, companies, jobsData, appsData, plansData] = await Promise.all([
+        fetchAdminOverview(),
+        fetchAdminCompanies(),
+        fetchAdminJobs(),
+        fetchAdminApplications(),
+        fetchAdminPlans(),
+      ]);
+
+      if (overview) {
+        setOverviewStats(overview);
+      }
+
+      if (companies && companies.length > 0) {
+        setAllCompanies(companies);
+        setPendingCompanies(companies.filter((c: any) => c.status === "Pending"));
+      }
+
+      if (jobsData && jobsData.length > 0) {
+        setJobs(jobsData);
+      }
+
+      if (appsData && appsData.length > 0) {
+        setApplications(appsData);
+      }
+
+      if (plansData && plansData.length > 0) {
+        setPlans(plansData);
+      }
+    } catch (err) {
+      console.error("Failed to load admin data from DB:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDatabaseData();
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState<{
     text: string;
@@ -302,7 +364,7 @@ export default function SuperAdminPage() {
     }, 3500);
   };
 
-  const handleApproveCompany = (id: string, name: string) => {
+  const handleApproveCompany = async (id: string, name: string) => {
     setPendingCompanies((prev) =>
       prev.map((c) => (c.id === id ? { ...c, status: "Approved" } : c))
     );
@@ -310,9 +372,17 @@ export default function SuperAdminPage() {
       prev.map((c) => (c.id === id ? { ...c, status: "Approved" } : c))
     );
     showToast(`Approved company "${name}" for platform access!`, "success");
+
+    try {
+      await updateCompanyStatus(id, "Approved");
+      const overview = await fetchAdminOverview();
+      if (overview) setOverviewStats(overview);
+    } catch (err) {
+      console.error("DB status update error:", err);
+    }
   };
 
-  const handleRejectCompany = (id: string, name: string) => {
+  const handleRejectCompany = async (id: string, name: string) => {
     setPendingCompanies((prev) =>
       prev.map((c) => (c.id === id ? { ...c, status: "Rejected" } : c))
     );
@@ -320,9 +390,17 @@ export default function SuperAdminPage() {
       prev.map((c) => (c.id === id ? { ...c, status: "Rejected" } : c))
     );
     showToast(`Application for "${name}" has been rejected.`, "error");
+
+    try {
+      await updateCompanyStatus(id, "Rejected");
+      const overview = await fetchAdminOverview();
+      if (overview) setOverviewStats(overview);
+    } catch (err) {
+      console.error("DB status update error:", err);
+    }
   };
 
-  const handleUpdateApplicationStatus = (
+  const handleUpdateApplicationStatus = async (
     id: string,
     status: ApplicationItem["status"]
   ) => {
@@ -330,22 +408,104 @@ export default function SuperAdminPage() {
       prev.map((a) => (a.id === id ? { ...a, status } : a))
     );
     showToast(`Application status updated to "${status}".`, "info");
+
+    try {
+      await updateAdminApplicationStatus(id, status);
+    } catch (err) {
+      console.error("DB app status update error:", err);
+    }
   };
 
-  const handleToggleJobStatus = (id: string, newStatus: JobPosting["status"]) => {
+  const handleToggleJobStatus = async (id: string, newStatus: JobPosting["status"]) => {
     setJobs((prev) =>
       prev.map((j) => (j.id === id ? { ...j, status: newStatus } : j))
     );
     showToast(`Job status changed to "${newStatus}".`, "info");
+
+    try {
+      await updateAdminJobStatus(id, newStatus);
+      const overview = await fetchAdminOverview();
+      if (overview) setOverviewStats(overview);
+    } catch (err) {
+      console.error("DB job status update error:", err);
+    }
   };
 
-  const handleDeleteJob = (id: string) => {
+  const handleDeleteJob = async (id: string) => {
     setJobs((prev) => prev.filter((j) => j.id !== id));
     showToast("Job posting removed from directory.", "error");
+
+    try {
+      await deleteAdminJob(id);
+      const overview = await fetchAdminOverview();
+      if (overview) setOverviewStats(overview);
+    } catch (err) {
+      console.error("DB delete job error:", err);
+    }
   };
 
-  const handleAddPlan = (newPlan: { name: string; price: string }) => {
-    showToast(`Created new plan "${newPlan.name}" (${newPlan.price})!`, "success");
+  const handleCreatePlan = async (newPlan: Omit<PlanItem, "_id" | "id">) => {
+    try {
+      const res = await createAdminPlan(newPlan);
+      if (res.success) {
+        showToast(`Created new plan "${newPlan.name}"!`, "success");
+        const updated = await fetchAdminPlans();
+        setPlans(updated);
+        const overview = await fetchAdminOverview();
+        if (overview) setOverviewStats(overview);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("plans_updated"));
+          localStorage.setItem("plans_last_updated", String(Date.now()));
+        }
+      } else {
+        showToast(res.message || "Failed to create plan", "error");
+      }
+    } catch (err) {
+      console.error("DB create plan error:", err);
+      showToast("Failed to create plan in database", "error");
+    }
+  };
+
+  const handleEditPlan = async (id: string, updatedPlan: Partial<PlanItem>) => {
+    try {
+      const res = await updateAdminPlan(id, updatedPlan);
+      if (res.success) {
+        showToast(`Plan updated successfully!`, "success");
+        const updated = await fetchAdminPlans();
+        setPlans(updated);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("plans_updated"));
+          localStorage.setItem("plans_last_updated", String(Date.now()));
+        }
+      } else {
+        showToast(res.message || "Failed to update plan", "error");
+      }
+    } catch (err) {
+      console.error("DB edit plan error:", err);
+      showToast("Failed to update plan in database", "error");
+    }
+  };
+
+  const handleDeletePlan = async (id: string, name: string) => {
+    try {
+      const res = await deleteAdminPlan(id);
+      if (res.success) {
+        showToast(`Plan "${name}" removed from database.`, "error");
+        const updated = await fetchAdminPlans();
+        setPlans(updated);
+        const overview = await fetchAdminOverview();
+        if (overview) setOverviewStats(overview);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("plans_updated"));
+          localStorage.setItem("plans_last_updated", String(Date.now()));
+        }
+      } else {
+        showToast(res.message || "Failed to delete plan", "error");
+      }
+    } catch (err) {
+      console.error("DB delete plan error:", err);
+      showToast("Failed to delete plan from database", "error");
+    }
   };
 
   const pendingCount = pendingCompanies.filter((c) => c.status === "Pending").length;
@@ -410,10 +570,23 @@ export default function SuperAdminPage() {
                   </div>
 
                   <div className="flex items-center gap-2.5 self-start sm:self-auto">
+                    {/* Live DB Indicator Pill */}
+                    <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200 text-xs font-bold shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Live DB Synced</span>
+                    </div>
+
                     {/* Date Pill */}
                     <div className="flex items-center gap-2 px-3.5 py-2 bg-white rounded-xl border border-slate-200/90 text-xs font-semibold text-slate-700 shadow-sm">
                       <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Wed, 24 Apr 2025</span>
+                      <span>
+                        {new Date().toLocaleDateString("en-US", {
+                          weekday: "short",
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
                     </div>
 
                     {/* View Reports Button */}
@@ -431,6 +604,7 @@ export default function SuperAdminPage() {
                 <MetricCards
                   onSelectTab={setActiveTab}
                   pendingCount={pendingCount}
+                  stats={overviewStats}
                 />
 
                 {/* 2. Platform Growth Overview & Recent Activity */}
@@ -503,83 +677,14 @@ export default function SuperAdminPage() {
               />
             )}
 
-            {/* Subscriptions & Plans Tab */}
-            {(activeTab === "subscriptions" || activeTab === "plans") && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                      <Layers className="w-6 h-6 text-blue-600" />
-                      <span>Subscription Tiers & Platform Pricing</span>
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Configure corporate recruiter packages, pricing models, and billing cycles.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setCreatePlanModalOpen(true)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-blue-500/20 cursor-pointer self-start sm:self-auto"
-                  >
-                    + Create New Plan
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                        Popular
-                      </span>
-                      <h3 className="text-lg font-bold text-slate-900 mt-1">Pro Plan</h3>
-                      <p className="text-2xl font-bold text-slate-900 mt-2">
-                        ₹ 9,999 <span className="text-xs text-slate-400 font-normal">/ month</span>
-                      </p>
-                      <ul className="mt-4 space-y-2 text-xs text-slate-600">
-                        <li>✓ 128 Subscribed Companies</li>
-                        <li>✓ Up to 25 Active Jobs</li>
-                        <li>✓ Unlimited Candidate Applications</li>
-                        <li>✓ Standard Verification Badge</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-6 rounded-2xl border-2 border-emerald-500 shadow-md flex flex-col justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
-                        Enterprise Grade
-                      </span>
-                      <h3 className="text-lg font-bold text-slate-900 mt-1">Premium Plan</h3>
-                      <p className="text-2xl font-bold text-slate-900 mt-2">
-                        ₹ 19,999 <span className="text-xs text-slate-400 font-normal">/ month</span>
-                      </p>
-                      <ul className="mt-4 space-y-2 text-xs text-slate-600">
-                        <li>✓ 72 Subscribed Companies</li>
-                        <li>✓ Unlimited Active Job Requisitions</li>
-                        <li>✓ Priority Candidate Matching</li>
-                        <li>✓ Dedicated Account Representative</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
-                        Starter
-                      </span>
-                      <h3 className="text-lg font-bold text-slate-900 mt-1">Basic Plan</h3>
-                      <p className="text-2xl font-bold text-slate-900 mt-2">
-                        ₹ 4,999 <span className="text-xs text-slate-400 font-normal">/ month</span>
-                      </p>
-                      <ul className="mt-4 space-y-2 text-xs text-slate-600">
-                        <li>✓ 45 Subscribed Companies</li>
-                        <li>✓ Up to 5 Active Jobs</li>
-                        <li>✓ Standard Candidate Inbox</li>
-                        <li>✓ Community Support</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            {/* Plans & Pricing Tab */}
+            {(activeTab === "plans" || activeTab === "subscriptions") && (
+              <PlansPricingManager
+                plans={plans}
+                onAddPlan={handleCreatePlan}
+                onEditPlan={handleEditPlan}
+                onDeletePlan={handleDeletePlan}
+              />
             )}
 
             {/* Payments & Reports View */}
@@ -620,7 +725,16 @@ export default function SuperAdminPage() {
       <CreatePlanModal
         isOpen={createPlanModalOpen}
         onClose={() => setCreatePlanModalOpen(false)}
-        onAddPlan={handleAddPlan}
+        onAddPlan={(newPlan) => {
+          handleCreatePlan({
+            name: newPlan.name,
+            price: newPlan.price,
+            billingCycle: newPlan.billing.includes("year") ? "annually" : "monthly",
+            credits: Number(newPlan.jobLimit) || 50,
+            features: newPlan.features,
+            status: "Active",
+          });
+        }}
       />
     </div>
   );

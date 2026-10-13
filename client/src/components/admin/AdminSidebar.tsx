@@ -70,9 +70,9 @@ export default function AdminSidebar({
       badge: pendingCompaniesCount > 0 ? pendingCompaniesCount : undefined,
     },
     {
-      id: "subscriptions" as AdminTab,
-      label: "Subscriptions",
-      icon: CreditCard,
+      id: "plans" as AdminTab,
+      label: "Plans & Pricing",
+      icon: Tags,
     },
     {
       id: "jobs" as AdminTab,
@@ -93,11 +93,6 @@ export default function AdminSidebar({
       id: "payments" as AdminTab,
       label: "Payments",
       icon: Receipt,
-    },
-    {
-      id: "plans" as AdminTab,
-      label: "Plans & Pricing",
-      icon: Tags,
     },
     {
       id: "reports" as AdminTab,
