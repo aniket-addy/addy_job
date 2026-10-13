@@ -40,14 +40,6 @@ export interface UserSession {
   phone?: string;
   gstNumber?: string;
   status?: string;
-  notifications?: Array<{
-    id: string;
-    title: string;
-    message: string;
-    type?: string;
-    read: boolean;
-    createdAt: string | Date;
-  }>;
 }
 
 export interface AuthResponse {
@@ -100,57 +92,6 @@ export const getAuthToken = (): string | null => {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('career_token');
 };
-
-// Fetch fresh user data from server and sync localStorage
-export async function fetchCurrentUser(): Promise<UserSession | null> {
-  const token = getAuthToken();
-  if (!token) return null;
-  try {
-    const res = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (json.success && json.user) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('career_user', JSON.stringify(json.user));
-        window.dispatchEvent(new Event('auth_change'));
-      }
-      return json.user;
-    }
-    return null;
-  } catch (error) {
-    console.error('fetchCurrentUser error:', error);
-    return null;
-  }
-}
-
-// Mark notifications as read
-export async function markNotificationsAsRead(): Promise<boolean> {
-  const token = getAuthToken();
-  if (!token) return false;
-  try {
-    const res = await fetch(`${API_BASE_URL}/auth/notifications/read`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    const json = await res.json();
-    if (json.success && json.user) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('career_user', JSON.stringify(json.user));
-        window.dispatchEvent(new Event('auth_change'));
-      }
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
 
 // Register API call
 export async function registerUser(payload: {
@@ -241,6 +182,30 @@ export async function loginUser(payload: {
       success: false,
       message: 'Unable to connect to the backend server. Please verify backend server is running.',
     };
+  }
+}
+
+// Get me API call
+export async function fetchCurrentUser(): Promise<UserSession | null> {
+  const token = getAuthToken();
+  if (!token) return null;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      clearAuthSession();
+      return null;
+    }
+
+    const data = await res.json();
+    return data.user || null;
+  } catch {
+    return null;
   }
 }
 

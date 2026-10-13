@@ -40,14 +40,6 @@ export interface IUser extends Document {
   phone?: string;
   gstNumber?: string;
   status?: 'Pending' | 'Approved' | 'Rejected';
-  notifications?: Array<{
-    id: string;
-    title: string;
-    message: string;
-    type?: string;
-    read: boolean;
-    createdAt: Date;
-  }>;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -239,20 +231,7 @@ const userSchema = new Schema<IUser>(
     status: {
       type: String,
       enum: ['Pending', 'Approved', 'Rejected'],
-      default: 'Pending',
-    },
-    notifications: {
-      type: [
-        {
-          id: { type: String, required: true },
-          title: { type: String, required: true },
-          message: { type: String, required: true },
-          type: { type: String, default: 'info' },
-          read: { type: Boolean, default: false },
-          createdAt: { type: Date, default: Date.now },
-        },
-      ],
-      default: [],
+      default: 'Approved',
     },
   },
   {

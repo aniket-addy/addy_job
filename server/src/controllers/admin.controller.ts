@@ -423,44 +423,19 @@ export const updateCompanyStatus = async (req: Request, res: Response) => {
 
     let company = null;
     if (mongoose.isValidObjectId(id)) {
-      company = await User.findById(id);
+      company = await User.findByIdAndUpdate(id, { status }, { new: true });
     } else {
-      company = await User.findOne({ $or: [{ userId: id }, { customId: id }, { _id: id }] });
+      company = await User.findOneAndUpdate(
+        { $or: [{ userId: id }, { customId: id }, { _id: id }] },
+        { status },
+        { new: true }
+      );
     }
 
     if (!company) {
       res.status(404).json({ success: false, message: 'Company not found' });
       return;
     }
-
-    company.status = status;
-
-    // Create notification for company admin upon status change
-    if (status === 'Approved') {
-      const approvalNotification = {
-        id: new mongoose.Types.ObjectId().toString(),
-        title: 'Company Verification Approved! 🎉',
-        message: `Congratulations! Your company "${company.companyName || company.name}" has been approved by Super Admin. You can now purchase subscription plans and post jobs.`,
-        type: 'approval',
-        read: false,
-        createdAt: new Date(),
-      };
-      if (!company.notifications) company.notifications = [];
-      company.notifications.unshift(approvalNotification);
-    } else if (status === 'Rejected') {
-      const rejectNotification = {
-        id: new mongoose.Types.ObjectId().toString(),
-        title: 'Company Verification Rejected',
-        message: `Your company verification request for "${company.companyName || company.name}" was rejected by Super Admin. Please review your company profile or contact support.`,
-        type: 'rejection',
-        read: false,
-        createdAt: new Date(),
-      };
-      if (!company.notifications) company.notifications = [];
-      company.notifications.unshift(rejectNotification);
-    }
-
-    await company.save();
 
     res.json({
       success: true,

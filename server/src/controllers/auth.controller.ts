@@ -67,7 +67,6 @@ const formatUser = (user: IUser) => {
     phone: user.phone || '',
     gstNumber: user.gstNumber || '',
     status: user.status || 'Pending',
-    notifications: user.notifications || [],
     createdAt: user.createdAt,
   };
 };
@@ -595,43 +594,6 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       success: false,
       message: error.message || 'Failed to update profile.',
     });
-  }
-};
-
-// @desc    Mark all user notifications as read
-// @route   PATCH /api/auth/notifications/read
-// @access  Private
-export const markNotificationsRead = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ success: false, message: 'Not authorized, token missing' });
-      return;
-    }
-
-    const token = authHeader.split(' ')[1];
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      res.status(404).json({ success: false, message: 'User not found' });
-      return;
-    }
-
-    if (user.notifications && user.notifications.length > 0) {
-      user.notifications.forEach((n) => {
-        n.read = true;
-      });
-      await user.save();
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Notifications marked as read',
-      user: formatUser(user),
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: 'Failed to update notifications' });
   }
 };
 
