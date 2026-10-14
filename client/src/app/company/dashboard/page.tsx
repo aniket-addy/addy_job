@@ -43,6 +43,8 @@ import {
   Menu,
   Clock,
   AlertCircle,
+  Send,
+  Star,
 } from "lucide-react";
 import {
   getStoredUser,
@@ -55,6 +57,7 @@ import {
   updateCompanyPermissions,
   fetchCurrentUser,
   updateUserProfile,
+  fetchAdminPlans,
 } from "@/lib/api";
 
 // Types
@@ -169,6 +172,119 @@ export default function CompanyDashboardPage() {
   const [activePlanCard, setActivePlanCard] = useState<"starter" | "pro" | "enterprise" | null>(null);
   const [companyStatus, setCompanyStatus] = useState<"Pending" | "Approved" | "Rejected">("Pending");
 
+  // Dynamic Plans from Super Admin Database & Monthly/Yearly toggle
+  const [adminPlans, setAdminPlans] = useState<any[]>([]);
+  const [subscriptionBillingCycle, setSubscriptionBillingCycle] = useState<"monthly" | "yearly">("monthly");
+
+  // Fallback plans if database is initializing
+  const fallbackSubscriptionPlans = [
+    {
+      name: "Testy",
+      price: "₹ 2,999",
+      billingCycle: "monthly",
+      features: [
+        "Standard Listing",
+        "Basic Candidate Search",
+        "1 Job posting",
+      ],
+      credits: 30,
+    },
+    {
+      name: "Testy pro plan",
+      price: "₹ 4,999",
+      billingCycle: "monthly",
+      features: [
+        "Featured Badge",
+        "Advanced Filtering",
+        "250 Resume Views",
+        "10 Job posting",
+      ],
+      credits: 50,
+      isPopular: true,
+    },
+    {
+      name: "Testy Enterprise Plan",
+      price: "₹ 9,999",
+      billingCycle: "monthly",
+      features: [
+        "20 Job posting",
+        "Advance search",
+        "50 resumes",
+      ],
+      credits: 50,
+    },
+  ];
+
+  // Helper matching Super Admin pricing calculation with dynamic /month or /year
+  const getCardPriceInfo = (plan: any, cycle: "monthly" | "yearly") => {
+    const rawPrice = typeof plan === "string" ? plan : (plan?.price || "");
+    const digits = (rawPrice || "").replace(/[^\d]/g, "");
+    const num = parseInt(digits, 10);
+    const planCycle = (
+      typeof plan === "object"
+        ? (plan.billingCycle || (cycle === "yearly" ? "yearly" : "monthly"))
+        : (cycle === "yearly" ? "yearly" : "monthly")
+    ).toLowerCase();
+
+    const isYearly = planCycle === "yearly" || cycle === "yearly";
+    const billingUnit = isYearly ? "/ year" : "/ month";
+    const displayPrice = num > 0 ? `₹${num.toLocaleString("en-IN")}` : (rawPrice || "₹0");
+
+    return {
+      displayPrice,
+      billingUnit,
+      annualBilledText: isYearly ? "Billed annually (Save 20%)" : null,
+    };
+  };
+
+  const monthlyDbPlans = adminPlans.filter(
+    (p) => (p.billingCycle || "monthly").toLowerCase() === "monthly"
+  );
+  const yearlyDbPlans = adminPlans.filter(
+    (p) => (p.billingCycle || "").toLowerCase() === "yearly"
+  );
+
+  const activePlansToDisplay =
+    subscriptionBillingCycle === "yearly"
+      ? (yearlyDbPlans.length > 0 ? yearlyDbPlans : (monthlyDbPlans.length > 0 ? monthlyDbPlans : fallbackSubscriptionPlans))
+      : (monthlyDbPlans.length > 0 ? monthlyDbPlans : fallbackSubscriptionPlans);
+
+  // Sync plans from Super Admin in real-time
+  useEffect(() => {
+    let isMounted = true;
+    const loadSubscriptionPlans = async () => {
+      try {
+        const data = await fetchAdminPlans();
+        if (isMounted && data && Array.isArray(data) && data.length > 0) {
+          const activeOnly = data.filter((p: any) => p.status !== "Inactive");
+          setAdminPlans(activeOnly.length > 0 ? activeOnly : data);
+        }
+      } catch (err) {
+        console.error("Failed to load admin plans in dashboard:", err);
+      }
+    };
+
+    loadSubscriptionPlans();
+
+    const handleSync = () => {
+      loadSubscriptionPlans();
+    };
+
+    window.addEventListener("plans_updated", handleSync);
+    window.addEventListener("storage", handleSync);
+    window.addEventListener("focus", handleSync);
+
+    const interval = setInterval(loadSubscriptionPlans, 4000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("plans_updated", handleSync);
+      window.removeEventListener("storage", handleSync);
+      window.removeEventListener("focus", handleSync);
+      clearInterval(interval);
+    };
+  }, []);
+
   // Sync permissions from Super Admin / User session / Subscription Plan
   useEffect(() => {
     const syncPermissions = () => {
@@ -207,19 +323,21 @@ export default function CompanyDashboardPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const user = getStoredUser();
-      const planName = (user as any)?.plan;
+      const planName = (user as any)?.plan || localStorage.getItem("company_active_plan");
+      const savedValidity = localStorage.getItem("company_plan_validity");
+      if (savedValidity) setPlanValidity(savedValidity);
+
       if (planName) {
+        setCurrentPlan(planName);
         if (planName.toLowerCase().includes("enterprise")) {
-          setCurrentPlan("Enterprise Scaled");
           setActivePlanCard("enterprise");
         } else if (planName.toLowerCase().includes("pro")) {
-          setCurrentPlan("Professional Growth");
           setActivePlanCard("pro");
         } else if (
           planName.toLowerCase().includes("basic") ||
-          planName.toLowerCase().includes("starter")
+          planName.toLowerCase().includes("starter") ||
+          planName.toLowerCase().includes("testy")
         ) {
-          setCurrentPlan("Starter Recruiter");
           setActivePlanCard("starter");
         }
       } else {
@@ -230,6 +348,92 @@ export default function CompanyDashboardPage() {
       }
     }
   }, []);
+
+  // Activate any plan dynamically from Super Admin database
+  const handleActivateDynamicPlan = async (
+    plan: any,
+    cycle: "monthly" | "yearly"
+  ) => {
+    const planName = plan.name || "Custom Plan";
+    const credits = Number(plan.credits) || (cycle === "yearly" ? 360 : 50);
+    const validityText = cycle === "yearly" ? "Valid for 1 Year" : "Valid for 1 Month";
+
+    // Standard plan classification for permission matrix
+    let planKey: "starter" | "pro" | "enterprise" = "pro";
+    const lower = planName.toLowerCase();
+    if (lower.includes("enterprise") || lower.includes("scaled")) {
+      planKey = "enterprise";
+    } else if (
+      lower.includes("starter") ||
+      lower.includes("basic") ||
+      (lower.includes("testy") && !lower.includes("pro") && !lower.includes("enterprise"))
+    ) {
+      planKey = "starter";
+    }
+
+    const standardPlanName =
+      planKey === "enterprise"
+        ? "Enterprise"
+        : planKey === "pro"
+        ? "Pro Plan"
+        : "Basic Plan";
+
+    const dynamicRule = getMatchingPlanRule(standardPlanName);
+    const planAuto = dynamicRule || PLAN_AUTO_PERMISSIONS[standardPlanName] || {
+      dashboard: planKey !== "starter",
+      jobs: true,
+      applicants: true,
+      resumes: planKey !== "starter",
+      settings: planKey === "enterprise",
+    };
+
+    const newPerms: CompanyPermissions = {
+      ...permissions,
+      ...planAuto,
+      autoApproveFromSubscription: true,
+    };
+
+    setCurrentPlan(planName);
+    setActivePlanCard(planKey);
+    setTotalResumesPurchased(credits);
+    setResumesUsed(0);
+    setPlanValidity(validityText);
+    setPermissions(newPerms);
+
+    if (typeof window !== "undefined") {
+      const storedUser = getStoredUser();
+      if (storedUser) {
+        const updatedUser = {
+          ...storedUser,
+          plan: planName,
+          permissions: newPerms,
+        };
+        localStorage.setItem("career_user", JSON.stringify(updatedUser));
+        if (storedUser.id) {
+          localStorage.setItem(`company_permissions_${storedUser.id}`, JSON.stringify(newPerms));
+        }
+      }
+      localStorage.setItem("company_active_plan", planName);
+      localStorage.setItem("company_plan_validity", validityText);
+      localStorage.setItem("company_permissions_active", JSON.stringify(newPerms));
+      window.dispatchEvent(new Event("company_permissions_updated"));
+      window.dispatchEvent(new Event("storage"));
+    }
+
+    const user = getStoredUser();
+    const companyId = (user as any)?._id || user?.id || "c1";
+    try {
+      await updateCompanyPermissions(companyId, newPerms, {
+        name: companyName,
+        email: contactEmail,
+        plan: planName,
+      });
+    } catch (e) {
+      console.error("Backend permissions update error:", e);
+    }
+
+    showToast(`🎉 Activated ${planName} (${cycle === "yearly" ? "Yearly" : "Monthly"}) plan successfully!`);
+  };
 
   // Handle 1-click plan activation and auto-unlock of permissions
   const handleActivatePlan = async (
@@ -2329,7 +2533,11 @@ export default function CompanyDashboardPage() {
                   </div>
 
                   <button
-                    onClick={() => setIsUpgradePlanModalOpen(true)}
+                    onClick={() => {
+                      const el = document.getElementById("available-plans-section");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                      else setIsUpgradePlanModalOpen(true);
+                    }}
                     className="w-full md:w-auto text-center px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-md transition hover:scale-105 cursor-pointer shrink-0"
                   >
                     Change / Upgrade Plan
@@ -2349,249 +2557,307 @@ export default function CompanyDashboardPage() {
                 </div>
               )}
 
-              {/* Subscription Tier Comparison */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch pt-4">
-                {/* Tier 1: Starter */}
-                <div
-                  onClick={() => handleActivatePlan("starter", "Starter Recruiter", 15)}
-                  className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.99] ${
-                    activePlanCard === "starter"
-                      ? "border-2 border-blue-500 shadow-2xl shadow-blue-500/20 -translate-y-2.5 scale-[1.01] ring-4 ring-blue-100"
-                      : "border border-slate-200/90 hover:border-blue-500/70 shadow-xs hover:shadow-2xl hover:shadow-blue-500/15 hover:-translate-y-2.5 hover:scale-[1.01]"
-                  }`}
-                >
-                  {/* Active Badge */}
-                  {activePlanCard === "starter" && (
-                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-black bg-blue-600 text-white uppercase tracking-wider shadow-md whitespace-nowrap z-20">
-                      Active Plan
+              {/* Dynamic Subscription Plans Section (Styled exactly like Image 3, synced with Super Admin) */}
+              <div id="available-plans-section" className="pt-2">
+                {/* Header & Toggle */}
+                <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                    Choose a Plan That Fits Your Hiring{" "}
+                    <span className="relative inline-block text-[#7C3AED]">
+                      Needs
+                      <span className="absolute -bottom-1 left-0 right-0 h-1 bg-amber-400 rounded-full" />
                     </span>
-                  )}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-2">
+                    Flexible plans for every business - from startups to large enterprises.
+                  </p>
 
-                  {/* Subtle Ambient Hover Glow */}
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-b from-blue-50/60 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
-                      activePlanCard === "starter" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                    }`}
-                  />
-
-                  <div className="relative z-10">
-                    <h4
-                      className={`text-base font-black transition-colors duration-200 ${
-                        activePlanCard === "starter" ? "text-blue-600" : "text-slate-900 group-hover:text-blue-600"
+                  {/* Monthly / Yearly Switcher */}
+                  <div className="mt-6 inline-flex items-center gap-2 p-1 bg-white border border-slate-200 rounded-full shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSubscriptionBillingCycle("monthly")}
+                      className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                        subscriptionBillingCycle === "monthly"
+                          ? "bg-[#7C3AED] text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      Starter Recruiter
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-1">For small startups hiring occasionally</p>
-                    <p
-                      className={`text-2xl font-black mt-4 transition-colors duration-200 ${
-                        activePlanCard === "starter" ? "text-blue-600" : "text-slate-900 group-hover:text-blue-600"
-                      }`}
-                    >
-                      ₹4,999 <span className="text-xs text-slate-500 font-normal">/ month</span>
-                    </p>
-
-                    <ul className="space-y-3 text-xs text-slate-600 mt-6">
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>Up to 5 Active Job Posts</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>15 Resume Downloads / mo</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>Job Postings & Candidate Access</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>1 Recruiter Seat</span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div className="mt-8 pt-2 relative z-10">
-                    {activePlanCard === "starter" ? (
-                      <div className="w-full py-2.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200 flex items-center justify-center gap-1.5 shadow-2xs">
-                        <Check className="w-4 h-4 stroke-[3]" />
-                        <span>Active Plan</span>
-                      </div>
-                    ) : (
+                      Monthly
+                    </button>
+                    <div className="relative">
+                      <span className="absolute -top-3.5 right-1 px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-700 font-extrabold text-[9px] border border-emerald-200">
+                        Save 20%
+                      </span>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleActivatePlan("starter", "Starter Recruiter", 15);
-                        }}
-                        className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all duration-200 cursor-pointer shadow-md shadow-blue-200 active:scale-95"
+                        onClick={() => setSubscriptionBillingCycle("yearly")}
+                        className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                          subscriptionBillingCycle === "yearly"
+                            ? "bg-[#7C3AED] text-white shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
                       >
-                        Activate Plan
+                        Yearly
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Tier 2: Pro Growth */}
-                <div
-                  onClick={() => handleActivatePlan("pro", "Professional Growth", 50)}
-                  className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#EDE9FE]/50 via-white to-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-visible active:scale-[0.99] ${
-                    activePlanCard === "pro"
-                      ? "border-2 border-[#7C3AED] shadow-2xl shadow-violet-500/30 -translate-y-3.5 scale-[1.02] ring-4 ring-[#EDE9FE]"
-                      : "border-2 border-slate-200/90 hover:border-[#7C3AED] shadow-sm hover:shadow-2xl hover:shadow-violet-500/20 hover:-translate-y-3.5 hover:scale-[1.02] hover:ring-4 hover:ring-[#EDE9FE]"
-                  }`}
-                >
-                  {/* Badge */}
-                  {activePlanCard === "pro" && (
-                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-black bg-[#7C3AED] text-white uppercase tracking-wider shadow-md whitespace-nowrap z-20">
-                      Active Plan
-                    </span>
-                  )}
+                {/* Dynamic Pricing Cards (Reflecting Super Admin Database) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch max-w-6xl mx-auto pt-2">
+                  {activePlansToDisplay.map((plan, index) => {
+                    const themeIndex = index % 3;
+                    const isPopular =
+                      plan.isPopular ||
+                      plan.badge === "Most Popular" ||
+                      (activePlansToDisplay.length >= 2 && index === 1) ||
+                      (typeof plan.name === "string" &&
+                        (plan.name.toLowerCase().includes("pro") || plan.name.toLowerCase().includes("popular")));
 
-                  {/* Ambient Shimmer */}
-                  <div
-                    className={`absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#EDE9FE]/70 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
-                      activePlanCard === "pro" ? "opacity-100" : "opacity-60 group-hover:opacity-100"
-                    }`}
-                  />
+                    const isEnterprise =
+                      themeIndex === 2 ||
+                      (typeof plan.name === "string" &&
+                        (plan.name.toLowerCase().includes("enterprise") || plan.name.toLowerCase().includes("scaled")));
 
-                  <div className="relative z-10">
-                    <h4 className="text-base font-black text-slate-900 group-hover:text-[#7C3AED] transition-colors duration-200">
-                      Professional Growth
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-1">For growing teams and fast hiring</p>
-                    <p className="text-2xl font-black text-slate-900 group-hover:text-[#7C3AED] mt-4 transition-colors duration-200">
-                      ₹12,999 <span className="text-xs text-slate-500 font-normal">/ month</span>
-                    </p>
+                    const subtitle =
+                      plan.subtitle ||
+                      (isPopular
+                        ? "Best for growing businesses"
+                        : isEnterprise
+                        ? "Best for large teams & enterprises"
+                        : "Best for small businesses & startups");
 
-                    <ul className="space-y-3 text-xs text-slate-700 mt-6">
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span className="font-bold">Full Dashboard & Analytics</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span className="font-bold">Unlimited Job Postings</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span className="font-bold">50 Resume Downloads / mo</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>AI Applicant Matching & Scoring</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>5 Recruiter Seats</span>
-                      </li>
-                    </ul>
-                  </div>
+                    const priceInfo = getCardPriceInfo(plan, subscriptionBillingCycle);
+                    const isCurrentPlanActive =
+                      currentPlan &&
+                      currentPlan !== "No Active Plan" &&
+                      (currentPlan.toLowerCase() === plan.name.toLowerCase() ||
+                        currentPlan.toLowerCase().includes(plan.name.toLowerCase()) ||
+                        plan.name.toLowerCase().includes(currentPlan.toLowerCase()));
 
-                  <div className="mt-8 pt-2 relative z-10">
-                    {activePlanCard === "pro" ? (
-                      <div className="w-full py-2.5 rounded-xl bg-violet-50 text-[#7C3AED] font-bold text-xs border border-violet-200 flex items-center justify-center gap-1.5 shadow-2xs">
-                        <Check className="w-4 h-4 stroke-[3]" />
-                        <span>Active Plan</span>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleActivatePlan("pro", "Professional Growth", 50);
-                        }}
-                        className="w-full py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold transition-all duration-200 cursor-pointer shadow-md shadow-violet-200 active:scale-95"
+                    // ---------------- CARD 2 THEME: PROFESSIONAL / MOST POPULAR (PURPLE BORDER) ----------------
+                    if (isPopular) {
+                      return (
+                        <div
+                          key={plan._id || plan.id || index}
+                          className="group relative bg-white rounded-3xl border-2 border-[#7C3AED] p-7 flex flex-col justify-between shadow-xl shadow-violet-500/10 hover:shadow-2xl hover:shadow-violet-600/30 -translate-y-1 lg:-translate-y-2 hover:-translate-y-4 hover:scale-[1.02] transition-all duration-300 ease-out cursor-pointer overflow-visible ring-0 hover:ring-4 hover:ring-[#EDE9FE]"
+                        >
+                          {/* Badge */}
+                          <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-[#7C3AED] text-white font-extrabold text-[11px] shadow-xs tracking-wide z-20 group-hover:bg-[#6D28D9] group-hover:scale-105 transition-all duration-200">
+                            Most Popular
+                          </div>
+
+                          {/* Subtle Ambient Hover Glow */}
+                          <div className="absolute inset-0 rounded-3xl bg-gradient-to-b from-[#EDE9FE]/60 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                          <div className="relative z-10">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-12 group-hover:bg-amber-400 group-hover:text-white transition-all duration-300 shadow-xs">
+                              <Star className="w-5 h-5 fill-amber-400 text-amber-500 group-hover:fill-white group-hover:text-white transition-colors duration-300" />
+                            </div>
+                            <h3 className="text-xl font-extrabold text-slate-900 group-hover:text-[#7C3AED] transition-colors duration-200">
+                              {plan.name}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {subtitle}
+                            </p>
+
+                            {/* Price */}
+                            <div className="mt-5 pb-5 border-b border-slate-100">
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-[#7C3AED] transition-colors duration-200">
+                                  {priceInfo.displayPrice}
+                                </span>
+                                <span className="text-xs text-slate-500 font-bold">{priceInfo.billingUnit}</span>
+                              </div>
+                              {subscriptionBillingCycle === "yearly" && priceInfo.annualBilledText && (
+                                <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                                  {priceInfo.annualBilledText}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Features */}
+                            <ul className="mt-5 space-y-3 text-xs text-slate-600">
+                              {(plan.features || []).map((feat: string, fIdx: number) => (
+                                <li
+                                  key={fIdx}
+                                  className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                                >
+                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
+                                  <span>{feat}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div className="mt-8 pt-2 relative z-10">
+                            {isCurrentPlanActive ? (
+                              <div className="w-full py-2.5 px-4 rounded-xl bg-violet-50 text-[#7C3AED] font-bold text-xs border border-violet-200 flex items-center justify-center gap-1.5 shadow-2xs">
+                                <Check className="w-4 h-4 stroke-[3]" />
+                                <span>Active Plan</span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleActivateDynamicPlan(plan, subscriptionBillingCycle);
+                                }}
+                                className="w-full py-2.5 px-4 rounded-xl bg-[#7C3AED] group-hover:bg-[#6D28D9] text-white text-xs font-bold shadow-md shadow-violet-500/20 group-hover:shadow-xl group-hover:shadow-violet-600/35 group-hover:scale-[1.01] transition-all duration-300 cursor-pointer text-center active:scale-98"
+                              >
+                                Get Started
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // ---------------- CARD 3 THEME: ENTERPRISE (AMBER CROWN) ----------------
+                    if (isEnterprise) {
+                      return (
+                        <div
+                          key={plan._id || plan.id || index}
+                          className="group relative bg-white rounded-3xl border border-amber-400/90 hover:border-amber-500 p-7 flex flex-col justify-between shadow-xs hover:shadow-2xl hover:shadow-amber-500/15 hover:-translate-y-2 hover:scale-[1.01] transition-all duration-300 ease-out cursor-pointer overflow-hidden"
+                        >
+                          {/* Subtle Ambient Hover Glow */}
+                          <div className="absolute inset-0 bg-gradient-to-b from-amber-50/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                          <div className="relative z-10">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center mb-5 group-hover:scale-110 group-hover:-rotate-6 group-hover:bg-amber-600 transition-all duration-300 shadow-xs">
+                              <Crown className="w-5 h-5 text-white" />
+                            </div>
+                            <h3 className="text-xl font-extrabold text-amber-600 transition-colors duration-200">
+                              {plan.name}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {subtitle}
+                            </p>
+
+                            {/* Price */}
+                            <div className="mt-5 pb-5 border-b border-slate-100">
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-3xl font-black text-amber-600 tracking-tight transition-colors duration-200">
+                                  {priceInfo.displayPrice}
+                                </span>
+                                <span className="text-xs text-slate-500 font-bold">{priceInfo.billingUnit}</span>
+                              </div>
+                              {subscriptionBillingCycle === "yearly" && priceInfo.annualBilledText && (
+                                <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                                  {priceInfo.annualBilledText}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Features */}
+                            <ul className="mt-5 space-y-3 text-xs text-slate-600">
+                              {(plan.features || []).map((feat: string, fIdx: number) => (
+                                <li
+                                  key={fIdx}
+                                  className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                                >
+                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
+                                  <span>{feat}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div className="mt-8 pt-2 relative z-10">
+                            {isCurrentPlanActive ? (
+                              <div className="w-full py-2.5 px-4 rounded-xl bg-amber-50 text-amber-800 font-bold text-xs border border-amber-200 flex items-center justify-center gap-1.5 shadow-2xs">
+                                <Check className="w-4 h-4 stroke-[3]" />
+                                <span>Active Plan</span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleActivateDynamicPlan(plan, subscriptionBillingCycle);
+                                }}
+                                className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-md shadow-amber-500/20 hover:shadow-lg transition-all duration-300 cursor-pointer text-center active:scale-98"
+                              >
+                                Contact Sales
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // ---------------- CARD 1 THEME: STARTER / VIOLET (SEND ICON) ----------------
+                    return (
+                      <div
+                        key={plan._id || plan.id || index}
+                        className="group relative bg-white rounded-3xl border border-slate-200 hover:border-[#7C3AED]/80 p-7 flex flex-col justify-between shadow-xs hover:shadow-2xl hover:shadow-violet-500/15 hover:-translate-y-2 hover:scale-[1.01] transition-all duration-300 ease-out cursor-pointer overflow-hidden"
                       >
-                        Activate Plan
-                      </button>
-                    )}
-                  </div>
-                </div>
+                        {/* Subtle Ambient Hover Glow */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-[#EDE9FE]/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
-                {/* Tier 3: Enterprise */}
-                <div
-                  onClick={() => handleActivatePlan("enterprise", "Enterprise Scaled", 250)}
-                  className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.99] ${
-                    activePlanCard === "enterprise"
-                      ? "border-2 border-amber-400 shadow-2xl shadow-amber-500/25 -translate-y-2.5 scale-[1.01] ring-4 ring-amber-100/70"
-                      : "border border-slate-200/90 hover:border-amber-400 shadow-xs hover:shadow-2xl hover:shadow-amber-500/20 hover:-translate-y-2.5 hover:scale-[1.01] hover:ring-4 hover:ring-amber-50"
-                  }`}
-                >
-                  {/* Badge */}
-                  {activePlanCard === "enterprise" && (
-                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-black bg-amber-500 text-white uppercase tracking-wider shadow-md whitespace-nowrap z-20">
-                      Active Plan
-                    </span>
-                  )}
+                        <div className="relative z-10">
+                          <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center mb-5 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-[#7C3AED] group-hover:text-white transition-all duration-300 shadow-xs">
+                            <Send className="w-5 h-5" />
+                          </div>
+                          <h3 className="text-xl font-extrabold text-slate-900 group-hover:text-[#7C3AED] transition-colors duration-200">
+                            {plan.name}
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {subtitle}
+                          </p>
 
-                  {/* Subtle Ambient Hover Glow */}
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-b from-amber-50/70 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
-                      activePlanCard === "enterprise" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                    }`}
-                  />
+                          {/* Price */}
+                          <div className="mt-5 pb-5 border-b border-slate-100">
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-3xl font-black text-slate-900 tracking-tight group-hover:text-[#7C3AED] transition-colors duration-200">
+                                {priceInfo.displayPrice}
+                              </span>
+                              <span className="text-xs text-slate-500 font-bold">{priceInfo.billingUnit}</span>
+                            </div>
+                            {subscriptionBillingCycle === "yearly" && priceInfo.annualBilledText && (
+                              <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                                {priceInfo.annualBilledText}
+                              </span>
+                            )}
+                          </div>
 
-                  <div className="relative z-10">
-                    <h4
-                      className={`text-base font-black transition-colors duration-200 ${
-                        activePlanCard === "enterprise" ? "text-amber-600" : "text-slate-900 group-hover:text-amber-600"
-                      }`}
-                    >
-                      Enterprise Scaled
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-1">For large corporations with high volume hiring</p>
-                    <p
-                      className={`text-2xl font-black mt-4 transition-colors duration-200 ${
-                        activePlanCard === "enterprise" ? "text-amber-600" : "text-slate-900 group-hover:text-amber-600"
-                      }`}
-                    >
-                      ₹29,999 <span className="text-xs text-slate-500 font-normal">/ month</span>
-                    </p>
+                          {/* Features */}
+                          <ul className="mt-5 space-y-3 text-xs text-slate-600">
+                            {(plan.features || []).map((feat: string, fIdx: number) => (
+                              <li
+                                key={fIdx}
+                                className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                              >
+                                <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[2.5] group-hover:scale-110 transition-transform duration-200" />
+                                <span>{feat}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
 
-                    <ul className="space-y-3 text-xs text-slate-600 mt-6">
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span className="font-bold">Full Suite + Company Settings</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>Unlimited Job Postings</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>250 Resume Downloads / mo</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>Dedicated Account Manager</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
-                        <span>Unlimited Recruiter Seats</span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div className="mt-8 pt-2 relative z-10">
-                    {activePlanCard === "enterprise" ? (
-                      <div className="w-full py-2.5 rounded-xl bg-amber-50 text-amber-800 font-bold text-xs border border-amber-200 flex items-center justify-center gap-1.5 shadow-2xs">
-                        <Check className="w-4 h-4 stroke-[3]" />
-                        <span>Active Plan</span>
+                        <div className="mt-8 pt-2 relative z-10">
+                          {isCurrentPlanActive ? (
+                            <div className="w-full py-2.5 px-4 rounded-xl bg-violet-50 text-[#7C3AED] font-bold text-xs border border-violet-200 flex items-center justify-center gap-1.5 shadow-2xs">
+                              <Check className="w-4 h-4 stroke-[3]" />
+                              <span>Active Plan</span>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleActivateDynamicPlan(plan, subscriptionBillingCycle);
+                              }}
+                              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 group-hover:border-[#7C3AED] bg-slate-50/50 group-hover:bg-[#7C3AED] text-slate-700 group-hover:text-white text-xs font-bold transition-all duration-300 cursor-pointer text-center shadow-xs group-hover:shadow-md group-hover:shadow-violet-500/25 active:scale-98"
+                            >
+                              Get Started
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleActivatePlan("enterprise", "Enterprise Scaled", 250);
-                        }}
-                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-white font-bold text-xs shadow-md shadow-amber-200 transition-all duration-200 cursor-pointer active:scale-95"
-                      >
-                        Activate Plan
-                      </button>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -3223,7 +3489,13 @@ export default function CompanyDashboardPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleActivatePlan("enterprise", "Enterprise Scaled", 250)}
+                  onClick={() => {
+                    const entPlan =
+                      adminPlans.find((p) => (p.name || "").toLowerCase().includes("enterprise")) ||
+                      fallbackSubscriptionPlans[2];
+                    handleActivateDynamicPlan(entPlan, subscriptionBillingCycle);
+                    setIsUpgradePlanModalOpen(false);
+                  }}
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-white font-bold shadow-md cursor-pointer transition active:scale-95"
                 >
                   Activate Enterprise
