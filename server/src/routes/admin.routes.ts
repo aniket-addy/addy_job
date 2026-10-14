@@ -13,7 +13,6 @@ import {
   getAdminApplications,
   createAdminApplication,
   updateApplicationStatus,
-  sendBulkResumesToCompany,
   getAdminPlans,
   createAdminPlan,
   updateAdminPlan,
@@ -30,7 +29,6 @@ router.get('/companies', getAdminCompanies);
 router.patch('/companies/:id/status', updateCompanyStatus);
 router.patch('/companies/:id/permissions', updateCompanyPermissions);
 router.delete('/companies/:id', deleteCompany);
-router.post('/companies/:id/send-resumes', sendBulkResumesToCompany);
 
 // Permissions & Auto-approval Settings
 router.get('/permissions-settings', getAdminPermissionsSettings);
@@ -41,11 +39,10 @@ router.get('/jobs', getAdminJobs);
 router.patch('/jobs/:id/status', updateJobStatus);
 router.delete('/jobs/:id', deleteJob);
 
-// Applications & Resumes management
+// Applications management
 router.get('/applications', getAdminApplications);
 router.post('/applications', createAdminApplication);
 router.patch('/applications/:id/status', updateApplicationStatus);
-router.post('/resumes/bulk-send', sendBulkResumesToCompany);
 
 // Plans & Pricing
 router.get('/plans', getAdminPlans);

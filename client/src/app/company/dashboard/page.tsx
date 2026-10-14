@@ -110,9 +110,6 @@ interface PurchasedResume {
   downloadUrl: string;
   email: string;
   phone: string;
-  pdfData?: string;
-  domain?: string;
-  skills?: string[];
 }
 
 export default function CompanyDashboardPage() {
@@ -647,37 +644,14 @@ export default function CompanyDashboardPage() {
             setApplicants([]);
           }
 
-          // Load purchased resumes from backend user data or local storage
-          let loadedResumes: PurchasedResume[] = [];
-          if (Array.isArray(u.purchasedResumes) && u.purchasedResumes.length > 0) {
-            loadedResumes = u.purchasedResumes;
-            setPurchasedResumes(loadedResumes);
-            localStorage.setItem(`company_purchased_resumes_${uid}`, JSON.stringify(loadedResumes));
-            if (u.email) {
-              localStorage.setItem(`company_purchased_resumes_${String(u.email).toLowerCase()}`, JSON.stringify(loadedResumes));
-            }
+          const savedPurchasedResumes = localStorage.getItem(`company_purchased_resumes_${uid}`);
+          if (savedPurchasedResumes) {
+            try {
+              const parsedResumes = JSON.parse(savedPurchasedResumes);
+              if (Array.isArray(parsedResumes)) setPurchasedResumes(parsedResumes);
+            } catch (e) {}
           } else {
-            const savedPurchasedResumes =
-              localStorage.getItem(`company_purchased_resumes_${uid}`) ||
-              (u.email ? localStorage.getItem(`company_purchased_resumes_${String(u.email).toLowerCase()}`) : null) ||
-              localStorage.getItem("company_purchased_resumes_active");
-
-            if (savedPurchasedResumes) {
-              try {
-                const parsedResumes = JSON.parse(savedPurchasedResumes);
-                if (Array.isArray(parsedResumes)) {
-                  loadedResumes = parsedResumes;
-                  setPurchasedResumes(parsedResumes);
-                }
-              } catch (e) {}
-            } else {
-              setPurchasedResumes([]);
-            }
-          }
-
-          if (loadedResumes.length > 0) {
-            setTotalResumesPurchased((prev) => Math.max(prev, loadedResumes.length));
-            setPermissions((prev) => ({ ...prev, resumes: true }));
+            setPurchasedResumes([]);
           }
         }
       };
@@ -689,19 +663,6 @@ export default function CompanyDashboardPage() {
       fetchCurrentUser().then((fresh) => {
         if (fresh) applyUserData(fresh);
       });
-
-      const handleLiveResumesUpdate = () => {
-        const u = getStoredUser();
-        if (u) applyUserData(u);
-        fetchCurrentUser().then((fresh) => {
-          if (fresh) applyUserData(fresh);
-        });
-      };
-
-      window.addEventListener("company_resumes_updated", handleLiveResumesUpdate);
-      return () => {
-        window.removeEventListener("company_resumes_updated", handleLiveResumesUpdate);
-      };
     }
   }, []);
 
@@ -2490,47 +2451,29 @@ export default function CompanyDashboardPage() {
                           PDF
                         </div>
                         <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="text-xs sm:text-sm font-bold text-slate-900">
-                              {res.candidateName}
-                            </h4>
-                            {res.domain && (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                                {res.domain}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-600 font-medium mt-0.5">{res.title}</p>
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                            {res.candidateName}
+                          </h4>
+                          <p className="text-xs text-slate-600">{res.title}</p>
                           <p className="text-[11px] text-slate-400 mt-0.5">
-                            {res.experience} • {res.location} • Received: {res.purchasedDate}
+                            {res.experience} • {res.location} • Purchased: {res.purchasedDate}
                           </p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                         <div className="text-right text-[11px] text-slate-500 hidden md:block">
-                          <p className="font-semibold text-slate-700">{res.email}</p>
+                          <p>{res.email}</p>
                           <p>{res.phone}</p>
                         </div>
                         <button
-                          onClick={() => {
-                            if (res.pdfData) {
-                              const win = window.open();
-                              if (win) {
-                                win.document.write(
-                                  `<iframe src="${res.pdfData}" style="width:100%; height:100%; border:none;"></iframe>`
-                                );
-                              }
-                            } else if (res.downloadUrl) {
-                              window.open(res.downloadUrl, "_blank");
-                            } else {
-                              showToast(`Downloading verified resume for ${res.candidateName}...`);
-                            }
-                          }}
-                          className="w-full sm:w-auto justify-center px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs"
+                          onClick={() =>
+                            showToast(`Downloading verified resume for ${res.candidateName}...`)
+                          }
+                          className="w-full sm:w-auto justify-center px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          <span>{res.pdfData ? "View / Download PDF" : "Download CV"}</span>
+                          <span>Download CV</span>
                         </button>
                       </div>
                     </div>

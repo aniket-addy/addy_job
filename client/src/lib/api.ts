@@ -427,51 +427,6 @@ export async function createAdminApplication(payload: {
   }
 }
 
-export async function sendBulkResumesToCompany(
-  companyId: string,
-  resumes: any[]
-): Promise<{
-  success: boolean;
-  message: string;
-  company?: any;
-  sentResumesCount?: number;
-  purchasedResumes?: any[];
-}> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/admin/companies/${companyId}/send-resumes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId, resumes }),
-    });
-    const json = await res.json();
-
-    // Also sync localStorage if successful so company dashboard sees it instantly
-    if (json.success && json.purchasedResumes && typeof window !== 'undefined') {
-      const pKey = `company_purchased_resumes_${companyId}`;
-      localStorage.setItem(pKey, JSON.stringify(json.purchasedResumes));
-      if (json.company?.userId) {
-        localStorage.setItem(`company_purchased_resumes_${json.company.userId}`, JSON.stringify(json.purchasedResumes));
-      }
-      if (json.company?.email) {
-        localStorage.setItem(`company_purchased_resumes_${json.company.email.toLowerCase()}`, JSON.stringify(json.purchasedResumes));
-      }
-      const permsKey = `company_permissions_${companyId}`;
-      const existingPerms = JSON.parse(localStorage.getItem(permsKey) || '{}');
-      existingPerms.resumes = true;
-      localStorage.setItem(permsKey, JSON.stringify(existingPerms));
-
-      window.dispatchEvent(new Event('company_resumes_updated'));
-      window.dispatchEvent(new Event('company_permissions_updated'));
-      window.dispatchEvent(new Event('storage'));
-    }
-
-    return json;
-  } catch (error: any) {
-    console.error('sendBulkResumesToCompany error:', error);
-    return { success: false, message: 'Failed to send resumes to company' };
-  }
-}
-
 export async function fetchAdminPlans(): Promise<any[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/plans`);

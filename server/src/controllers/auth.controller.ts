@@ -77,7 +77,6 @@ const formatUser = (user: IUser) => {
       settings: false,
       autoApproveFromSubscription: true,
     },
-    purchasedResumes: (user as any).purchasedResumes || [],
     createdAt: user.createdAt,
   };
 };

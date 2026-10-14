@@ -462,22 +462,7 @@ export default function SuperAdminPage() {
             {(activeTab === "applications" || activeTab === "resumes") && (
               <ApplicationsManager
                 applications={applications}
-                companies={allCompanies.map((c) => {
-                  const raw = c as any;
-                  return {
-                    id: c.id,
-                    userId: c.userId,
-                    name: c.name || raw.companyName || "Company",
-                    email: c.email || raw.workEmail || "",
-                    phone: c.phone || "",
-                    industry: c.industry || "Technology",
-                    location: c.location || "India",
-                    plan: c.plan || "Growth Plan",
-                    status: c.status || "Approved",
-                    companySize: c.companySize || "11-50 employees",
-                    purchasedResumesCount: raw.purchasedResumes?.length || 0,
-                  };
-                })}
+                companies={allCompanies.map((c) => ({ id: c.id, name: c.name }))}
                 onUpdateStatus={handleUpdateApplicationStatus}
                 activeView={activeTab}
                 onAddApplication={(newApp) => {

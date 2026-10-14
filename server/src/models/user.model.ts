@@ -49,21 +49,6 @@ export interface IUser extends Document {
     settings?: boolean;
     autoApproveFromSubscription?: boolean;
   };
-  purchasedResumes?: Array<{
-    id: string;
-    candidateName: string;
-    title: string;
-    experience: string;
-    location: string;
-    purchasedDate: string;
-    fileSize: string;
-    downloadUrl: string;
-    email: string;
-    phone: string;
-    pdfData?: string;
-    domain?: string;
-    skills?: string[];
-  }>;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -270,23 +255,6 @@ const userSchema = new Schema<IUser>(
       settings: { type: Boolean, default: false },
       autoApproveFromSubscription: { type: Boolean, default: true },
     },
-    purchasedResumes: [
-      {
-        id: { type: String },
-        candidateName: { type: String, default: '' },
-        title: { type: String, default: '' },
-        experience: { type: String, default: '' },
-        location: { type: String, default: '' },
-        purchasedDate: { type: String, default: '' },
-        fileSize: { type: String, default: '250 KB' },
-        downloadUrl: { type: String, default: '' },
-        email: { type: String, default: '' },
-        phone: { type: String, default: '' },
-        pdfData: { type: String, default: '' },
-        domain: { type: String, default: '' },
-        skills: { type: [String], default: [] },
-      },
-    ],
   },
   {
     timestamps: true,
