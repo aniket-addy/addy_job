@@ -1,5 +1,12 @@
 import mongoose from 'mongoose';
+import dns from 'node:dns';
 import { User } from '../models/user.model.js';
+
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {
+  // Ignore if unsupported in environment
+}
 
 let isConnecting = false;
 let listenersBound = false;
