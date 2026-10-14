@@ -1,100 +1,31 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { Star, Layers, Sparkles, Globe, Sprout } from "lucide-react";
-
-interface TopCompanyCard {
-  id: string;
-  name: string;
-  rating: number;
-  reviewsCount: string;
-  tag: "Startup" | "Corporate" | "Foreign MNC" | "Unicorn";
-  logoContent: React.ReactNode;
-}
-
-const companies: TopCompanyCard[] = [
-  {
-    id: "1",
-    name: "Finastra",
-    rating: 3.6,
-    reviewsCount: "669 reviews",
-    tag: "Startup",
-    logoContent: (
-      <span className="text-[12px] font-black tracking-tight text-[#7C3AED] leading-none">
-        FINASTRA
-      </span>
-    ),
-  },
-  {
-    id: "2",
-    name: "Era Infra Engineering",
-    rating: 3.7,
-    reviewsCount: "301 reviews",
-    tag: "Corporate",
-    logoContent: (
-      <div className="text-center">
-        <span className="text-sm font-black tracking-wide text-[#0284C7] block leading-none">
-          ERA
-        </span>
-        <span className="text-[7px] font-semibold text-slate-500 block leading-tight">
-          GROUP
-        </span>
-      </div>
-    ),
-  },
-  {
-    id: "3",
-    name: "NovaTech Solutions",
-    rating: 4.8,
-    reviewsCount: "420 reviews",
-    tag: "Foreign MNC",
-    logoContent: (
-      <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-        <Layers className="w-4 h-4" />
-      </div>
-    ),
-  },
-  {
-    id: "4",
-    name: "BrightPath Digital",
-    rating: 4.9,
-    reviewsCount: "284 reviews",
-    tag: "Startup",
-    logoContent: (
-      <div className="w-8 h-8 rounded-lg bg-rose-500 flex items-center justify-center text-white">
-        <Sparkles className="w-4 h-4" />
-      </div>
-    ),
-  },
-  {
-    id: "5",
-    name: "Skyline Tech",
-    rating: 4.7,
-    reviewsCount: "390 reviews",
-    tag: "Corporate",
-    logoContent: (
-      <div className="w-8 h-8 rounded-lg bg-sky-500 flex items-center justify-center text-white">
-        <Globe className="w-4 h-4" />
-      </div>
-    ),
-  },
-  {
-    id: "6",
-    name: "GreenField Foods",
-    rating: 4.6,
-    reviewsCount: "215 reviews",
-    tag: "Unicorn",
-    logoContent: (
-      <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white">
-        <Sprout className="w-4 h-4" />
-      </div>
-    ),
-  },
-];
+import { Star, Building2, Briefcase } from "lucide-react";
+import { fetchPublicCompanies } from "@/lib/api";
 
 export default function TopCompaniesCards() {
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchPublicCompanies()
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setCompanies(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching top companies:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <section className="py-8 sm:py-12 bg-[#0B0F19] text-white overflow-hidden">
@@ -114,56 +45,82 @@ export default function TopCompaniesCards() {
         </div>
 
         {/* Horizontal Scrollable Track */}
-        <div
-          ref={scrollRef}
-          className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto pb-2 scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {companies.map((company) => (
-            <Link
-              key={company.id}
-              href="/companies"
-              className="w-[185px] sm:w-[210px] shrink-0 snap-start bg-[#141C2A] rounded-2xl p-4 sm:p-5 border border-slate-800/80 shadow-md flex flex-col items-center justify-between text-center group hover:border-slate-700 hover:bg-[#182233] transition-all cursor-pointer"
-            >
-              <div className="flex flex-col items-center w-full">
-                {/* White Logo Container */}
-                <div className="w-14 h-14 bg-white rounded-xl shadow-xs flex items-center justify-center p-2 mb-3 shrink-0">
-                  {company.logoContent}
-                </div>
-
-                {/* Company Name */}
-                <h3 className="text-white font-bold text-sm sm:text-base leading-snug truncate w-full group-hover:text-blue-400 transition-colors">
-                  {company.name}
-                </h3>
-
-                {/* Rating & Reviews */}
-                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400 mt-2">
-                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                  <span className="font-semibold text-slate-200">
-                    {company.rating}
-                  </span>
-                  <span className="text-slate-500">|</span>
-                  <span className="text-[11px] text-slate-400 truncate">
-                    {company.reviewsCount}
-                  </span>
-                </div>
-
-                {/* Badge Tag */}
-                <div className="mt-3">
-                  <span className="inline-block px-3 py-1 rounded-md text-[11px] font-semibold bg-[#2C2114] text-[#F59E0B] border border-[#78350F]/40">
-                    {company.tag}
-                  </span>
-                </div>
+        {isLoading ? (
+          <div className="flex items-stretch gap-4 overflow-x-auto pb-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="w-[185px] sm:w-[210px] shrink-0 bg-[#141C2A] rounded-2xl p-5 border border-slate-800 animate-pulse space-y-3"
+              >
+                <div className="w-14 h-14 bg-slate-800 rounded-xl mx-auto" />
+                <div className="h-4 bg-slate-800 rounded w-24 mx-auto" />
+                <div className="h-3 bg-slate-800 rounded w-16 mx-auto" />
               </div>
+            ))}
+          </div>
+        ) : companies.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">
+            No registered companies found.
+          </div>
+        ) : (
+          <div
+            ref={scrollRef}
+            className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto pb-2 scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {companies.map((company) => {
+              const compId = company.id || company._id;
+              const openCount = typeof company.openRoles === "number" ? company.openRoles : (parseInt(company.openRoles, 10) || 0);
 
-              {/* View Jobs Action Link */}
-              <div className="mt-4 pt-3 border-t border-slate-800/60 w-full text-center">
-                <span className="text-xs font-semibold text-blue-500 group-hover:text-blue-400 transition-colors">
-                  View jobs
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
+              return (
+                <Link
+                  key={compId}
+                  href={`/companies/${compId}`}
+                  className="w-[185px] sm:w-[210px] shrink-0 snap-start bg-[#141C2A] rounded-2xl p-4 sm:p-5 border border-slate-800/80 shadow-md flex flex-col items-center justify-between text-center group hover:border-slate-700 hover:bg-[#182233] transition-all cursor-pointer"
+                >
+                  <div className="flex flex-col items-center w-full">
+                    {/* White Logo Container */}
+                    <div className="w-14 h-14 bg-white rounded-xl shadow-xs flex items-center justify-center p-2 mb-3 shrink-0">
+                      <span className="text-sm font-black text-slate-900">
+                        {(company.name || "C").charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* Company Name */}
+                    <h3 className="text-white font-bold text-sm sm:text-base leading-snug truncate w-full group-hover:text-blue-400 transition-colors">
+                      {company.name}
+                    </h3>
+
+                    {/* Rating & Location */}
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400 mt-2">
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      <span className="font-semibold text-slate-200">
+                        {company.rating || "4.8"}
+                      </span>
+                      <span className="text-slate-500">|</span>
+                      <span className="text-[11px] text-slate-400 truncate max-w-[80px]">
+                        {company.location || "India"}
+                      </span>
+                    </div>
+
+                    {/* Badge Tag */}
+                    <div className="mt-3">
+                      <span className="inline-block px-3 py-1 rounded-md text-[11px] font-semibold bg-[#2C2114] text-[#F59E0B] border border-[#78350F]/40 truncate max-w-[150px]">
+                        {company.industry || "Technology"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* View Jobs Action Link */}
+                  <div className="mt-4 pt-3 border-t border-slate-800/60 w-full text-center">
+                    <span className="text-xs font-semibold text-blue-500 group-hover:text-blue-400 transition-colors">
+                      {openCount > 0 ? `${openCount} Jobs` : "View Company"}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

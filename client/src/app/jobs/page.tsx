@@ -6,7 +6,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { jobsList } from "@/data/jobsData";
+import {
+  fetchPublicJobs,
+  getStoredUser,
+  getLocalSavedJobs,
+  toggleLocalSavedJob,
+} from "@/lib/api";
 import {
   Search,
   MapPin,
@@ -29,11 +34,40 @@ function JobsContent() {
   const initialLocation = searchParams?.get("location") || "";
   const initialType = searchParams?.get("type") || "All";
 
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(initialQ);
   const [locationQuery, setLocationQuery] = useState(initialLocation);
   const [selectedJobType, setSelectedJobType] = useState(initialType);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [savedJobs, setSavedJobs] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let isMounted = true;
+    const storedUser = getStoredUser();
+    const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+    const saved = getLocalSavedJobs(uid);
+    const map: Record<string, boolean> = {};
+    saved.forEach((s: any) => {
+      const id = s.id || s._id;
+      if (id) map[id] = true;
+    });
+    setSavedJobs(map);
+
+    fetchPublicJobs()
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setJobs(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching public jobs:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [jobTypeDropdownOpen, setJobTypeDropdownOpen] = useState(false);
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
@@ -85,22 +119,28 @@ function JobsContent() {
 
   const categories = ["All", "Engineering", "Design", "Marketing", "Product", "Finance", "HR"];
 
-  const filteredJobs = jobsList.filter((job) => {
+  const filteredJobs = jobs.filter((job) => {
+    const jobCat = job.department || job.category || "";
     const matchesCategory =
-      selectedCategory === "All" || job.category === selectedCategory;
+      selectedCategory === "All" || jobCat.toLowerCase() === selectedCategory.toLowerCase();
+    const tags = Array.isArray(job.tags) && job.tags.length > 0 ? job.tags : Array.isArray(job.skills) ? job.skills : [];
     const matchesSearch =
       !searchQuery ||
-      job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+      (job.title && job.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (job.company && job.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      tags.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+    const loc = job.location || "";
+    const wp = job.workplace || "";
     const matchesLocation =
       !locationQuery ||
-      job.location.toLowerCase().includes(locationQuery.toLowerCase()) ||
-      job.workplace.toLowerCase().includes(locationQuery.toLowerCase());
+      locationQuery.toLowerCase() === "all locations" ||
+      loc.toLowerCase().includes(locationQuery.toLowerCase()) ||
+      wp.toLowerCase().includes(locationQuery.toLowerCase());
+    const typ = job.type || "";
     const matchesType =
       selectedJobType === "All" ||
-      job.type.toLowerCase() === selectedJobType.toLowerCase() ||
-      job.workplace.toLowerCase() === selectedJobType.toLowerCase();
+      typ.toLowerCase() === selectedJobType.toLowerCase() ||
+      wp.toLowerCase() === selectedJobType.toLowerCase();
 
     return matchesCategory && matchesSearch && matchesLocation && matchesType;
   });
@@ -108,7 +148,15 @@ function JobsContent() {
   const toggleSave = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setSavedJobs((prev) => ({ ...prev, [id]: !prev[id] }));
+    const storedUser = getStoredUser();
+    const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+    const targetJob = jobs.find((j) => (j.id || j._id) === id);
+    if (targetJob) {
+      const res = toggleLocalSavedJob(uid, targetJob);
+      setSavedJobs((prev) => ({ ...prev, [id]: res.saved }));
+    } else {
+      setSavedJobs((prev) => ({ ...prev, [id]: !prev[id] }));
+    }
   };
 
   return (
@@ -722,14 +770,43 @@ function JobsContent() {
           </p>
         </div>
 
-        {/* Jobs List Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredJobs.map((job) => {
-            const isSaved = !!savedJobs[job.id];
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs animate-pulse space-y-4"
+              >
+                <div className="h-5 bg-slate-200 rounded w-2/3" />
+                <div className="h-4 bg-slate-100 rounded w-1/3" />
+                <div className="h-4 bg-slate-100 rounded w-1/2" />
+              </div>
+            ))}
+          </div>
+        ) : filteredJobs.length === 0 ? (
+          <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs max-w-xl mx-auto my-8">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
+              <Briefcase className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">No Jobs Found</h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+              No matching jobs were found in the database. Try adjusting your search keywords or clear your filters.
+            </p>
+          </div>
+        ) : (
+          /* Jobs List Grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {filteredJobs.map((job) => {
+            const jId = job.id || job._id;
+            const isSaved = !!savedJobs[jId];
+            const jTags = Array.isArray(job.tags) && job.tags.length > 0 ? job.tags : Array.isArray(job.skills) ? job.skills : [];
+            const jPosted = job.postedOn || job.posted || "Recently";
+            const jWorkplace = job.workplace || "Remote";
+
             return (
               <Link
-                key={job.id}
-                href={`/jobs/${job.id}`}
+                key={jId}
+                href={`/jobs/${jId}`}
                 className="group block bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:border-blue-300 hover:shadow-[0_12px_30px_rgba(37,99,235,0.08)] transition-all duration-200 flex flex-col justify-between"
               >
                 <div>
@@ -744,7 +821,7 @@ function JobsContent() {
                     </div>
 
                     <button
-                      onClick={(e) => toggleSave(e, job.id)}
+                      onClick={(e) => toggleSave(e, jId)}
                       aria-label="Save Job"
                       title={isSaved ? "Saved" : "Save Job"}
                       className={`p-2 rounded-xl transition cursor-pointer shrink-0 ${
@@ -765,34 +842,37 @@ function JobsContent() {
                   <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 my-3">
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                      {job.location}
+                      {job.location || "Remote"}
                     </span>
                     <span className="flex items-center gap-1">
                       <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                      {job.type} • {job.workplace}
+                      {job.type} • {jWorkplace}
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      {job.posted}
+                      {jPosted}
                     </span>
                   </div>
 
                   {/* Skills Tags */}
-                  <div className="flex flex-wrap gap-2 my-4">
-                    {job.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
+                  {jTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 my-4">
+                      {jTags.map((t: string) => (
+                        <span
+                          key={t}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Link>
             );
           })}
-        </div>
+          </div>
+        )}
       </main>
 
       <Footer />

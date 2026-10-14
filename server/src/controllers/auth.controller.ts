@@ -69,8 +69,9 @@ const formatUser = (user: IUser) => {
     languages: user.languages || '',
     targetRole: user.targetRole || '',
     experience: user.experience || '',
+    education: user.education || user.course || '',
     highestQualification: user.highestQualification || '',
-    course: user.course || '',
+    course: user.course || user.education || '',
     courseType: user.courseType || '',
     specialization: user.specialization || '',
     university: user.university || '',
@@ -534,6 +535,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       phone,
       mobile,
       bio,
+      education,
       highestQualification,
       course,
       courseType,
@@ -573,8 +575,14 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     if (phone !== undefined) user.phone = phone;
     if (mobile !== undefined) user.phone = mobile;
     if (bio !== undefined) user.bio = bio;
-    if (highestQualification !== undefined) user.highestQualification = highestQualification;
-    if (course !== undefined) user.course = course;
+    if (education !== undefined) {
+      user.education = education;
+      user.course = education;
+      user.highestQualification = '';
+      user.specialization = '';
+    }
+    if (highestQualification !== undefined && education === undefined) user.highestQualification = highestQualification;
+    if (course !== undefined && education === undefined) user.course = course;
     if (courseType !== undefined) user.courseType = courseType;
     if (specialization !== undefined) user.specialization = specialization;
     if (university !== undefined) user.university = university;
@@ -658,6 +666,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
           resumeDate: user.resumeDate,
           resumeUrl: user.resumeUrl,
           experience: user.experience,
+          education: user.education || user.course,
           skills: user.skills,
           highestQualification: user.highestQualification,
           course: user.course,
@@ -685,6 +694,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         bio: user.bio,
         skills: user.skills,
         experience: user.experience,
+        education: user.education || user.course,
         course: user.course,
         university: user.university,
         languages: user.languages,

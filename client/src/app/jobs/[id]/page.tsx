@@ -1,11 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { jobsList, JobDetail } from "@/data/jobsData";
+import {
+  fetchPublicJobById,
+  fetchPublicJobs,
+  getStoredUser,
+  submitJobApplication,
+  saveLocalAppliedJob,
+  toggleLocalSavedJob,
+  getLocalSavedJobs,
+} from "@/lib/api";
 import {
   ArrowLeft,
   MapPin,
@@ -30,8 +38,43 @@ function JobDetailPageContent() {
   const params = useParams();
   const jobId = params?.id as string;
 
-  const job: JobDetail | undefined =
-    jobsList.find((j) => j.id === jobId) || jobsList[0];
+  const [job, setJob] = useState<any>(null);
+  const [allJobs, setAllJobs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (jobId) {
+      setIsLoading(true);
+      fetchPublicJobById(jobId)
+        .then((data) => {
+          if (isMounted && data) {
+            setJob(data);
+            const storedUser = getStoredUser();
+            const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+            const savedList = getLocalSavedJobs(uid);
+            const foundSaved = savedList.some((s: any) => (s.id || s._id) === (data.id || data._id));
+            setIsSaved(foundSaved);
+          }
+        })
+        .catch((err) => console.error("Error fetching job:", err))
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    }
+
+    fetchPublicJobs()
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setAllJobs(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching all jobs:", err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [jobId]);
 
   const [isSaved, setIsSaved] = useState(false);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
@@ -47,23 +90,127 @@ function JobDetailPageContent() {
   };
 
   // Suggested jobs based on shared tags or same category (excluding current job)
-  const suggestedJobs = jobsList
-    .filter((j) => j.id !== job.id)
+  const currentTags: string[] = job
+    ? Array.isArray(job.tags) && job.tags.length > 0
+      ? job.tags
+      : Array.isArray(job.skills)
+      ? job.skills
+      : []
+    : [];
+  const currentId = job ? job.id || job._id : "";
+
+  const handleToggleSave = () => {
+    if (!job) return;
+    const storedUser = getStoredUser();
+    const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+    const res = toggleLocalSavedJob(uid, {
+      id: currentId,
+      _id: currentId,
+      title: job.title,
+      company: job.company,
+      location: job.location,
+      salary: job.salary,
+      type: job.type,
+      workplace: job.workplace,
+      tags: currentTags,
+    });
+    setIsSaved(res.saved);
+  };
+
+  const suggestedJobs = allJobs
+    .filter((j) => (j.id || j._id) !== currentId)
     .sort((a, b) => {
-      const aMatches = a.tags.filter((t) => job.tags.includes(t)).length;
-      const bMatches = b.tags.filter((t) => job.tags.includes(t)).length;
+      const aTags = Array.isArray(a.tags) ? a.tags : Array.isArray(a.skills) ? a.skills : [];
+      const bTags = Array.isArray(b.tags) ? b.tags : Array.isArray(b.skills) ? b.skills : [];
+      const aMatches = aTags.filter((t: string) => currentTags.includes(t)).length;
+      const bMatches = bTags.filter((t: string) => currentTags.includes(t)).length;
       return bMatches - aMatches;
     })
     .slice(0, 4);
 
   const handleSubmitApplication = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!job) return;
+
+    const storedUser = getStoredUser();
+    const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+    const appData = {
+      id: "app-" + Date.now(),
+      jobId: currentId,
+      title: job.title,
+      company: job.company,
+      companyId: job.companyId || "",
+      location: job.location || "Remote",
+      salary: job.salary || "Competitive",
+      type: job.type || "Full-time",
+      workplace: job.workplace || "Hybrid",
+      appliedDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }),
+      appliedOn: "Today",
+      status: "Application Sent",
+      statusStep: 1,
+      recruiterStatus: "Recruiter active today",
+      totalApplicants: (job.applicantsCount || 0) + 1,
+      viewedCount: 1,
+      rating: 4.8,
+      reviewsCount: "120 Reviews",
+      candidateName: fullName || storedUser?.name || "Candidate",
+      candidateEmail: email || storedUser?.email || "",
+      candidatePhone: phone || storedUser?.phone || "",
+    };
+
+    saveLocalAppliedJob(uid, appData);
+    submitJobApplication(currentId, {
+      candidateName: appData.candidateName,
+      candidateEmail: appData.candidateEmail,
+      candidatePhone: appData.candidatePhone,
+    }).catch((err) => console.warn("Backend submit error:", err));
+
     setApplicationSubmitted(true);
     setTimeout(() => {
       setIsApplyModalOpen(false);
       setApplicationSubmitted(false);
-    }, 2800);
+    }, 2400);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans">
+        <Navbar activeTab="Jobs" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-1 w-full animate-pulse space-y-6">
+          <div className="h-6 bg-slate-200 rounded w-48 mb-8" />
+          <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xs space-y-4">
+            <div className="h-8 bg-slate-200 rounded w-1/2" />
+            <div className="h-4 bg-slate-100 rounded w-1/4" />
+            <div className="h-4 bg-slate-100 rounded w-1/3" />
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans">
+        <Navbar activeTab="Jobs" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-1 w-full text-center">
+          <div className="bg-white rounded-3xl p-12 border border-slate-200/80 shadow-xs max-w-lg mx-auto">
+            <h2 className="text-xl font-bold text-slate-800">Job Not Found</h2>
+            <p className="text-sm text-slate-500 mt-2">
+              The job you are looking for does not exist or has been removed.
+            </p>
+            <Link
+              href="/jobs"
+              className="mt-6 inline-block px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition"
+            >
+              Browse All Jobs
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans">
@@ -82,7 +229,7 @@ function JobDetailPageContent() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsSaved(!isSaved)}
+              onClick={handleToggleSave}
               className={`p-2 rounded-xl border transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold ${
                 isSaved
                   ? "bg-blue-50 border-blue-200 text-blue-600"
@@ -124,11 +271,16 @@ function JobDetailPageContent() {
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">
                     {job.title}
                   </h1>
-                  <p className="text-base sm:text-lg text-slate-600 font-normal">
-                    {job.company}
+                  <p className="text-base sm:text-lg font-semibold">
+                    <Link
+                      href={`/companies/${job.companyId || job.company}`}
+                      className="text-blue-600 hover:text-blue-700 hover:underline transition"
+                    >
+                      {job.company}
+                    </Link>
                   </p>
                   <p className="text-sm text-slate-500 font-normal">
-                    Posted by {job.postedBy || "PERSOL"}
+                    Posted by {job.postedBy || job.company}
                   </p>
                 </div>
 
@@ -225,7 +377,7 @@ function JobDetailPageContent() {
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setIsSaved(!isSaved)}
+                    onClick={handleToggleSave}
                     className={`px-7 py-2 rounded-full border text-sm font-semibold transition cursor-pointer ${
                       isSaved
                         ? "bg-blue-50 border-blue-600 text-blue-600"
@@ -253,11 +405,11 @@ function JobDetailPageContent() {
                     Required Skills & Technologies
                   </h3>
                   <span className="text-xs text-slate-400 font-medium">
-                    {job.tags.length} key skills
+                    {(job.tags || job.skills || []).length} key skills
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {job.tags.map((tag) => (
+                  {(job.tags || job.skills || []).map((tag: string) => (
                     <span
                       key={tag}
                       className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-blue-200 hover:bg-blue-50/50 transition-colors"
@@ -311,43 +463,49 @@ function JobDetailPageContent() {
               </div>
 
               {/* Responsibilities */}
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3">Key Responsibilities</h3>
-                <ul className="space-y-2.5">
-                  {job.responsibilities.map((r, i) => (
-                    <li key={i} className="flex items-start gap-3 text-sm text-slate-600 leading-relaxed">
-                      <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                      <span>{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {(job.responsibilities && job.responsibilities.length > 0) && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3">Key Responsibilities</h3>
+                  <ul className="space-y-2.5">
+                    {job.responsibilities.map((r: string, i: number) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-slate-600 leading-relaxed">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <span>{r}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Requirements */}
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3">Requirements &amp; Experience</h3>
-                <ul className="space-y-2.5">
-                  {job.requirements.map((req, i) => (
-                    <li key={i} className="flex items-start gap-3 text-sm text-slate-600 leading-relaxed">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <span>{req}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {(job.requirements && job.requirements.length > 0) && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3">Requirements &amp; Experience</h3>
+                  <ul className="space-y-2.5">
+                    {job.requirements.map((req: string, i: number) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-slate-600 leading-relaxed">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>{req}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Benefits */}
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3">Perks &amp; Benefits</h3>
-                <ul className="space-y-2.5">
-                  {job.benefits.map((b, i) => (
-                    <li key={i} className="flex items-start gap-3 text-sm text-slate-600 leading-relaxed">
-                      <div className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-2" />
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {(job.benefits && job.benefits.length > 0) && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3">Perks &amp; Benefits</h3>
+                  <ul className="space-y-2.5">
+                    {job.benefits.map((b: string, i: number) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-slate-600 leading-relaxed">
+                        <div className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-2" />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Bottom Floating Apply CTA */}
@@ -419,7 +577,7 @@ function JobDetailPageContent() {
 
                       {/* Matching skills preview */}
                       <div className="flex flex-wrap gap-1 mt-2.5">
-                        {sJob.tags.slice(0, 3).map((t) => (
+                        {((sJob.tags || sJob.skills || []) as string[]).slice(0, 3).map((t: string) => (
                           <span
                             key={t}
                             className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-slate-200/60 text-slate-600"

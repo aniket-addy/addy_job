@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { companiesList, Company } from "@/data/companiesData";
-import { jobsList } from "@/data/jobsData";
+import { fetchPublicCompanyById } from "@/lib/api";
 import {
   ArrowLeft,
   Building2,
@@ -42,35 +41,51 @@ function CompanyDetailPageContent() {
   const params = useParams();
   const companyId = params?.id as string;
 
-  // Find company by ID or name fallback
-  const company: Company =
-    companiesList.find(
-      (c) =>
-        c.id === companyId ||
-        c.name.toLowerCase().replace(/\s+/g, "-") === companyId?.toLowerCase()
-    ) || companiesList[0];
-
-  // Find all jobs for this company
-  const allCompanyJobs = jobsList.filter(
-    (j) =>
-      j.company.toLowerCase().includes(company.name.toLowerCase()) ||
-      company.name.toLowerCase().includes(j.company.toLowerCase())
-  );
+  const [company, setCompany] = useState<any>(null);
+  const [allCompanyJobs, setAllCompanyJobs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [workplaceFilter, setWorkplaceFilter] = useState("All");
   const [isFollowing, setIsFollowing] = useState(false);
   const [activeTab, setActiveTab] = useState<"jobs" | "about" | "culture">("jobs");
 
-  const filteredJobs = allCompanyJobs.filter((job) => {
-    const matchesSearch =
-      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.tags.some((t) => t.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      job.location.toLowerCase().includes(searchTerm.toLowerCase());
+  useEffect(() => {
+    let isMounted = true;
+    if (companyId) {
+      setIsLoading(true);
+      fetchPublicCompanyById(companyId)
+        .then((data) => {
+          if (isMounted && data) {
+            if (data.company) {
+              setCompany(data.company);
+            }
+            if (Array.isArray(data.jobs)) {
+              setAllCompanyJobs(data.jobs);
+            }
+          }
+        })
+        .catch((err) => console.error("Error fetching company details:", err))
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [companyId]);
 
+  const filteredJobs = allCompanyJobs.filter((job) => {
+    const titleMatch = (job.title || "").toLowerCase().includes(searchTerm.toLowerCase());
+    const tags = Array.isArray(job.tags) ? job.tags : Array.isArray(job.skills) ? job.skills : [];
+    const tagsMatch = tags.some((t: string) => t.toLowerCase().includes(searchTerm.toLowerCase()));
+    const locMatch = (job.location || "").toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = !searchTerm || titleMatch || tagsMatch || locMatch;
+
+    const wp = job.workplace || "Remote";
     const matchesWorkplace =
       workplaceFilter === "All" ||
-      job.workplace.toLowerCase() === workplaceFilter.toLowerCase();
+      wp.toLowerCase() === workplaceFilter.toLowerCase();
 
     return matchesSearch && matchesWorkplace;
   });
@@ -89,6 +104,50 @@ function CompanyDetailPageContent() {
       element.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans">
+        <Navbar activeTab="Companies" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-1 w-full animate-pulse space-y-6">
+          <div className="h-6 bg-slate-200 rounded w-48 mb-8" />
+          <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-slate-200" />
+              <div className="space-y-2 flex-1">
+                <div className="h-6 bg-slate-200 rounded w-1/3" />
+                <div className="h-4 bg-slate-100 rounded w-1/4" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!company) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans">
+        <Navbar activeTab="Companies" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-1 w-full text-center">
+          <div className="bg-white rounded-3xl p-12 border border-slate-200/80 shadow-xs max-w-lg mx-auto">
+            <h2 className="text-xl font-bold text-slate-800">Company Not Found</h2>
+            <p className="text-sm text-slate-500 mt-2">
+              The company profile you are looking for does not exist or has been removed.
+            </p>
+            <Link
+              href="/companies"
+              className="mt-6 inline-block px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition"
+            >
+              Browse All Companies
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans">
@@ -406,80 +465,90 @@ function CompanyDetailPageContent() {
           {/* Jobs List Grid */}
           {filteredJobs.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {filteredJobs.map((job) => (
-                <Link
-                  key={job.id}
-                  href={`/jobs/${job.id}`}
-                  className="group bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:border-blue-400 hover:shadow-[0_12px_32px_rgba(37,99,235,0.08)] transition-all duration-200 flex flex-col justify-between cursor-pointer"
-                >
-                  <div>
-                    {/* Top Row: Category & Workplace badge */}
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
-                        {job.category}
-                      </span>
-                      <span
-                        className={`px-3 py-0.5 rounded-full text-[11px] font-bold ${
-                          job.workplace === "Remote"
-                            ? "bg-purple-50 text-purple-700 border border-purple-100"
-                            : job.workplace === "Hybrid"
-                            ? "bg-sky-50 text-sky-700 border border-sky-100"
-                            : "bg-amber-50 text-amber-700 border border-amber-100"
-                        }`}
-                      >
-                        {job.workplace}
-                      </span>
-                    </div>
+              {filteredJobs.map((job) => {
+                const jId = job.id || job._id;
+                const jCategory = job.department || job.category || "General";
+                const jWorkplace = job.workplace || "Remote";
+                const jTags = Array.isArray(job.tags) && job.tags.length > 0 ? job.tags : Array.isArray(job.skills) ? job.skills : [];
+                const jPosted = job.postedOn || job.posted || "Recently";
 
-                    {/* Job Title */}
-                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">
-                      {job.title}
-                    </h3>
-
-                    {/* Salary & Meta Row */}
-                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs sm:text-sm font-semibold text-slate-700">
-                      <span className="text-slate-900 font-extrabold text-sm sm:text-base text-blue-600">
-                        {job.salary}
-                      </span>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-500 font-medium flex items-center gap-1">
-                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                        {job.experience || "2 - 5 yrs"}
-                      </span>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-500 font-medium flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        {job.location}
-                      </span>
-                    </div>
-
-                    {/* Skills Tags */}
-                    <div className="flex flex-wrap gap-1.5 mt-4">
-                      {job.tags.slice(0, 4).map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-600"
-                        >
-                          {tag}
+                return (
+                  <Link
+                    key={jId}
+                    href={`/jobs/${jId}`}
+                    className="group bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:border-blue-400 hover:shadow-[0_12px_32px_rgba(37,99,235,0.08)] transition-all duration-200 flex flex-col justify-between cursor-pointer"
+                  >
+                    <div>
+                      {/* Top Row: Category & Workplace badge */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                          {jCategory}
                         </span>
-                      ))}
+                        <span
+                          className={`px-3 py-0.5 rounded-full text-[11px] font-bold ${
+                            jWorkplace === "Remote"
+                              ? "bg-purple-50 text-purple-700 border border-purple-100"
+                              : jWorkplace === "Hybrid"
+                              ? "bg-sky-50 text-sky-700 border border-sky-100"
+                              : "bg-amber-50 text-amber-700 border border-amber-100"
+                          }`}
+                        >
+                          {jWorkplace}
+                        </span>
+                      </div>
+
+                      {/* Job Title */}
+                      <h3 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">
+                        {job.title}
+                      </h3>
+
+                      {/* Salary & Meta Row */}
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs sm:text-sm font-semibold text-slate-700">
+                        <span className="text-slate-900 font-extrabold text-sm sm:text-base text-blue-600">
+                          {job.salary || "Competitive"}
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-500 font-medium flex items-center gap-1">
+                          <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                          {job.experience || "2 - 5 yrs"}
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-500 font-medium flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                          {job.location || "Remote"}
+                        </span>
+                      </div>
+
+                      {/* Skills Tags */}
+                      {jTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-4">
+                          {jTags.slice(0, 4).map((tag: string) => (
+                            <span
+                              key={tag}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-600"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  {/* Card Bottom CTA */}
-                  <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-slate-400 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      Posted {job.posted}
-                    </span>
+                    {/* Card Bottom CTA */}
+                    <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        Posted {jPosted}
+                      </span>
 
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 group-hover:text-blue-700 group-hover:translate-x-0.5 transition-all">
-                      <span>View Details & Apply</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </Link>
-              ))}
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 group-hover:text-blue-700 group-hover:translate-x-0.5 transition-all">
+                        <span>View Details & Apply</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           ) : (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 space-y-3">
@@ -599,7 +668,7 @@ function CompanyDetailPageContent() {
               <span>Work Culture & Values</span>
             </h3>
             <ul className="space-y-2.5">
-              {company.culture.map((item, idx) => (
+              {(company.culture || []).map((item: string, idx: number) => (
                 <li key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
                   <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                   <span>{item}</span>
@@ -615,7 +684,7 @@ function CompanyDetailPageContent() {
               <span>Employee Perks & Benefits</span>
             </h3>
             <ul className="space-y-2.5">
-              {company.perks.map((item, idx) => (
+              {(company.perks || []).map((item: string, idx: number) => (
                 <li key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <span>{item}</span>

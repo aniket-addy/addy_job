@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import {
   User,
   Briefcase,
@@ -40,14 +42,218 @@ import {
   Menu,
   MoreVertical,
   MoreHorizontal,
+  Plus,
+  UploadCloud,
+  ExternalLink,
+  FolderGit2,
+  Code2,
+  Trophy,
+  Award,
+  UserCheck,
+  HeartHandshake,
+  FileEdit,
+  Compass,
+  Check,
+  Trash2,
 } from "lucide-react";
 import {
   getStoredUser,
+  getAuthToken,
+  setAuthSession,
   clearAuthSession,
   fetchCurrentUser,
   updateUserProfile,
   UserSession,
+  getLocalAppliedJobs,
+  saveLocalAppliedJob,
+  fetchCandidateApplicationsFromDB,
+  getLocalSavedJobs,
+  toggleLocalSavedJob,
+  getLocalCandidateMessages,
+  saveLocalCandidateMessages,
 } from "@/lib/api";
+import AppliedJobsView, { AppliedJobItem } from "@/components/candidate/AppliedJobsView";
+import SavedJobsView from "@/components/candidate/SavedJobsView";
+import CandidateMessagesView, { ConversationThread } from "@/components/candidate/CandidateMessagesView";
+import JobAlertsView, { JobAlertItem } from "@/components/candidate/JobAlertsView";
+
+const DEFAULT_INITIAL_APPLIED_JOBS: AppliedJobItem[] = [
+  {
+    id: "app-default-1",
+    jobId: "job-infinite-net-eng",
+    title: "Associate Network Engineer",
+    company: "Infinite",
+    companyId: "infinite-1",
+    location: "Bengaluru, India",
+    salary: "₹ 4 - 6 LPA",
+    type: "Full Time",
+    workplace: "On-site",
+    appliedDate: "08 Oct '26",
+    appliedOn: "08 Oct '26",
+    status: "Resume Viewed",
+    statusStep: 3,
+    recruiterStatus: "Recruiter last active 1d ago",
+    totalApplicants: 3772,
+    viewedCount: 1681,
+    rating: 3.3,
+    reviewsCount: "175 Reviews",
+    viewedDays: "Resume viewed 6 days ago",
+  },
+  {
+    id: "app-default-2",
+    jobId: "job-wonks-python",
+    title: "Python Trainer & Developer",
+    company: "Wonksknow Technologies",
+    companyId: "wonks-2",
+    location: "Noida / Remote",
+    salary: "₹ 5 - 8 LPA",
+    type: "Full Time",
+    workplace: "Hybrid",
+    appliedDate: "12 Oct '26",
+    appliedOn: "12 Oct '26",
+    status: "Resume Viewed",
+    statusStep: 3,
+    recruiterStatus: "Recruiter last active 2d ago",
+    totalApplicants: 1420,
+    viewedCount: 890,
+    rating: 4.1,
+    reviewsCount: "6 Reviews",
+    viewedDays: "Resume viewed 2 days ago",
+  },
+  {
+    id: "app-default-3",
+    jobId: "job-jobaaj-ai-eng",
+    title: "AI Engineer",
+    company: "Jobaaj Com",
+    companyId: "jobaaj-3",
+    location: "Gurugram, India",
+    salary: "₹ 8 - 14 LPA",
+    type: "Full Time",
+    workplace: "On-site",
+    appliedDate: "10 Oct '26",
+    appliedOn: "10 Oct '26",
+    status: "Resume Viewed",
+    statusStep: 3,
+    recruiterStatus: "Recruiter last active today",
+    totalApplicants: 2150,
+    viewedCount: 1204,
+    rating: 3.7,
+    reviewsCount: "68 Reviews",
+    viewedDays: "Resume viewed 4 days ago",
+  },
+  {
+    id: "app-default-4",
+    jobId: "job-jobaaj-fullstack",
+    title: "Fullstack Developer",
+    company: "Jobaaj Com",
+    companyId: "jobaaj-3",
+    location: "Noida / Hybrid",
+    salary: "₹ 7 - 12 LPA",
+    type: "Full Time",
+    workplace: "Hybrid",
+    appliedDate: "09 Oct '26",
+    appliedOn: "09 Oct '26",
+    status: "Resume Viewed",
+    statusStep: 3,
+    recruiterStatus: "Recruiter last active today",
+    totalApplicants: 1980,
+    viewedCount: 940,
+    rating: 3.7,
+    reviewsCount: "68 Reviews",
+    viewedDays: "Resume viewed 5 days ago",
+  },
+  {
+    id: "app-default-5",
+    jobId: "job-sowiz-ai-intern",
+    title: "AI Intern",
+    company: "Sowiz",
+    companyId: "sowiz-5",
+    location: "Bengaluru, India",
+    salary: "₹ 25k / mo",
+    type: "Internship",
+    workplace: "Remote",
+    appliedDate: "08 Oct '26",
+    appliedOn: "08 Oct '26",
+    status: "Application Sent",
+    statusStep: 1,
+    recruiterStatus: "Recruiter last active 4w ago",
+    totalApplicants: 860,
+    viewedCount: 310,
+    rating: 3.5,
+    reviewsCount: "12 Reviews",
+    viewedDays: "Application sent 6 days ago",
+  },
+];
+
+const DEFAULT_INITIAL_THREADS: ConversationThread[] = [
+  {
+    id: "thread-infinite-hr",
+    companyName: "Infinite",
+    companyId: "infinite-1",
+    role: "Associate Network Engineer",
+    lastActive: "1d ago",
+    unread: true,
+    messages: [
+      {
+        id: "msg-1",
+        sender: "recruiter",
+        senderName: "HR Recruiter at Infinite",
+        time: "Yesterday, 3:30 PM",
+        text: "Hi! We reviewed your profile for Associate Network Engineer. Are you available for a brief technical screening call this week?",
+      },
+    ],
+  },
+  {
+    id: "thread-jobaaj-recruiter",
+    companyName: "Jobaaj Com",
+    companyId: "jobaaj-3",
+    role: "AI Engineer",
+    lastActive: "Today",
+    unread: false,
+    messages: [
+      {
+        id: "msg-2",
+        sender: "recruiter",
+        senderName: "Senior Talent Acquisition at Jobaaj",
+        time: "Today, 11:15 AM",
+        text: "Hello! We were impressed by your background. Could you please share your updated resume and earliest joining date?",
+      },
+      {
+        id: "msg-3",
+        sender: "candidate",
+        senderName: "You",
+        time: "Today, 11:45 AM",
+        text: "Thank you for reaching out! My resume is attached to the profile and I have a 15-day notice period.",
+      },
+      {
+        id: "msg-4",
+        sender: "recruiter",
+        senderName: "Senior Talent Acquisition at Jobaaj",
+        time: "Today, 12:00 PM",
+        text: "Great! Our hiring manager will schedule the interview link shortly.",
+      },
+    ],
+  },
+];
+
+const DEFAULT_JOB_ALERTS: JobAlertItem[] = [
+  {
+    id: "alert-1",
+    role: "Fullstack Developer",
+    location: "Remote / Hybrid",
+    frequency: "Daily",
+    active: true,
+    createdAt: "2 days ago",
+  },
+  {
+    id: "alert-2",
+    role: "AI / ML Engineer",
+    location: "Bengaluru / Noida",
+    frequency: "Daily",
+    active: true,
+    createdAt: "5 days ago",
+  },
+];
 
 interface ApplicationItem {
   id: string;
@@ -72,6 +278,9 @@ const getInitials = (n: string): string => {
 
 const formatEducation = (u: any): string => {
   if (!u) return "";
+  if (u.education && typeof u.education === "string" && u.education.trim()) {
+    return u.education.trim();
+  }
   const parts: string[] = [];
   if (u.highestQualification) parts.push(u.highestQualification);
   if (u.course && u.course !== u.highestQualification) parts.push(u.course);
@@ -87,6 +296,50 @@ const formatEducation = (u: any): string => {
   }
   return str;
 };
+
+export interface EducationItem {
+  id: string;
+  degree: string;
+  college: string;
+  years: string;
+  grade?: string;
+}
+
+export interface ProjectItem {
+  id: string;
+  title: string;
+  techStack: string;
+  description: string;
+  githubUrl?: string;
+  liveUrl?: string;
+}
+
+export interface LanguageItem {
+  id: string;
+  language: string;
+  proficiency: "Beginner" | "Intermediate" | "Fluent" | "Native";
+  read: boolean;
+  write: boolean;
+  speak: boolean;
+}
+
+export interface ExperienceItem {
+  id: string;
+  role: string;
+  company: string;
+  duration: string;
+  description: string;
+}
+
+export interface AccomplishmentItem {
+  id: string;
+  category: "Online profile" | "Work sample" | "White paper" | "Presentation" | "Patent" | "Certification";
+  title: string;
+  url?: string;
+  organization?: string;
+  date?: string;
+  description?: string;
+}
 
 export default function CandidateDashboardPage() {
   const router = useRouter();
@@ -115,8 +368,14 @@ export default function CandidateDashboardPage() {
 
   // Navigation / Tab States
   const [activeSidebarTab, setActiveSidebarTab] = useState<
-    "dashboard" | "profile" | "resume" | "applied" | "saved" | "alerts" | "messages" | "settings"
+    "profile" | "applied" | "saved" | "alerts" | "messages"
   >("profile");
+
+  // Dynamic candidate collections
+  const [appliedList, setAppliedList] = useState<AppliedJobItem[]>([]);
+  const [savedList, setSavedList] = useState<any[]>([]);
+  const [messageThreads, setMessageThreads] = useState<ConversationThread[]>([]);
+  const [jobAlerts, setJobAlerts] = useState<JobAlertItem[]>([]);
 
   const [appliedSubTab, setAppliedSubTab] = useState<"applied" | "saved" | "interviews">("applied");
   const [tabletTab, setTabletTab] = useState<"about" | "skills" | "resume" | "experience" | "education">("about");
@@ -130,6 +389,626 @@ export default function CandidateDashboardPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Controlled form state for Edit Profile modal
+  const [editForm, setEditForm] = useState({
+    name: "",
+    headline: "",
+    experience: "",
+    location: "",
+    email: "",
+    phone: "",
+    education: "",
+    languages: "",
+    bio: "",
+    skills: "",
+  });
+
+  const openEditModal = () => {
+    setEditForm({
+      name: name || "",
+      headline: headline || "",
+      experience: experience || "",
+      location: location || "",
+      email: email || "",
+      phone: phone || "",
+      education: education || "",
+      languages: languages || "",
+      bio: bio || "",
+      skills: Array.isArray(skills) ? skills.join(", ") : "",
+    });
+    setEditModalOpen(true);
+  };
+
+  // Dedicated Modals State for Education, Projects, Languages
+  const [addEducationModalOpen, setAddEducationModalOpen] = useState(false);
+  const [editingEduId, setEditingEduId] = useState<string | null>(null);
+  const [eduForm, setEduForm] = useState({
+    degree: "",
+    college: "",
+    years: "",
+    grade: "",
+  });
+  const [educationList, setEducationList] = useState<EducationItem[]>([]);
+
+  const [addProjectModalOpen, setAddProjectModalOpen] = useState(false);
+  const [editingProjId, setEditingProjId] = useState<string | null>(null);
+  const [projForm, setProjForm] = useState({
+    title: "",
+    techStack: "",
+    description: "",
+    githubUrl: "",
+    liveUrl: "",
+  });
+  const [projectsList, setProjectsList] = useState<ProjectItem[]>([]);
+
+  const [addLanguageModalOpen, setAddLanguageModalOpen] = useState(false);
+  const [editingLangId, setEditingLangId] = useState<string | null>(null);
+  const [langForm, setLangForm] = useState({
+    language: "",
+    proficiency: "Fluent" as "Beginner" | "Intermediate" | "Fluent" | "Native",
+    read: true,
+    write: true,
+    speak: true,
+  });
+  const [languagesList, setLanguagesList] = useState<LanguageItem[]>([]);
+
+  const [addExperienceModalOpen, setAddExperienceModalOpen] = useState(false);
+  const [editingExpId, setEditingExpId] = useState<string | null>(null);
+  const [expForm, setExpForm] = useState({
+    role: "",
+    company: "",
+    duration: "",
+    description: "",
+  });
+  const [experienceList, setExperienceList] = useState<ExperienceItem[]>([]);
+
+  const [addSkillModalOpen, setAddSkillModalOpen] = useState(false);
+  const [skillInput, setSkillInput] = useState("");
+
+  // Dedicated Modals State for Accomplishments
+  const [addAccomplishmentModalOpen, setAddAccomplishmentModalOpen] = useState(false);
+  const [editingAccId, setEditingAccId] = useState<string | null>(null);
+  const [accForm, setAccForm] = useState<{
+    category: AccomplishmentItem["category"];
+    title: string;
+    url: string;
+    organization: string;
+    date: string;
+    description: string;
+  }>({
+    category: "Online profile",
+    title: "",
+    url: "",
+    organization: "",
+    date: "",
+    description: "",
+  });
+  const [accomplishmentsList, setAccomplishmentsList] = useState<AccomplishmentItem[]>([]);
+
+  // Dedicated Modal State for Personal Details
+  const [editPersonalModalOpen, setEditPersonalModalOpen] = useState(false);
+  const [personalForm, setPersonalForm] = useState({
+    dob: "",
+    gender: "",
+    maritalStatus: "",
+    nationality: "Indian",
+    address: "",
+  });
+
+  // Handlers for Education
+  const openAddEducation = (item?: EducationItem) => {
+    if (item) {
+      setEditingEduId(item.id);
+      setEduForm({
+        degree: item.degree || "",
+        college: item.college || "",
+        years: item.years || "",
+        grade: item.grade || "",
+      });
+    } else {
+      setEditingEduId(null);
+      setEduForm({
+        degree: "",
+        college: "",
+        years: "",
+        grade: "",
+      });
+    }
+    setAddEducationModalOpen(true);
+  };
+
+  const handleSaveEducation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eduForm.degree.trim()) return;
+
+    let updated: EducationItem[];
+    if (editingEduId) {
+      updated = educationList.map((item) =>
+        item.id === editingEduId ? { ...item, ...eduForm } : item
+      );
+    } else {
+      const newItem: EducationItem = {
+        id: "edu-" + Date.now(),
+        degree: eduForm.degree.trim(),
+        college: eduForm.college.trim(),
+        years: eduForm.years.trim(),
+        grade: eduForm.grade.trim(),
+      };
+      updated = [newItem, ...educationList];
+    }
+
+    setEducationList(updated);
+    if (updated[0]) {
+      setEducation(updated[0].degree);
+    }
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_education_${uid}`, JSON.stringify(updated));
+    }
+    setAddEducationModalOpen(false);
+    showToast(editingEduId ? "Education updated successfully!" : "Education added successfully!");
+
+    try {
+      const topEdu = updated[0];
+      await updateUserProfile({
+        education: topEdu.degree,
+        course: topEdu.degree,
+        highestQualification: topEdu.degree,
+        university: topEdu.college,
+        passingYear: topEdu.years,
+        gradeScore: topEdu.grade,
+      });
+    } catch (err) {
+      console.warn("Backend education update error:", err);
+    }
+  };
+
+  const handleDeleteEducation = (id: string) => {
+    const updated = educationList.filter((item) => item.id !== id);
+    setEducationList(updated);
+    if (updated.length > 0) {
+      setEducation(updated[0].degree);
+    }
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_education_${uid}`, JSON.stringify(updated));
+    }
+    showToast("Education removed.");
+  };
+
+  // Handlers for Projects
+  const openAddProject = (item?: ProjectItem) => {
+    if (item) {
+      setEditingProjId(item.id);
+      setProjForm({
+        title: item.title || "",
+        techStack: item.techStack || "",
+        description: item.description || "",
+        githubUrl: item.githubUrl || "",
+        liveUrl: item.liveUrl || "",
+      });
+    } else {
+      setEditingProjId(null);
+      setProjForm({
+        title: "",
+        techStack: "",
+        description: "",
+        githubUrl: "",
+        liveUrl: "",
+      });
+    }
+    setAddProjectModalOpen(true);
+  };
+
+  const handleSaveProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projForm.title.trim()) return;
+
+    let updated: ProjectItem[];
+    if (editingProjId) {
+      updated = projectsList.map((p) =>
+        p.id === editingProjId ? { ...p, ...projForm } : p
+      );
+    } else {
+      const newProj: ProjectItem = {
+        id: "proj-" + Date.now(),
+        title: projForm.title.trim(),
+        techStack: projForm.techStack.trim(),
+        description: projForm.description.trim(),
+        githubUrl: projForm.githubUrl.trim(),
+        liveUrl: projForm.liveUrl.trim(),
+      };
+      updated = [newProj, ...projectsList];
+    }
+
+    setProjectsList(updated);
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_projects_${uid}`, JSON.stringify(updated));
+    }
+    setAddProjectModalOpen(false);
+    showToast(editingProjId ? "Project updated successfully!" : "Project added successfully!");
+  };
+
+  const handleDeleteProject = (id: string) => {
+    const updated = projectsList.filter((p) => p.id !== id);
+    setProjectsList(updated);
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_projects_${uid}`, JSON.stringify(updated));
+    }
+    showToast("Project removed.");
+  };
+
+  // Handlers for Languages
+  const openAddLanguage = (item?: LanguageItem) => {
+    if (item) {
+      setEditingLangId(item.id);
+      setLangForm({
+        language: item.language || "",
+        proficiency: item.proficiency || "Fluent",
+        read: item.read ?? true,
+        write: item.write ?? true,
+        speak: item.speak ?? true,
+      });
+    } else {
+      setEditingLangId(null);
+      setLangForm({
+        language: "",
+        proficiency: "Fluent",
+        read: true,
+        write: true,
+        speak: true,
+      });
+    }
+    setAddLanguageModalOpen(true);
+  };
+
+  const handleSaveLanguage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!langForm.language.trim()) return;
+
+    let updated: LanguageItem[];
+    if (editingLangId) {
+      updated = languagesList.map((l) =>
+        l.id === editingLangId ? { ...l, ...langForm } : l
+      );
+    } else {
+      const newLang: LanguageItem = {
+        id: "lang-" + Date.now(),
+        language: langForm.language.trim(),
+        proficiency: langForm.proficiency,
+        read: langForm.read,
+        write: langForm.write,
+        speak: langForm.speak,
+      };
+      updated = [...languagesList, newLang];
+    }
+
+    setLanguagesList(updated);
+    const langNames = updated.map((l) => l.language).join(", ");
+    setLanguages(langNames);
+
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_languages_${uid}`, JSON.stringify(updated));
+    }
+    setAddLanguageModalOpen(false);
+    showToast(editingLangId ? "Language updated successfully!" : "Language added successfully!");
+
+    try {
+      await updateUserProfile({
+        languages: langNames,
+      });
+    } catch (err) {
+      console.warn("Backend language update error:", err);
+    }
+  };
+
+  const handleDeleteLanguage = async (id: string) => {
+    const updated = languagesList.filter((l) => l.id !== id);
+    setLanguagesList(updated);
+    const langNames = updated.map((l) => l.language).join(", ");
+    setLanguages(langNames);
+
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_languages_${uid}`, JSON.stringify(updated));
+    }
+    showToast("Language removed.");
+
+    try {
+      await updateUserProfile({
+        languages: langNames,
+      });
+    } catch (err) {
+      console.warn("Backend language update error:", err);
+    }
+  };
+
+  // Handlers for Experience
+  const openAddExperience = (item?: ExperienceItem) => {
+    if (item) {
+      setEditingExpId(item.id);
+      setExpForm({
+        role: item.role || "",
+        company: item.company || "",
+        duration: item.duration || "",
+        description: item.description || "",
+      });
+    } else {
+      setEditingExpId(null);
+      setExpForm({
+        role: "",
+        company: "",
+        duration: "",
+        description: "",
+      });
+    }
+    setAddExperienceModalOpen(true);
+  };
+
+  const handleSaveExperience = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!expForm.role.trim() || !expForm.company.trim()) return;
+
+    let updated: ExperienceItem[];
+    if (editingExpId) {
+      updated = experienceList.map((item) =>
+        item.id === editingExpId ? { ...item, ...expForm } : item
+      );
+    } else {
+      const newItem: ExperienceItem = {
+        id: "exp-" + Date.now(),
+        role: expForm.role.trim(),
+        company: expForm.company.trim(),
+        duration: expForm.duration.trim() || "Present",
+        description: expForm.description.trim(),
+      };
+      updated = [newItem, ...experienceList];
+    }
+
+    setExperienceList(updated);
+    const primaryExp = `${updated[0]?.role} at ${updated[0]?.company}`;
+    setExperience(primaryExp);
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_experience_${uid}`, JSON.stringify(updated));
+    }
+    setAddExperienceModalOpen(false);
+    showToast(editingExpId ? "Experience updated successfully!" : "Experience added successfully!");
+
+    try {
+      await updateUserProfile({
+        experience: primaryExp,
+      });
+    } catch (err) {
+      console.warn("Backend experience update error:", err);
+    }
+  };
+
+  const handleDeleteExperience = async (id: string) => {
+    const updated = experienceList.filter((item) => item.id !== id);
+    setExperienceList(updated);
+    const primaryExp = updated[0] ? `${updated[0].role} at ${updated[0].company}` : "Fresher";
+    setExperience(primaryExp);
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_experience_${uid}`, JSON.stringify(updated));
+    }
+    showToast("Experience removed.");
+
+    try {
+      await updateUserProfile({
+        experience: primaryExp,
+      });
+    } catch (err) {
+      console.warn("Backend experience update error:", err);
+    }
+  };
+
+  // Handlers for Accomplishments
+  const openAddAccomplishment = (category?: AccomplishmentItem["category"], item?: AccomplishmentItem) => {
+    if (item) {
+      setEditingAccId(item.id);
+      setAccForm({
+        category: item.category,
+        title: item.title,
+        url: item.url || "",
+        organization: item.organization || "",
+        date: item.date || "",
+        description: item.description || "",
+      });
+    } else {
+      setEditingAccId(null);
+      setAccForm({
+        category: category || "Online profile",
+        title: "",
+        url: "",
+        organization: "",
+        date: "",
+        description: "",
+      });
+    }
+    setAddAccomplishmentModalOpen(true);
+  };
+
+  const handleSaveAccomplishment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accForm.title.trim()) return;
+
+    let updated: AccomplishmentItem[];
+    if (editingAccId) {
+      updated = accomplishmentsList.map((item) =>
+        item.id === editingAccId
+          ? {
+              ...item,
+              category: accForm.category,
+              title: accForm.title.trim(),
+              url: accForm.url.trim(),
+              organization: accForm.organization.trim(),
+              date: accForm.date.trim(),
+              description: accForm.description.trim(),
+            }
+          : item
+      );
+    } else {
+      const newItem: AccomplishmentItem = {
+        id: "acc-" + Date.now(),
+        category: accForm.category,
+        title: accForm.title.trim(),
+        url: accForm.url.trim(),
+        organization: accForm.organization.trim(),
+        date: accForm.date.trim(),
+        description: accForm.description.trim(),
+      };
+      updated = [newItem, ...accomplishmentsList];
+    }
+
+    setAccomplishmentsList(updated);
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_accomplishments_${uid}`, JSON.stringify(updated));
+    }
+    setAddAccomplishmentModalOpen(false);
+    showToast(editingAccId ? "Accomplishment updated successfully!" : "Accomplishment added successfully!");
+  };
+
+  const handleDeleteAccomplishment = (id: string) => {
+    const updated = accomplishmentsList.filter((item) => item.id !== id);
+    setAccomplishmentsList(updated);
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_accomplishments_${uid}`, JSON.stringify(updated));
+    }
+    showToast("Accomplishment removed.");
+  };
+
+  // Handlers for Personal Details
+  const openEditPersonal = () => {
+    setPersonalForm({
+      dob: (currentUser as any)?.dob || "",
+      gender: (currentUser as any)?.gender || "",
+      maritalStatus: (currentUser as any)?.maritalStatus || "",
+      nationality: (currentUser as any)?.nationality || "Indian",
+      address: location || (currentUser as any)?.preferredLocation || "",
+    });
+    setEditPersonalModalOpen(true);
+  };
+
+  const handleSavePersonal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedUser = {
+      ...(currentUser || {}),
+      dob: personalForm.dob.trim(),
+      gender: personalForm.gender.trim(),
+      maritalStatus: personalForm.maritalStatus.trim(),
+      nationality: personalForm.nationality.trim(),
+      location: personalForm.address.trim() || location,
+    };
+    setCurrentUser(updatedUser as any);
+    if (personalForm.address.trim()) {
+      setLocation(personalForm.address.trim());
+    }
+
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_personal_${uid}`, JSON.stringify(personalForm));
+    }
+    setEditPersonalModalOpen(false);
+    showToast("Personal details updated successfully!");
+
+    try {
+      await updateUserProfile({
+        location: personalForm.address.trim() || location,
+        dob: personalForm.dob.trim(),
+        gender: personalForm.gender.trim(),
+        maritalStatus: personalForm.maritalStatus.trim(),
+        nationality: personalForm.nationality.trim(),
+      } as any);
+    } catch (err) {
+      console.warn("Backend personal details update error:", err);
+    }
+  };
+
+  // Handlers for Skills
+  const openAddSkill = () => {
+    setSkillInput("");
+    setAddSkillModalOpen(true);
+  };
+
+  const handleAddSkills = async (newSkillsToAdd: string[]) => {
+    const cleanSkills = newSkillsToAdd
+      .map((s) => s.trim())
+      .filter((s) => s && !skills.includes(s));
+    if (cleanSkills.length === 0) return;
+
+    const updated = [...skills, ...cleanSkills];
+    setSkills(updated);
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_skills_${uid}`, JSON.stringify(updated));
+    }
+    setSkillInput("");
+    showToast(`Added ${cleanSkills.length} skill${cleanSkills.length > 1 ? "s" : ""}!`);
+
+    try {
+      await updateUserProfile({
+        skills: updated,
+      });
+    } catch (err) {
+      console.warn("Backend skills update error:", err);
+    }
+  };
+
+  const handleSaveSkillForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!skillInput.trim()) return;
+    const split = skillInput.split(",").map((s) => s.trim()).filter(Boolean);
+    handleAddSkills(split);
+    setAddSkillModalOpen(false);
+  };
+
+  const handleRemoveSkill = async (skillToRemove: string) => {
+    const updated = skills.filter((s) => s !== skillToRemove);
+    setSkills(updated);
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_skills_${uid}`, JSON.stringify(updated));
+    }
+    showToast(`Removed ${skillToRemove}`);
+
+    try {
+      await updateUserProfile({
+        skills: updated,
+      });
+    } catch (err) {
+      console.warn("Backend skills update error:", err);
+    }
+  };
+
+  const [activeQuickLink, setActiveQuickLink] = useState("overview");
+
+  const scrollToSection = (id: string, linkKey: string) => {
+    setActiveQuickLink(linkKey);
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const quickLinkItems = [
+    { id: "overview", label: "Overview", icon: Compass, target: "overview-section" },
+    { id: "resume", label: "Resume & Portfolio", icon: FileText, target: "resume-section" },
+    { id: "skills", label: "Key Skills", icon: Sparkles, target: "key-skills-section" },
+    { id: "experience", label: "Work Experience", icon: Briefcase, target: "employment-section" },
+    { id: "education", label: "Education", icon: GraduationCap, target: "education-section" },
+    { id: "it-skills", label: "IT Skills", icon: Code2, target: "it-skills-section" },
+    { id: "projects", label: "Projects", icon: FolderGit2, target: "projects-section" },
+    { id: "personal-details", label: "Personal Details", icon: User, target: "personal-details-section" },
+    { id: "languages", label: "Languages", icon: Globe, target: "languages-section" },
+  ];
 
   // Applications list
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
@@ -151,8 +1030,8 @@ export default function CandidateDashboardPage() {
       setSkills([]);
     }
 
-    const eduStr = formatEducation(u);
-    setEducation(eduStr || (u.course ? u.course : ""));
+    const eduStr = u.education || (u.course ? u.course : "") || formatEducation(u);
+    setEducation(eduStr || "");
 
     setResumeName(u.resumeName || "");
     setResumeDate(u.resumeDate || "");
@@ -162,6 +1041,366 @@ export default function CandidateDashboardPage() {
     setSavedJobsCount(u.savedJobsCount ?? 0);
     setInterviewsCount(u.interviewsCount ?? 0);
     setProfileViewsCount(u.profileViewsCount ?? 0);
+
+    const uid = u.id || u.userId || u.email || "candidate";
+    if (typeof window !== "undefined") {
+      try {
+        const savedEdu = localStorage.getItem(`candidate_education_${uid}`);
+        if (savedEdu) {
+          const parsedEdu = JSON.parse(savedEdu);
+          if (Array.isArray(parsedEdu) && parsedEdu.length > 0) {
+            setEducationList(parsedEdu);
+          }
+        } else if (u.education || u.course || u.university) {
+          setEducationList([
+            {
+              id: "edu-1",
+              degree: u.education || u.course || "",
+              college: u.university || "",
+              years: u.passingYear ? (u.startingYear ? `${u.startingYear} - ${u.passingYear}` : u.passingYear) : "",
+              grade: u.gradeScore ? (u.gradingSystem ? `${u.gradingSystem}: ${u.gradeScore}` : u.gradeScore) : "",
+            },
+          ]);
+        } else {
+          setEducationList([]);
+        }
+
+        const savedProj = localStorage.getItem(`candidate_projects_${uid}`);
+        if (savedProj) {
+          const parsedProj = JSON.parse(savedProj);
+          if (Array.isArray(parsedProj) && parsedProj.length > 0) {
+            setProjectsList(parsedProj);
+          } else {
+            setProjectsList([]);
+          }
+        } else {
+          setProjectsList([]);
+        }
+
+        const savedLang = localStorage.getItem(`candidate_languages_${uid}`);
+        if (savedLang) {
+          const parsedLang = JSON.parse(savedLang);
+          if (Array.isArray(parsedLang) && parsedLang.length > 0) {
+            setLanguagesList(parsedLang);
+          } else {
+            setLanguagesList([]);
+          }
+        } else if (u.languages) {
+          const parsed = u.languages
+            .split(",")
+            .map((l: string, i: number) => ({
+              id: `lang-${i + 1}`,
+              language: l.trim(),
+              proficiency: i === 0 ? ("Fluent" as const) : ("Native" as const),
+              read: true,
+              write: true,
+              speak: true,
+            }))
+            .filter((x: any) => x.language);
+          setLanguagesList(parsed as LanguageItem[]);
+        } else {
+          setLanguagesList([]);
+        }
+
+        const savedExp = localStorage.getItem(`candidate_experience_${uid}`);
+        if (savedExp) {
+          const parsedExp = JSON.parse(savedExp);
+          if (Array.isArray(parsedExp) && parsedExp.length > 0) {
+            setExperienceList(parsedExp);
+          } else {
+            setExperienceList([]);
+          }
+        } else if (u.experience && u.experience.trim()) {
+          setExperienceList([
+            {
+              id: "exp-1",
+              role: u.targetRole || "Role",
+              company: "Organization",
+              duration: u.experience,
+              description: "",
+            },
+          ]);
+        } else {
+          setExperienceList([]);
+        }
+
+        const savedSkills = localStorage.getItem(`candidate_skills_${uid}`);
+        if (savedSkills) {
+          const parsedSkills = JSON.parse(savedSkills);
+          if (Array.isArray(parsedSkills) && parsedSkills.length > 0) {
+            setSkills(parsedSkills);
+          }
+        }
+
+        const savedAcc = localStorage.getItem(`candidate_accomplishments_${uid}`);
+        if (savedAcc) {
+          const parsedAcc = JSON.parse(savedAcc);
+          if (Array.isArray(parsedAcc) && parsedAcc.length > 0) {
+            setAccomplishmentsList(parsedAcc);
+          }
+        }
+
+        const savedPersonal = localStorage.getItem(`candidate_personal_${uid}`);
+        if (savedPersonal) {
+          const parsedPersonal = JSON.parse(savedPersonal);
+          if (parsedPersonal) {
+            setPersonalForm(parsedPersonal);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load sub-items from localStorage:", err);
+      }
+    }
+  };
+
+  // Synchronize applied jobs, saved jobs, recruiter messages, and job alerts
+  const loadAppliedAndSaved = async (u?: UserSession | null) => {
+    const userObj = u || currentUser || getStoredUser();
+    const uid = userObj?.id || userObj?.userId || userObj?.email || "candidate";
+    const userEmail = userObj?.email;
+
+    // 1. Load Local Applied Jobs
+    const localApplied = getLocalAppliedJobs(uid);
+
+    // 2. Load DB Applications if email exists
+    let dbApplications: any[] = [];
+    if (userEmail) {
+      try {
+        dbApplications = await fetchCandidateApplicationsFromDB(userEmail);
+      } catch (e) {
+        console.warn("Could not fetch DB applications:", e);
+      }
+    }
+
+    // Merge DB & Local applications
+    const mergedAppliedMap = new Map<string, AppliedJobItem>();
+
+    // First populate default sample entries if nothing saved yet
+    if (localApplied.length === 0 && dbApplications.length === 0) {
+      DEFAULT_INITIAL_APPLIED_JOBS.forEach((item) => {
+        mergedAppliedMap.set(item.jobId || item.id, item);
+      });
+    }
+
+    // Add DB applications
+    dbApplications.forEach((app: any) => {
+      const jId = (typeof app.jobId === "object" ? app.jobId?._id : app.jobId) || app._id;
+      const jTitle = (typeof app.jobId === "object" ? app.jobId?.title : "") || app.jobTitle || app.title || "Applied Role";
+      const jComp = (typeof app.jobId === "object" ? app.jobId?.company : "") || app.company || "Company";
+      const jLoc = (typeof app.jobId === "object" ? app.jobId?.location : "") || app.location || "";
+      const jSal = (typeof app.jobId === "object" ? app.jobId?.salary : "") || app.salary || "";
+
+      if (jId) {
+        mergedAppliedMap.set(jId, {
+          id: app._id || `app-${Date.now()}`,
+          jobId: jId,
+          title: jTitle,
+          company: jComp,
+          location: jLoc,
+          salary: jSal,
+          appliedDate: app.appliedDate || (app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "Today"),
+          appliedOn: app.createdAt ? new Date(app.createdAt).toLocaleDateString() : "Recently",
+          status: app.status || "Applied",
+          statusStep: app.status === "Interview" || app.status === "Hired" ? 4 : app.status === "Shortlisted" ? 3 : app.status === "Viewed" ? 2 : 1,
+          recruiterStatus: "Recruiter active recently",
+          totalApplicants: 150,
+          viewedCount: 65,
+          rating: 4.0,
+          reviewsCount: "85 Reviews",
+          candidateName: app.candidateName || userObj?.name,
+          candidateEmail: app.candidateEmail || userObj?.email,
+        });
+      }
+    });
+
+    // Add local applied jobs (takes precedence for recent applications)
+    localApplied.forEach((item: any) => {
+      const key = item.jobId || item.id;
+      if (key) {
+        mergedAppliedMap.set(key, {
+          ...item,
+          statusStep: item.statusStep || 1,
+          recruiterStatus: item.recruiterStatus || "Application submitted",
+          totalApplicants: item.totalApplicants || 120,
+          viewedCount: item.viewedCount || 45,
+          rating: item.rating || 4.0,
+          reviewsCount: item.reviewsCount || "50 Reviews",
+          viewedDays: item.viewedDays || "Application submitted today",
+        });
+      }
+    });
+
+    const finalApplied = Array.from(mergedAppliedMap.values());
+    setAppliedList(finalApplied);
+    setAppliedJobsCount(finalApplied.length);
+
+    // 3. Load Saved Jobs
+    const localSaved = getLocalSavedJobs(uid);
+    setSavedList(localSaved);
+    setSavedJobsCount(localSaved.length);
+
+    // 4. Load Messages
+    const localMessages = getLocalCandidateMessages(uid);
+    if (localMessages && localMessages.length > 0) {
+      setMessageThreads(localMessages);
+    } else {
+      setMessageThreads(DEFAULT_INITIAL_THREADS);
+      saveLocalCandidateMessages(uid, DEFAULT_INITIAL_THREADS);
+    }
+
+    // 5. Load Alerts
+    try {
+      const storedAlerts = localStorage.getItem(`candidate_alerts_${uid}`);
+      if (storedAlerts) {
+        setJobAlerts(JSON.parse(storedAlerts));
+      } else {
+        setJobAlerts(DEFAULT_JOB_ALERTS);
+      }
+    } catch {
+      setJobAlerts(DEFAULT_JOB_ALERTS);
+    }
+  };
+
+  // Handlers for Save, Messages, and Alerts
+  const handleToggleSave = (job: any) => {
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    const res = toggleLocalSavedJob(uid, job);
+    setSavedList(res.list);
+    setSavedJobsCount(res.list.length);
+    showToast(res.saved ? "Job saved successfully!" : "Job removed from saved.");
+  };
+
+  const handleRemoveSaved = (jobId: string) => {
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    const current = getLocalSavedJobs(uid);
+    const updated = current.filter((j: any) => (j.id || j._id || j.jobId) !== jobId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_saved_jobs_${uid}`, JSON.stringify(updated));
+      window.dispatchEvent(new Event("saved_jobs_change"));
+    }
+    setSavedList(updated);
+    setSavedJobsCount(updated.length);
+    showToast("Job removed from saved.");
+  };
+
+  const isJobSaved = (jobId: string) => {
+    return savedList.some((j: any) => (j.id || j._id || j.jobId) === jobId);
+  };
+
+  const handleSendMessage = (threadId: string, text: string) => {
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    const updatedThreads = messageThreads.map((thread) => {
+      if (thread.id === threadId) {
+        const newMsg = {
+          id: `msg-${Date.now()}`,
+          sender: "candidate" as const,
+          senderName: name || "You",
+          time: "Just now",
+          text: text.trim(),
+        };
+        return {
+          ...thread,
+          lastActive: "Just now",
+          messages: [...thread.messages, newMsg],
+        };
+      }
+      return thread;
+    });
+
+    setMessageThreads(updatedThreads);
+    saveLocalCandidateMessages(uid, updatedThreads);
+
+    // Friendly recruiter simulation response
+    setTimeout(() => {
+      const recThreads = updatedThreads.map((thread) => {
+        if (thread.id === threadId) {
+          const replyMsg = {
+            id: `msg-reply-${Date.now()}`,
+            sender: "recruiter" as const,
+            senderName: `Recruiter at ${thread.companyName}`,
+            time: "Just now",
+            text: `Thank you for your response! We received your message regarding ${thread.role || "your application"}. Our hiring manager will contact you shortly.`,
+          };
+          return {
+            ...thread,
+            lastActive: "Just now",
+            messages: [...thread.messages, replyMsg],
+          };
+        }
+        return thread;
+      });
+      setMessageThreads(recThreads);
+      saveLocalCandidateMessages(uid, recThreads);
+    }, 1800);
+  };
+
+  const handleSelectCompanyForMessage = (companyName: string, companyId?: string) => {
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    let existing = messageThreads.find(
+      (t) => t.companyName.toLowerCase() === companyName.toLowerCase()
+    );
+
+    if (!existing) {
+      const newThread: ConversationThread = {
+        id: `thread-${Date.now()}`,
+        companyName,
+        companyId,
+        role: "Job Application Inquiry",
+        lastActive: "Just now",
+        unread: false,
+        messages: [
+          {
+            id: `msg-init-${Date.now()}`,
+            sender: "recruiter",
+            senderName: `HR at ${companyName}`,
+            time: "Just now",
+            text: `Hello! Thanks for reaching out regarding our opening at ${companyName}. How can we assist you?`,
+          },
+        ],
+      };
+      const updated = [newThread, ...messageThreads];
+      setMessageThreads(updated);
+      saveLocalCandidateMessages(uid, updated);
+    }
+
+    setActiveSidebarTab("messages");
+  };
+
+  const handleCreateAlert = (role: string, location: string) => {
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    const newAlert: JobAlertItem = {
+      id: `alert-${Date.now()}`,
+      role: role.trim(),
+      location: location.trim() || "Any Location",
+      frequency: "Daily",
+      active: true,
+      createdAt: "Just now",
+    };
+    const updated = [newAlert, ...jobAlerts];
+    setJobAlerts(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_alerts_${uid}`, JSON.stringify(updated));
+    }
+    showToast(`Job alert created for "${role}"!`);
+  };
+
+  const handleDeleteAlert = (alertId: string) => {
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    const updated = jobAlerts.filter((a) => a.id !== alertId);
+    setJobAlerts(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_alerts_${uid}`, JSON.stringify(updated));
+    }
+    showToast("Job alert deleted.");
+  };
+
+  const handleToggleAlert = (alertId: string) => {
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    const updated = jobAlerts.map((a) => (a.id === alertId ? { ...a, active: !a.active } : a));
+    setJobAlerts(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`candidate_alerts_${uid}`, JSON.stringify(updated));
+    }
   };
 
   // Load user data on mount from backend
@@ -173,17 +1412,33 @@ export default function CandidateDashboardPage() {
         return;
       }
       populateFromUser(stored);
+      loadAppliedAndSaved(stored);
 
       try {
         const fresh = await fetchCurrentUser();
         if (fresh) {
           populateFromUser(fresh);
+          loadAppliedAndSaved(fresh);
         }
       } catch (e) {
         console.error("Failed to fetch fresh user from backend:", e);
       }
     };
     init();
+
+    // Cross-tab and event synchronization
+    const handleSync = () => {
+      loadAppliedAndSaved();
+    };
+    window.addEventListener("applied_jobs_change", handleSync);
+    window.addEventListener("saved_jobs_change", handleSync);
+    window.addEventListener("messages_change", handleSync);
+
+    return () => {
+      window.removeEventListener("applied_jobs_change", handleSync);
+      window.removeEventListener("saved_jobs_change", handleSync);
+      window.removeEventListener("messages_change", handleSync);
+    };
   }, []);
 
   // Compute profile completion score strictly from filled fields
@@ -206,47 +1461,88 @@ export default function CandidateDashboardPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    const formData = new FormData(e.currentTarget);
-    const newName = (formData.get("name") as string)?.trim() || name;
-    const newHeadline = (formData.get("headline") as string)?.trim() || "";
-    const newExp = (formData.get("experience") as string)?.trim() || "";
-    const newLoc = (formData.get("location") as string)?.trim() || "";
-    const newPhone = (formData.get("phone") as string)?.trim() || "";
-    const newBio = (formData.get("bio") as string)?.trim() || "";
-    const newEdu = (formData.get("education") as string)?.trim() || "";
-    const newLang = (formData.get("languages") as string)?.trim() || "";
-    const rawSkills = (formData.get("skills") as string)?.trim() || "";
-    const splitSkills = rawSkills
-      ? rawSkills.split(",").map((s) => s.trim()).filter(Boolean)
+
+    const trimmedName = editForm.name.trim() || name;
+    const trimmedHeadline = editForm.headline.trim();
+    const trimmedExp = editForm.experience.trim();
+    const trimmedLoc = editForm.location.trim();
+    const trimmedPhone = editForm.phone.trim();
+    const trimmedEmail = editForm.email.trim() || email;
+    const trimmedBio = editForm.bio.trim();
+    const trimmedEdu = editForm.education.trim();
+    const trimmedLang = editForm.languages.trim();
+    const parsedSkills = editForm.skills
+      ? editForm.skills.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
 
+    // 1. Immediately update all React state variables so About Me & header update instantly
+    setName(trimmedName);
+    setHeadline(trimmedHeadline);
+    setExperience(trimmedExp);
+    setLocation(trimmedLoc);
+    setPhone(trimmedPhone);
+    setEmail(trimmedEmail);
+    setBio(trimmedBio);
+    setEducation(trimmedEdu);
+    setLanguages(trimmedLang);
+    setSkills(parsedSkills);
+
+    // 2. Immediately update localStorage session
+    const stored = getStoredUser();
+    const updatedUser: UserSession = {
+      ...(stored || ({} as UserSession)),
+      id: stored?.id || currentUser?.id || "temp-id",
+      userId: stored?.userId || currentUser?.userId,
+      role: "job_seeker",
+      name: trimmedName,
+      email: trimmedEmail,
+      headline: trimmedHeadline,
+      targetRole: trimmedHeadline,
+      experience: trimmedExp,
+      location: trimmedLoc,
+      phone: trimmedPhone,
+      bio: trimmedBio,
+      education: trimmedEdu,
+      course: trimmedEdu,
+      highestQualification: trimmedEdu,
+      languages: trimmedLang,
+      skills: parsedSkills,
+    };
+    setCurrentUser(updatedUser);
+    const token = getAuthToken();
+    if (token) {
+      setAuthSession(token, updatedUser);
+    }
+
+    setEditModalOpen(false);
+    showToast("Profile updated successfully!");
+
+    // 3. Persist to backend
     const updatePayload = {
-      name: newName,
-      headline: newHeadline,
-      targetRole: newHeadline,
-      experience: newExp,
-      location: newLoc,
-      phone: newPhone,
-      bio: newBio,
-      course: newEdu,
-      languages: newLang,
-      skills: splitSkills,
+      name: trimmedName,
+      headline: trimmedHeadline,
+      targetRole: trimmedHeadline,
+      experience: trimmedExp,
+      location: trimmedLoc,
+      phone: trimmedPhone,
+      bio: trimmedBio,
+      education: trimmedEdu,
+      course: trimmedEdu,
+      highestQualification: trimmedEdu,
+      languages: trimmedLang,
+      skills: parsedSkills,
     };
 
     try {
       const res = await updateUserProfile(updatePayload);
       if (res.success && res.user) {
         populateFromUser(res.user);
-        setEditModalOpen(false);
-        showToast("Profile updated successfully in backend!");
-      } else {
-        showToast(res.message || "Failed to update profile.");
       }
     } catch (err: any) {
-      showToast(err.message || "Error saving profile to server.");
+      console.warn("Backend update error:", err);
     } finally {
       setIsSaving(false);
     }
@@ -321,154 +1617,8 @@ export default function CandidateDashboardPage() {
         </div>
       )}
 
-      {/* TOP HEADER BAR */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs px-3 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-2">
-        {/* Brand Logo & Mobile Toggle */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1 lg:hidden">
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
-              aria-label="Open navigation menu"
-              title="Menu"
-              className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
-              aria-label="Open sidebar menu (3 dots)"
-              title="Menu (3 dots)"
-              className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-            >
-              <MoreVertical className="w-5 h-5" />
-            </button>
-          </div>
-
-          <Link href="/" className="flex items-center gap-2 sm:gap-2.5 group">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <span className="text-base sm:text-xl font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
-              Career<span className="text-blue-600">Connect</span>
-            </span>
-          </Link>
-        </div>
-
-        {/* Global Search Pill (Desktop & Tablet) */}
-        <div className="hidden md:flex items-center flex-1 max-w-md mx-8">
-          <div className="relative w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search jobs, companies, skills..."
-              className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white text-xs sm:text-sm text-slate-800 placeholder-slate-400 pl-10 pr-4 py-2.5 rounded-full border border-transparent focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all outline-hidden"
-            />
-          </div>
-        </div>
-
-        {/* Right Actions: Notifications & Profile */}
-        <div className="flex items-center gap-3 sm:gap-4">
-          {/* Notification Bell */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setNotificationsOpen(!notificationsOpen);
-                setProfileDropdownOpen(false);
-              }}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition relative cursor-pointer"
-              title="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white"></span>
-            </button>
-
-            {notificationsOpen && (
-              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 z-50 animate-in fade-in zoom-in-95">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 px-2">
-                  <h4 className="text-xs font-bold text-slate-900">Notifications</h4>
-                  <span className="text-[10px] bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded-full">
-                    1 New
-                  </span>
-                </div>
-                <div className="py-2 space-y-1">
-                  <div className="p-2.5 rounded-xl bg-blue-50/60 hover:bg-blue-50 transition flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 text-xs font-bold">
-                      TC
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-800">
-                        TechCorp reviewed your application
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">2 hours ago</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* User Profile Pill / Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setProfileDropdownOpen(!profileDropdownOpen);
-                setNotificationsOpen(false);
-              }}
-              className="flex items-center gap-2.5 p-1 sm:pr-3 rounded-full hover:bg-slate-100 transition cursor-pointer"
-            >
-              <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-slate-200/90 shadow-xs relative bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs select-none">
-                {getInitials(name || currentUser?.userId || "C")}
-              </div>
-              <span className="hidden sm:inline-block text-xs font-bold text-slate-800 max-w-[120px] truncate">
-                {name || currentUser?.userId || "Candidate"}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
-            </button>
-
-            {/* Profile Dropdown */}
-            {profileDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95">
-                <div className="px-3 py-2.5 border-b border-slate-100">
-                  <p className="text-xs font-bold text-slate-900 truncate">{name || currentUser?.userId || "Candidate"}</p>
-                  <p className="text-[11px] text-slate-500 truncate">{email}</p>
-                  <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-bold rounded-full bg-emerald-50 text-emerald-600 uppercase">
-                    Job Seeker
-                  </span>
-                </div>
-                <div className="py-1">
-                  <button
-                    onClick={() => {
-                      setEditModalOpen(true);
-                      setProfileDropdownOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition"
-                  >
-                    <Edit3 className="w-4 h-4 text-blue-500" />
-                    <span>Edit Profile</span>
-                  </button>
-                  <Link
-                    href="/jobs"
-                    onClick={() => setProfileDropdownOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition"
-                  >
-                    <Briefcase className="w-4 h-4 text-indigo-500" />
-                    <span>Browse All Jobs</span>
-                  </Link>
-                </div>
-                <div className="pt-1 border-t border-slate-100">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 transition cursor-pointer text-left"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      {/* OFFICIAL JOB SEEKER NAVBAR */}
+      <Navbar activeTab="Dashboard" />
 
       {/* CANDIDATE MOBILE DRAWER (Phone View) */}
       {mobileSidebarOpen && (
@@ -486,11 +1636,17 @@ export default function CandidateDashboardPage() {
                 onClick={() => setMobileSidebarOpen(false)}
                 className="flex items-center gap-2.5"
               >
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
-                  <Sparkles className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-xl bg-black flex items-center justify-center overflow-hidden p-0.5 shadow-sm">
+                  <Image
+                    src="/addyjob-logo.png"
+                    alt="AddyJob Logo"
+                    width={32}
+                    height={32}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
-                <span className="text-base font-black tracking-tight text-slate-900">
-                  Career<span className="text-blue-600">Connect</span>
+                <span className="text-base font-black tracking-tight text-slate-900 font-sans">
+                  Addy<span className="text-blue-600">Job</span>
                 </span>
               </Link>
               <button
@@ -506,21 +1662,6 @@ export default function CandidateDashboardPage() {
             <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-1">
               <button
                 onClick={() => {
-                  setActiveSidebarTab("dashboard");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeSidebarTab === "dashboard"
-                    ? "bg-blue-50 text-blue-600 font-extrabold"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <LayoutDashboard className="w-4 h-4 text-slate-500" />
-                <span>Dashboard</span>
-              </button>
-
-              <button
-                onClick={() => {
                   setActiveSidebarTab("profile");
                   setMobileSidebarOpen(false);
                 }}
@@ -532,21 +1673,6 @@ export default function CandidateDashboardPage() {
               >
                 <User className="w-4 h-4 text-blue-600" />
                 <span>My Profile</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveSidebarTab("resume");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeSidebarTab === "resume"
-                    ? "bg-blue-50 text-blue-600 font-extrabold"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FileText className="w-4 h-4 text-slate-500" />
-                <span>My Resume</span>
               </button>
 
               <button
@@ -600,36 +1726,6 @@ export default function CandidateDashboardPage() {
                 <Bell className="w-4 h-4 text-slate-500" />
                 <span>Job Alerts</span>
               </button>
-
-              <button
-                onClick={() => {
-                  setActiveSidebarTab("messages");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeSidebarTab === "messages"
-                    ? "bg-blue-50 text-blue-600 font-extrabold"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <MessageSquare className="w-4 h-4 text-slate-500" />
-                <span>Messages</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveSidebarTab("settings");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeSidebarTab === "settings"
-                    ? "bg-blue-50 text-blue-600 font-extrabold"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <Settings className="w-4 h-4 text-slate-500" />
-                <span>Settings</span>
-              </button>
             </div>
 
             {/* Footer */}
@@ -660,18 +1756,6 @@ export default function CandidateDashboardPage() {
         <aside className="hidden lg:flex flex-col w-64 shrink-0 gap-6">
           <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs flex flex-col gap-1">
             <button
-              onClick={() => setActiveSidebarTab("dashboard")}
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                activeSidebarTab === "dashboard"
-                  ? "bg-blue-50 text-blue-600 font-extrabold"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4 text-slate-500" />
-              <span>Dashboard</span>
-            </button>
-
-            <button
               onClick={() => setActiveSidebarTab("profile")}
               className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
                 activeSidebarTab === "profile"
@@ -681,18 +1765,6 @@ export default function CandidateDashboardPage() {
             >
               <User className="w-4 h-4 text-blue-600" />
               <span>My Profile</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSidebarTab("resume")}
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                activeSidebarTab === "resume"
-                  ? "bg-blue-50 text-blue-600 font-extrabold"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <FileText className="w-4 h-4 text-slate-500" />
-              <span>My Resume</span>
             </button>
 
             <button
@@ -737,651 +1809,228 @@ export default function CandidateDashboardPage() {
               <Bell className="w-4 h-4 text-slate-500" />
               <span>Job Alerts</span>
             </button>
-
-            <button
-              onClick={() => setActiveSidebarTab("messages")}
-              className={`flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                activeSidebarTab === "messages"
-                  ? "bg-blue-50 text-blue-600 font-extrabold"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <div className="flex items-center gap-3.5">
-                <MessageSquare className="w-4 h-4 text-slate-500" />
-                <span>Messages</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setActiveSidebarTab("settings")}
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                activeSidebarTab === "settings"
-                  ? "bg-blue-50 text-blue-600 font-extrabold"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <Settings className="w-4 h-4 text-slate-500" />
-              <span>Settings</span>
-            </button>
-          </div>
-
-          {/* Upgrade to Premium Card */}
-          <div className="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-br from-[#1E1B4B] via-[#1E293B] to-[#0F172A] text-white shadow-xl shadow-slate-900/10 border border-slate-700/50">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-200 flex items-center justify-center text-slate-900 mb-3 shadow-md">
-              <Crown className="w-5 h-5" />
-            </div>
-            <h4 className="text-sm font-extrabold tracking-tight">Upgrade to Premium</h4>
-            <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
-              Get more job opportunities, unlimited applications & more.
-            </p>
-            <button
-              onClick={() => showToast("Premium plans opening soon!")}
-              className="mt-4 w-full py-2.5 px-3 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer hover:scale-[1.02]"
-            >
-              <span>Upgrade Now</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Need Help Link */}
-          <div className="px-4 py-2 flex items-center gap-3 text-slate-500 hover:text-blue-600 transition cursor-pointer text-xs font-medium">
-            <Headphones className="w-4 h-4 text-slate-400" />
-            <div>
-              <p className="font-semibold text-slate-700">Need Help?</p>
-              <p className="text-[10px] text-slate-400">Contact support</p>
-            </div>
           </div>
         </aside>
 
         {/* MAIN DASHBOARD CONTENT AREA */}
         <main className="flex-1 flex flex-col gap-6 min-w-0">
-          {/* 1. HERO PROFILE CARD */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-[#F0F5FF] via-[#EEF2FF] to-[#FAF5FF] rounded-3xl border border-blue-100/80 p-5 sm:p-7 shadow-xs">
-            {/* Watermark Script Text on Right */}
-            <div className="absolute right-6 top-8 select-none pointer-events-none hidden xl:block text-right">
-              <span className="font-serif italic text-2xl lg:text-3xl font-normal text-indigo-400/40 tracking-wide">
-                Better Opportunities Ahead →
-              </span>
-            </div>
+          {/* Mobile Navigation Tabs Bar */}
+          <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full">
+            <button
+              onClick={() => setActiveSidebarTab("profile")}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition ${
+                activeSidebarTab === "profile"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>My Profile</span>
+            </button>
+            <button
+              onClick={() => setActiveSidebarTab("applied")}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition ${
+                activeSidebarTab === "applied"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Applied {appliedJobsCount > 0 ? `(${appliedJobsCount})` : ""}</span>
+            </button>
+            <button
+              onClick={() => setActiveSidebarTab("saved")}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition ${
+                activeSidebarTab === "saved"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              <span>Saved {savedJobsCount > 0 ? `(${savedJobsCount})` : ""}</span>
+            </button>
+            <button
+              onClick={() => setActiveSidebarTab("alerts")}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition ${
+                activeSidebarTab === "alerts"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span>Alerts</span>
+            </button>
+          </div>
 
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-              {/* Left Profile Details */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 sm:gap-6">
-                {/* Avatar with Camera icon */}
+          {/* TAB 1: APPLIED JOBS (Exact Match to Reference Image 2) */}
+          {activeSidebarTab === "applied" && (
+            <AppliedJobsView
+              appliedJobs={appliedList}
+              onSelectCompanyForMessage={handleSelectCompanyForMessage}
+              onToggleSave={handleToggleSave}
+              isJobSaved={isJobSaved}
+            />
+          )}
+
+          {/* TAB 2: SAVED JOBS */}
+          {activeSidebarTab === "saved" && (
+            <SavedJobsView
+              savedJobs={savedList}
+              onRemoveSaved={handleRemoveSaved}
+            />
+          )}
+
+          {/* TAB 3: JOB ALERTS */}
+          {activeSidebarTab === "alerts" && (
+            <JobAlertsView
+              alerts={jobAlerts}
+              onCreateAlert={handleCreateAlert}
+              onDeleteAlert={handleDeleteAlert}
+              onToggleAlert={handleToggleAlert}
+            />
+          )}
+
+          {/* TAB 4: RECRUITER & COMPANY MESSAGES */}
+          {activeSidebarTab === "messages" && (
+            <CandidateMessagesView
+              threads={messageThreads}
+              onSendMessage={handleSendMessage}
+            />
+          )}
+
+          {/* TAB 5: MY PROFILE CONTENT */}
+          {activeSidebarTab === "profile" && (
+            <>
+              {/* TOP PROFILE HERO CARD (Image 1 style) */}
+              <div
+                id="overview-section"
+                className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-7 shadow-xs relative"
+              >
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              {/* Left Column (Avatar + Info): 6 cols */}
+              <div className="lg:col-span-5 flex items-start gap-4 sm:gap-5 min-w-0">
                 <div className="relative shrink-0">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden ring-4 ring-white shadow-lg bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-black text-2xl sm:text-3xl select-none">
-                    {getInitials(name || currentUser?.userId || "Candidate")}
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden ring-4 ring-slate-100 shadow-md bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-black text-2xl sm:text-3xl select-none">
+                    {getInitials(name || currentUser?.userId || "Tushar Raghav")}
                   </div>
                   <button
-                    onClick={() => setEditModalOpen(true)}
-                    className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md ring-2 ring-white transition cursor-pointer"
+                    onClick={openEditModal}
+                    className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md ring-2 ring-white transition cursor-pointer"
                     title="Change profile picture"
                   >
-                    <Camera className="w-4 h-4" />
+                    <Camera className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                {/* Name, Headline, Contact, Bio */}
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                      {name || currentUser?.userId || "Candidate"}
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
+                      {name || "Tushar Raghav"}
                     </h1>
-                    <span className="inline-flex items-center text-blue-600" title="Verified Candidate">
-                      <CheckCircle className="w-5 h-5 fill-blue-600 text-white" />
+                    <button
+                      onClick={openEditModal}
+                      className="text-slate-400 hover:text-blue-600 transition cursor-pointer p-0.5"
+                      title="Edit Profile"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs sm:text-sm font-semibold text-slate-700">
+                      {headline || "Frontend Developer"}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600 border border-blue-100">
+                      Fresher
                     </span>
                   </div>
 
-                  {(headline || experience) ? (
-                    <p className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2">
-                      {headline && <span>{headline}</span>}
-                      {headline && experience && <span className="text-slate-300">|</span>}
-                      {experience && <span className="text-slate-600 font-normal">{experience}</span>}
-                    </p>
-                  ) : (
-                    <button
-                      onClick={() => setEditModalOpen(true)}
-                      className="text-xs text-blue-600 hover:underline font-medium flex items-center gap-1"
-                    >
-                      + Add target job role & experience
-                    </button>
-                  )}
-
-                  {/* Contact Badges - ONLY SHOW FILLED ONES */}
-                  <div className="flex flex-wrap items-center gap-y-1.5 gap-x-4 text-[11px] sm:text-xs text-slate-600 pt-0.5">
-                    {location && (
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        {location}
-                      </span>
-                    )}
-                    {email && (
-                      <span className="flex items-center gap-1.5">
-                        <Mail className="w-3.5 h-3.5 text-slate-400" />
-                        {email}
-                      </span>
-                    )}
-                    {phone && (
-                      <span className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-slate-400" />
-                        {phone}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Bio - ONLY SHOW IF FILLED */}
-                  {bio ? (
-                    <p className="text-xs sm:text-[13px] text-slate-600 max-w-2xl leading-relaxed pt-1">
-                      {bio}
-                    </p>
-                  ) : null}
-
-                  {/* Primary Skills Tags - ONLY SHOW IF ADDED */}
-                  {skills.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {skills.slice(0, 5).map((skill, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 rounded-full text-[11px] font-semibold bg-white text-slate-700 border border-slate-200/80 shadow-2xs"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Side: Circular Gauge & Edit Profile Button */}
-              <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between w-full lg:w-auto gap-4 pt-4 lg:pt-0 border-t lg:border-t-0 border-blue-200/40">
-                {/* Dynamic Completion Gauge */}
-                <div className="flex items-center gap-3">
-                  <div className="relative w-14 h-14 shrink-0 flex items-center justify-center">
-                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        className="text-blue-100"
-                        strokeWidth="3.5"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="text-blue-600 transition-all duration-500"
-                        strokeDasharray={`${profileCompletion}, 100`}
-                        strokeWidth="3.5"
-                        strokeLinecap="round"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <span className="absolute text-[11px] font-black text-slate-900">{profileCompletion}%</span>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-bold text-slate-800">Profile</p>
-                    <p className="text-[10px] text-emerald-600 font-semibold">{profileCompletion}% Complete</p>
-                  </div>
-                </div>
-
-                {/* Edit Profile Button */}
-                <button
-                  onClick={() => setEditModalOpen(true)}
-                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition hover:scale-[1.02]"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit Profile</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. STATS ROW (4 Cards) - REAL DATA ONLY */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            {/* Card 1: Applied Jobs */}
-            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center gap-3 sm:gap-4 hover:border-purple-200 transition">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                <Send className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">{appliedJobsCount}</p>
-                <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Applied Jobs</p>
-              </div>
-            </div>
-
-            {/* Card 2: Saved Jobs */}
-            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center gap-3 sm:gap-4 hover:border-emerald-200 transition">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <Bookmark className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">{savedJobsCount}</p>
-                <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Saved Jobs</p>
-              </div>
-            </div>
-
-            {/* Card 3: Interviews */}
-            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center gap-3 sm:gap-4 hover:border-amber-200 transition">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <Calendar className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">{interviewsCount}</p>
-                <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Interviews</p>
-              </div>
-            </div>
-
-            {/* Card 4: Profile Views */}
-            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex items-center gap-3 sm:gap-4 hover:border-cyan-200 transition">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
-                <Eye className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">{profileViewsCount}</p>
-                <p className="text-[11px] sm:text-xs text-slate-500 font-medium">Profile Views</p>
-              </div>
-            </div>
-          </div>
-
-          {/* TABLET / MOBILE SUB-NAVIGATION BAR (Shows on tablet/mobile) */}
-          <div className="block lg:hidden bg-white rounded-2xl p-1.5 border border-slate-200/80 shadow-xs">
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-              {[
-                { id: "about", label: "About Me" },
-                { id: "skills", label: "Skills" },
-                { id: "resume", label: "Resume" },
-                { id: "experience", label: "Experience" },
-                { id: "education", label: "Education" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setTabletTab(tab.id as any)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-                    tabletTab === tab.id
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* TABLET QUICK ACTIONS (As seen in tablet mockup) */}
-          <div className="hidden md:grid lg:hidden grid-cols-4 gap-3 bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs">
-            <button
-              onClick={() => setEditModalOpen(true)}
-              className="p-3 rounded-2xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-600 transition flex flex-col items-center text-center gap-1 cursor-pointer"
-            >
-              <User className="w-5 h-5 text-blue-500" />
-              <span className="text-[11px] font-bold">Update Profile</span>
-            </button>
-            <button
-              onClick={() => setUploadResumeModalOpen(true)}
-              className="p-3 rounded-2xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-600 transition flex flex-col items-center text-center gap-1 cursor-pointer"
-            >
-              <Upload className="w-5 h-5 text-indigo-500" />
-              <span className="text-[11px] font-bold">Upload Resume</span>
-            </button>
-            <button
-              onClick={() => showToast("Job alerts updated for your profile!")}
-              className="p-3 rounded-2xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-600 transition flex flex-col items-center text-center gap-1 cursor-pointer"
-            >
-              <Bell className="w-5 h-5 text-amber-500" />
-              <span className="text-[11px] font-bold">Set Job Alerts</span>
-            </button>
-            <Link
-              href="/jobs"
-              className="p-3 rounded-2xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-600 transition flex flex-col items-center text-center gap-1 cursor-pointer"
-            >
-              <Search className="w-5 h-5 text-emerald-500" />
-              <span className="text-[11px] font-bold">Browse Jobs</span>
-            </Link>
-          </div>
-
-          {/* 3. TWO COLUMN GRID (Desktop & Tablet) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* LEFT COLUMN: About Me + Recent Applications */}
-            <div className="lg:col-span-7 flex flex-col gap-6">
-              {/* About Me Card */}
-              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-blue-600" />
-                    <h2 className="text-base font-black text-slate-900 tracking-tight">About Me</h2>
-                  </div>
-                  <button
-                    onClick={() => setEditModalOpen(true)}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                  >
-                    Edit
-                  </button>
-                </div>
-
-                <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed">
-                  {bio || "No summary provided yet. Click Edit to add details about your background, career goals and experience."}
-                </p>
-
-                {/* 2x2 Details Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100 flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-600 flex items-center justify-center shrink-0">
-                      <Briefcase className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        Experience
-                      </p>
-                      <p className="text-xs font-bold text-slate-800 mt-0.5">{experience || "Not specified"}</p>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100 flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0">
-                      <GraduationCap className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        Education
-                      </p>
-                      <p className="text-xs font-bold text-slate-800 mt-0.5">{education || "Not specified"}</p>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100 flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-100/80 text-emerald-600 flex items-center justify-center shrink-0">
-                      <MapPin className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        Location
-                      </p>
-                      <p className="text-xs font-bold text-slate-800 mt-0.5">{location || "Not specified"}</p>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100 flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-amber-100/80 text-amber-600 flex items-center justify-center shrink-0">
-                      <Globe className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        Languages
-                      </p>
-                      <p className="text-xs font-bold text-slate-800 mt-0.5">{languages || "Not specified"}</p>
-                    </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 pt-1">
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>{location || "Delhi NCR / Noida"}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5 truncate max-w-[220px]">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{email || "tusharraghav817@gmail.com"}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>{phone || "1234567890"}</span>
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Recent Applications Card */}
-              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Send className="w-4 h-4 text-blue-600" />
-                    <h2 className="text-base font-black text-slate-900 tracking-tight">
-                      Recent Applications
-                    </h2>
-                  </div>
-                  <Link
-                    href="/jobs"
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline"
-                  >
-                    View All
-                  </Link>
+              {/* Middle Column (Circular Gauge): 2.5 cols */}
+              <div className="lg:col-span-3 flex items-center gap-3 lg:border-l lg:border-r border-slate-100 lg:px-4 min-w-0">
+                <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                    <path
+                      className="text-slate-100"
+                      strokeWidth="3.5"
+                      stroke="currentColor"
+                      fill="none"
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    />
+                    <path
+                      className="text-blue-600 transition-all duration-500"
+                      strokeDasharray={`${profileCompletion || 75}, 100`}
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      stroke="currentColor"
+                      fill="none"
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    />
+                  </svg>
+                  <span className="absolute text-xs font-bold text-slate-900">
+                    {profileCompletion || 75}%
+                  </span>
                 </div>
-
-                {/* Sub-tabs for applications in Mobile view */}
-                <div className="flex sm:hidden items-center gap-2 border-b border-slate-100 pb-2">
-                  {(["applied", "saved", "interviews"] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setAppliedSubTab(tab)}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition ${
-                        appliedSubTab === tab
-                          ? "bg-blue-600 text-white"
-                          : "text-slate-500 hover:bg-slate-100"
-                      }`}
-                    >
-                      {tab}
-                    </button>
-                  ))}
+                <div>
+                  <p className="text-xs font-bold text-slate-900">Profile Completion</p>
+                  <p className="text-[11px] text-slate-500 leading-tight">
+                    Complete your profile to get opportunities
+                  </p>
                 </div>
-
-                {/* Application list items */}
-                {applications.length > 0 ? (
-                  <div className="space-y-3">
-                    {applications.map((app) => (
-                      <div
-                        key={app.id}
-                        className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100 transition flex items-center justify-between gap-3 group cursor-pointer"
-                        onClick={() => showToast(`Application status for ${app.role}: ${app.status}`)}
-                      >
-                        <div className="flex items-center gap-3.5">
-                          <div
-                            className={`w-10 h-10 rounded-2xl ${app.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-xs`}
-                          >
-                            {app.avatarText}
-                          </div>
-                          <div>
-                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                              {app.role}
-                            </h4>
-                            <p className="text-[11px] text-slate-500">
-                              {app.company} • {app.location}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                              app.status === "Applied"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : app.status === "Viewed"
-                                ? "bg-orange-50 text-orange-700 border border-orange-200"
-                                : "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                            }`}
-                          >
-                            {app.status}
-                          </span>
-                          <span className="text-[11px] text-slate-400 hidden sm:inline-block">
-                            {app.date}
-                          </span>
-                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 rounded-2xl bg-slate-50/50 border border-dashed border-slate-200 text-center flex flex-col items-center justify-center gap-1.5">
-                    <Briefcase className="w-8 h-8 text-slate-300" />
-                    <p className="text-xs font-bold text-slate-700 mt-1">No job applications yet</p>
-                    <p className="text-[11px] text-slate-400 max-w-sm">
-                      When you apply to jobs, your real-time application and interview status will appear here.
-                    </p>
-                    <Link
-                      href="/jobs"
-                      className="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition"
-                    >
-                      Browse Open Jobs
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* RIGHT COLUMN: Skills + Resume + Profile Strength */}
-            <div className="lg:col-span-5 flex flex-col gap-6">
-              {/* Skills Card */}
-              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-600" />
-                    <h2 className="text-base font-black text-slate-900 tracking-tight">Skills</h2>
-                  </div>
-                  <button
-                    onClick={() => setEditModalOpen(true)}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                  >
-                    Edit
-                  </button>
-                </div>
-
-                {skills.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80 transition"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400 italic">No skills added yet. Click Edit to add your technical skills.</p>
-                )}
               </div>
 
-              {/* Resume Card */}
-              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    <h2 className="text-base font-black text-slate-900 tracking-tight">Resume</h2>
+              {/* Right Column (Checklist + Complete Profile button): 3.5 cols */}
+              <div className="lg:col-span-4 space-y-3 min-w-0">
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 fill-blue-50" />
+                      <span>Complete basic information</span>
+                    </span>
+                    <span className="font-semibold text-emerald-600 text-[11px]">100%</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 fill-blue-50" />
+                      <span>Add professional skills</span>
+                    </span>
+                    <span className="font-semibold text-emerald-600 text-[11px]">100%</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300" />
+                      <span>Add work experience</span>
+                    </span>
+                    <span className="font-semibold text-blue-600 text-[11px]">60%</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300" />
+                      <span>Add education details</span>
+                    </span>
+                    <span className="font-semibold text-emerald-600 text-[11px]">50%</span>
                   </div>
                 </div>
 
-                {resumeName ? (
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0 border border-rose-100">
-                        PDF
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-900 truncate">{resumeName}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{resumeDate}</p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        if (resumeUrl) {
-                          const a = document.createElement("a");
-                          a.href = resumeUrl;
-                          a.download = resumeName || "Resume.pdf";
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                        } else {
-                          showToast(`Downloading ${resumeName}...`);
-                        }
-                      }}
-                      className="w-9 h-9 rounded-xl hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shrink-0 cursor-pointer"
-                      title="Download Resume"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-slate-50/60 border border-dashed border-slate-200 text-center">
-                    <p className="text-xs font-medium text-slate-500">No resume uploaded yet</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Upload your CV to apply for jobs faster</p>
-                  </div>
-                )}
-
-                {/* Upload Button */}
-                <button
-                  onClick={() => setUploadResumeModalOpen(true)}
-                  className="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-600 text-xs font-bold flex items-center justify-center gap-2 transition hover:bg-blue-50/50 cursor-pointer"
-                >
-                  <Upload className="w-4 h-4 text-blue-600" />
-                  <span>{resumeName ? "Upload New Resume" : "Upload Resume"}</span>
-                </button>
-              </div>
-
-              {/* Profile Strength Card */}
-              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-4 h-4 text-blue-600" />
-                    <h2 className="text-base font-black text-slate-900 tracking-tight">
-                      Profile Strength
-                    </h2>
-                  </div>
-                  <button
-                    onClick={() => setCompleteProfileModalOpen(true)}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                  >
-                    View All
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  {/* Gauge */}
-                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
-                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        className="text-slate-100"
-                        strokeWidth="3.5"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="text-blue-600"
-                        strokeDasharray="85, 100"
-                        strokeWidth="3.5"
-                        strokeLinecap="round"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <span className="absolute text-xs font-black text-slate-900">85%</span>
-                  </div>
-
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">Good Profile</h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                      Complete your profile to get more job recommendations.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Strength Checklist */}
-                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                  <div className="flex items-center gap-2 text-emerald-600 font-semibold text-[11px]">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 fill-emerald-50" />
-                    <span>Basic Information</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-emerald-600 font-semibold text-[11px]">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 fill-emerald-50" />
-                    <span>Skills & Experience</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-emerald-600 font-semibold text-[11px]">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 fill-emerald-50" />
-                    <span>Education</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-emerald-600 font-semibold text-[11px]">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 fill-emerald-50" />
-                    <span>Resume Uploaded</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-400 font-medium text-[11px]">
-                    <div className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
-                    <span>Resume Photo</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-400 font-medium text-[11px]">
-                    <div className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
-                    <span>Portfolio</span>
-                  </div>
-                </div>
-
-                {/* Complete Profile Button */}
                 <button
                   onClick={() => setCompleteProfileModalOpen(true)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer mt-1"
+                  className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
                 >
                   <span>Complete Profile</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -1390,191 +2039,632 @@ export default function CandidateDashboardPage() {
             </div>
           </div>
 
-          {/* 4. OPPORTUNITY CTA BANNER (Mockup Match) */}
-          <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-xl shadow-blue-500/10 flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
-                <Send className="w-6 h-6 text-white" />
+
+
+          {/* 2. TWO COLUMN LAYOUT: QUICK LINKS (LEFT) & SECTIONS (RIGHT) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* LEFT COLUMN: QUICK LINKS (lg:col-span-3) */}
+            <div className="lg:col-span-3 lg:sticky lg:top-20 space-y-4">
+              <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs">
+                <div className="flex items-center gap-2 pb-3 mb-2 border-b border-slate-100">
+                  <Compass className="w-4 h-4 text-blue-600" />
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Quick Links</h3>
+                </div>
+                <nav className="space-y-1">
+                  {quickLinkItems.map((item) => {
+                    const IconComponent = item.icon;
+                    const isActive = activeQuickLink === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => scrollToSection(item.target, item.id)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition text-left cursor-pointer ${
+                          isActive
+                            ? "bg-blue-50 text-blue-600 font-bold"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                        }`}
+                      >
+                        <IconComponent className={`w-3.5 h-3.5 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
               </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-black tracking-tight">
-                  Let&apos;s Find Your Next Opportunity
-                </h3>
-                <p className="text-xs sm:text-sm text-blue-100 mt-0.5">
-                  Update your profile, explore jobs, and take the next step in your career.
+            </div>
+
+            {/* RIGHT COLUMN: MAIN CONTENT CARDS (lg:col-span-9) */}
+            <div className="lg:col-span-9 space-y-6">
+              {/* SECTION: RESUME */}
+              <div
+                id="resume-section"
+                className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">Resume</h2>
+                      <p className="text-[11px] text-slate-400">Upload your latest resume (PDF, DOC, DOCX, max 5MB)</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {resumeUrl ? (
+                      <a
+                        href={resumeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-slate-500" />
+                        <span>View</span>
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => setUploadResumeModalOpen(true)}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-slate-500" />
+                        <span>View</span>
+                      </button>
+                    )}
+                    <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition">
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Resume Dropzone Box */}
+                <div
+                  onClick={() => setUploadResumeModalOpen(true)}
+                  className="border-2 border-dashed border-blue-200/90 rounded-2xl p-7 flex flex-col items-center justify-center text-center bg-blue-50/20 hover:bg-blue-50/40 transition cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-full bg-blue-100/60 text-blue-600 flex items-center justify-center mb-2">
+                    <UploadCloud className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs text-slate-700 font-medium">
+                    Drag & drop your resume here, or{" "}
+                    <span className="text-blue-600 font-bold hover:underline">click to browse</span>
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">Supported formats: PDF, DOC, DOCX (Max 5MB)</p>
+                  {resumeName && (
+                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 font-medium shadow-2xs">
+                      <FileText className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Current: {resumeName}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              
+
+              {/* SECTION: KEY SKILLS */}
+              <div
+                id="key-skills-section"
+                className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-sm font-bold text-slate-900">Key Skills</h2>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={openAddSkill}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={openAddSkill}
+                      className="px-3 py-1.5 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Skill</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {(skills.length > 0
+                    ? skills
+                    : [
+                        "JavaScript",
+                        "React.js",
+                        "Next.js",
+                        "HTML",
+                        "CSS",
+                        "Tailwind CSS",
+                        "Node.js",
+                        "MongoDB",
+                        "REST API",
+                        "Git",
+                      ]
+                  ).map((s, idx) => (
+                    <span
+                      key={idx}
+                      className="group/skill inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300 transition"
+                    >
+                      <span>{s}</span>
+                      <button
+                        onClick={() => handleRemoveSkill(s)}
+                        className="opacity-0 group-hover/skill:opacity-100 hover:text-rose-600 text-slate-400 transition cursor-pointer"
+                        title={`Remove ${s}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* SECTION: EMPLOYMENT HISTORY */}
+              <div
+                id="employment-section"
+                className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-sm font-bold text-slate-900">Employment History</h2>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => openAddExperience(experienceList[0])}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => openAddExperience()}
+                      className="px-3 py-1.5 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Experience</span>
+                    </button>
+                  </div>
+                </div>
+
+                {experienceList.length > 0 ? (
+                  <div className="space-y-4 pt-1 divide-y divide-slate-100">
+                    {experienceList.map((exp, idx) => (
+                      <div key={exp.id} className={`${idx > 0 ? "pt-3.5" : ""} group flex items-start justify-between`}>
+                        <div className="space-y-1">
+                          <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                            {exp.role}
+                          </h3>
+                          <p className="text-xs text-slate-600 font-medium">{exp.company}</p>
+                          {exp.duration && <p className="text-[11px] text-slate-400">{exp.duration}</p>}
+                          {exp.description && (
+                            <ul className="list-disc list-inside text-xs text-slate-600 space-y-1 pl-1 pt-1">
+                              {exp.description.split("\n").filter(Boolean).map((line, lIdx) => (
+                                <li key={lIdx}>{line.replace(/^[-•*]\s*/, "")}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => openAddExperience(exp)}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                            title="Edit experience"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          {experienceList.length > 1 && (
+                            <button
+                              onClick={() => handleDeleteExperience(exp.id)}
+                              className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                              title="Delete experience"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-5 text-center text-slate-400 text-xs">
+                    No employment history added yet. Click &quot;Add Experience&quot; to highlight your past roles.
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION: EDUCATION */}
+              <div
+                id="education-section"
+                className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-sm font-bold text-slate-900">Education</h2>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {educationList.length > 0 && (
+                      <button
+                        onClick={() => openAddEducation(educationList[0])}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    <button
+                      onClick={() => openAddEducation()}
+                      className="px-3 py-1.5 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Education</span>
+                    </button>
+                  </div>
+                </div>
+
+                {educationList.length > 0 ? (
+                  <div className="space-y-3.5 pt-1 divide-y divide-slate-100">
+                    {educationList.map((edu, idx) => (
+                      <div key={edu.id} className={`${idx > 0 ? "pt-3" : ""} group flex items-start justify-between`}>
+                        <div className="space-y-0.5">
+                          <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                            {edu.degree}
+                          </h3>
+                          {edu.college && <p className="text-xs text-slate-600">{edu.college}</p>}
+                          {edu.years && <p className="text-[11px] text-slate-400">{edu.years}</p>}
+                          {edu.grade && <p className="text-xs font-medium text-slate-700 pt-0.5">{edu.grade}</p>}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => openAddEducation(edu)}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                            title="Edit education"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          {educationList.length > 1 && (
+                            <button
+                              onClick={() => handleDeleteEducation(edu.id)}
+                              className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                              title="Delete education"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-5 text-center text-slate-400 text-xs">
+                    No education details added yet. Click &quot;Add Education&quot; to add your degrees.
+                  </div>
+                )}
+              </div>
+
+              {/* 2-CARD ROW 1: IT SKILLS & PROJECTS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* IT Skills Card */}
+                <div
+                  id="it-skills-section"
+                  className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Code2 className="w-4 h-4" />
+                      </div>
+                      <h2 className="text-sm font-bold text-slate-900">IT Skills</h2>
+                    </div>
+                    <button
+                      onClick={() => setAddSkillModalOpen(true)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                    >
+                      Add / Edit
+                    </button>
+                  </div>
+
+                  {skills && skills.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {skills.map((skill, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/70"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-5 text-center text-slate-400 text-xs">
+                      No IT skills added yet. Click &quot;Add / Edit&quot; to add your technical skills.
+                    </div>
+                  )}
+                </div>
+
+                {/* Projects Card */}
+                <div
+                  id="projects-section"
+                  className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <FolderGit2 className="w-4 h-4" />
+                      </div>
+                      <h2 className="text-sm font-bold text-slate-900">Projects</h2>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {projectsList.length > 0 && (
+                        <button
+                          onClick={() => openAddProject(projectsList[0])}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openAddProject()}
+                        className="px-2.5 py-1 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Project</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {projectsList.length > 0 ? (
+                    <div className="space-y-3.5 pt-1 divide-y divide-slate-100">
+                      {projectsList.map((proj, idx) => (
+                        <div key={proj.id} className={`${idx > 0 ? "pt-3" : ""} group`}>
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-xs font-bold text-slate-900">{proj.title}</h3>
+                            <div className="flex items-center gap-1.5">
+                              {proj.techStack && (
+                                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                  {proj.techStack}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => openAddProject(proj)}
+                                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                                title="Edit project"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                              </button>
+                              {projectsList.length > 1 && (
+                                <button
+                                  onClick={() => handleDeleteProject(proj.id)}
+                                  className="p-1 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                                  title="Delete project"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                            {proj.description}
+                          </p>
+                          <div className="flex items-center gap-3 mt-1.5 text-xs font-semibold text-blue-600">
+                            {proj.githubUrl ? (
+                              <a
+                                href={proj.githubUrl.startsWith("http") ? proj.githubUrl : `https://${proj.githubUrl}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>GitHub</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">No GitHub</span>
+                            )}
+                            <span className="text-slate-300">|</span>
+                            {proj.liveUrl ? (
+                              <a
+                                href={proj.liveUrl.startsWith("http") ? proj.liveUrl : `https://${proj.liveUrl}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Live Demo</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">No Live Demo</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-5 text-center text-slate-400 text-xs">
+                      No projects added yet. Click &quot;Add Project&quot; to showcase your work.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* PROFILE SUMMARY */}
+              <div
+                id="profile-summary-section"
+                className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-sm font-bold text-slate-900">Profile Summary</h2>
+                  </div>
+                  <button
+                    onClick={openEditModal}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed font-normal pt-1">
+                  {bio || "No profile summary added yet. Click 'Edit' to add an overview of your background and career goals."}
                 </p>
               </div>
-            </div>
 
-            <Link
-              href="/jobs"
-              className="px-6 py-3 rounded-full bg-white text-blue-600 hover:bg-blue-50 font-bold text-xs sm:text-sm shrink-0 transition flex items-center gap-2 shadow-lg cursor-pointer hover:scale-105"
-            >
-              <span>Browse Jobs</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-
-          {/* 5. FOOTER */}
-          <footer className="mt-8 pt-8 border-t border-slate-200/80 text-xs text-slate-500 space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                    <Sparkles className="w-3.5 h-3.5" />
+              {/* 2-CARD ROW 3: PERSONAL DETAILS & LANGUAGES */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Personal Details Card */}
+                <div
+                  id="personal-details-section"
+                  className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <h2 className="text-sm font-bold text-slate-900">Personal Details</h2>
+                    </div>
+                    <button
+                      onClick={openEditPersonal}
+                      className="px-2.5 py-1 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit</span>
+                    </button>
                   </div>
-                  <span className="font-extrabold text-slate-900">CareerConnect</span>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                    <div>
+                      <p className="text-[11px] text-slate-400 font-medium">Date of Birth</p>
+                      <p className="font-bold text-slate-800 mt-0.5">{personalForm.dob || (currentUser as any)?.dob || "Not specified"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 font-medium">Gender</p>
+                      <p className="font-bold text-slate-800 mt-0.5">{personalForm.gender || (currentUser as any)?.gender || "Not specified"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 font-medium">Marital Status</p>
+                      <p className="font-bold text-slate-800 mt-0.5">{personalForm.maritalStatus || (currentUser as any)?.maritalStatus || "Not specified"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 font-medium">Nationality</p>
+                      <p className="font-bold text-slate-800 mt-0.5">{personalForm.nationality || (currentUser as any)?.nationality || "Indian"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[11px] text-slate-400 font-medium">Address</p>
+                      <p className="font-bold text-slate-800 mt-0.5">{personalForm.address || location || (currentUser as any)?.preferredLocation || "Not specified"}</p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400">Your Career, Our Mission.</p>
-              </div>
 
-              <div>
-                <p className="font-bold text-slate-800 mb-2">For Job Seekers</p>
-                <ul className="space-y-1.5 text-[11px]">
-                  <li>
-                    <Link href="/jobs" className="hover:text-blue-600">
-                      Browse Jobs
-                    </Link>
-                  </li>
-                  <li>
-                    <a href="#advice" className="hover:text-blue-600">
-                      Career Advice
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#builder" className="hover:text-blue-600">
-                      Resume Builder
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#help" className="hover:text-blue-600">
-                      Help Center
-                    </a>
-                  </li>
-                </ul>
-              </div>
+                {/* Languages Card */}
+                <div
+                  id="languages-section"
+                  className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <h2 className="text-sm font-bold text-slate-900">Languages</h2>
+                    </div>
+                    <button
+                      onClick={() => openAddLanguage()}
+                      className="px-2.5 py-1 rounded-xl border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Language</span>
+                    </button>
+                  </div>
 
-              <div>
-                <p className="font-bold text-slate-800 mb-2">For Companies</p>
-                <ul className="space-y-1.5 text-[11px]">
-                  <li>
-                    <Link href="/company/dashboard" className="hover:text-blue-600">
-                      Post a Job
-                    </Link>
-                  </li>
-                  <li>
-                    <a href="#pricing" className="hover:text-blue-600">
-                      Pricing
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#faqs" className="hover:text-blue-600">
-                      FAQs
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#contact" className="hover:text-blue-600">
-                      Contact
-                    </a>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <p className="font-bold text-slate-800 mb-2">Quick Links</p>
-                <ul className="space-y-1.5 text-[11px]">
-                  <li>
-                    <Link href="/" className="hover:text-blue-600">
-                      Home
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/about" className="hover:text-blue-600">
-                      About Us
-                    </Link>
-                  </li>
-                  <li>
-                    <a href="#privacy" className="hover:text-blue-600">
-                      Privacy Policy
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#terms" className="hover:text-blue-600">
-                      Terms of Service
-                    </a>
-                  </li>
-                </ul>
+                  {languagesList.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-slate-400 text-[11px] font-semibold">
+                            <th className="pb-2">Language</th>
+                            <th className="pb-2">Proficiency</th>
+                            <th className="pb-2 text-center">Read</th>
+                            <th className="pb-2 text-center">Write</th>
+                            <th className="pb-2 text-center">Speak</th>
+                            <th className="pb-2 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {languagesList.map((lang) => (
+                            <tr key={lang.id} className="group hover:bg-slate-50/60 transition">
+                              <td className="py-2.5 font-bold text-slate-900">{lang.language}</td>
+                              <td className="py-2.5 text-slate-500">{lang.proficiency}</td>
+                              <td className="py-2.5 text-center">
+                                {lang.read ? (
+                                  <CheckCircle2 className="w-4 h-4 text-blue-600 mx-auto fill-blue-50" />
+                                ) : (
+                                  <span className="text-slate-300">-</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 text-center">
+                                {lang.write ? (
+                                  <CheckCircle2 className="w-4 h-4 text-blue-600 mx-auto fill-blue-50" />
+                                ) : (
+                                  <span className="text-slate-300">-</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 text-center">
+                                {lang.speak ? (
+                                  <CheckCircle2 className="w-4 h-4 text-blue-600 mx-auto fill-blue-50" />
+                                ) : (
+                                  <span className="text-slate-300">-</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => openAddLanguage(lang)}
+                                    className="p-1 rounded-md hover:bg-slate-200/60 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                                    title="Edit language"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  {languagesList.length > 1 && (
+                                    <button
+                                      onClick={() => handleDeleteLanguage(lang.id)}
+                                      className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                                      title="Delete language"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="py-5 text-center text-slate-400 text-xs">
+                      No languages added yet. Click &quot;Add Language&quot; to specify known languages.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
+            </>
+          )}
 
-            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
-              <p>© 2025 CareerConnect. All rights reserved.</p>
-              <div className="flex items-center gap-4">
-                <a href="#" className="hover:text-blue-600">
-                  Twitter
-                </a>
-                <a href="#" className="hover:text-blue-600">
-                  LinkedIn
-                </a>
-                <a href="#" className="hover:text-blue-600">
-                  Facebook
-                </a>
-                <a href="#" className="hover:text-blue-600">
-                  Instagram
-                </a>
-              </div>
-            </div>
-          </footer>
         </main>
       </div>
 
-      {/* MOBILE STICKY BOTTOM NAVIGATION BAR (Mockup Match) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200/90 py-2 px-6 flex md:hidden items-center justify-between shadow-2xl">
-        <Link
-          href="/"
-          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-800"
-        >
-          <Home className="w-5 h-5" />
-          <span className="text-[10px] font-semibold">Home</span>
-        </Link>
-        <Link
-          href="/jobs"
-          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-800"
-        >
-          <Briefcase className="w-5 h-5" />
-          <span className="text-[10px] font-semibold">Jobs</span>
-        </Link>
-        <button
-          onClick={() => {
-            setActiveSidebarTab("saved");
-            showToast("Saved jobs opened");
-          }}
-          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-800 cursor-pointer"
-        >
-          <Bookmark className="w-5 h-5" />
-          <span className="text-[10px] font-semibold">Saved</span>
-        </button>
-        <button
-          onClick={() => {
-            setNotificationsOpen(true);
-            showToast("Alerts opened");
-          }}
-          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-800 cursor-pointer"
-        >
-          <Bell className="w-5 h-5" />
-          <span className="text-[10px] font-semibold">Alerts</span>
-        </button>
-        <button
-          onClick={() => {
-            setActiveSidebarTab("profile");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          className="flex flex-col items-center gap-0.5 text-blue-600 cursor-pointer font-bold"
-        >
-          <User className="w-5 h-5" />
-          <span className="text-[10px]">Profile</span>
-        </button>
-      </nav>
+      {/* FULL-WIDTH FOOTER */}
+      <Footer />
 
       {/* MODAL 1: EDIT PROFILE */}
       {editModalOpen && (
@@ -1600,7 +2690,8 @@ export default function CandidateDashboardPage() {
                   <input
                     type="text"
                     name="name"
-                    defaultValue={name}
+                    value={editForm.name}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
                     required
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                   />
@@ -1610,7 +2701,8 @@ export default function CandidateDashboardPage() {
                   <input
                     type="text"
                     name="headline"
-                    defaultValue={headline}
+                    value={editForm.headline}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, headline: e.target.value }))}
                     required
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                   />
@@ -1623,7 +2715,8 @@ export default function CandidateDashboardPage() {
                   <input
                     type="text"
                     name="experience"
-                    defaultValue={experience}
+                    value={editForm.experience}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, experience: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                   />
                 </div>
@@ -1632,7 +2725,8 @@ export default function CandidateDashboardPage() {
                   <input
                     type="text"
                     name="location"
-                    defaultValue={location}
+                    value={editForm.location}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, location: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                   />
                 </div>
@@ -1644,7 +2738,8 @@ export default function CandidateDashboardPage() {
                   <input
                     type="email"
                     name="email"
-                    defaultValue={email}
+                    value={editForm.email}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                   />
                 </div>
@@ -1653,7 +2748,8 @@ export default function CandidateDashboardPage() {
                   <input
                     type="text"
                     name="phone"
-                    defaultValue={phone}
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                   />
                 </div>
@@ -1664,7 +2760,8 @@ export default function CandidateDashboardPage() {
                 <input
                   type="text"
                   name="education"
-                  defaultValue={education}
+                  value={editForm.education}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, education: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                 />
               </div>
@@ -1674,7 +2771,8 @@ export default function CandidateDashboardPage() {
                 <input
                   type="text"
                   name="languages"
-                  defaultValue={languages}
+                  value={editForm.languages}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, languages: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                 />
               </div>
@@ -1684,7 +2782,8 @@ export default function CandidateDashboardPage() {
                 <textarea
                   name="bio"
                   rows={3}
-                  defaultValue={bio}
+                  value={editForm.bio}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, bio: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden resize-none"
                 />
               </div>
@@ -1696,7 +2795,8 @@ export default function CandidateDashboardPage() {
                 <input
                   type="text"
                   name="skills"
-                  defaultValue={skills.join(", ")}
+                  value={editForm.skills}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, skills: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
                 />
               </div>
@@ -1705,7 +2805,7 @@ export default function CandidateDashboardPage() {
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1714,7 +2814,540 @@ export default function CandidateDashboardPage() {
                   disabled={isSaving}
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                 >
-                  {isSaving ? "Saving to server..." : "Save Changes"}
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT EDUCATION */}
+      {addEducationModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <GraduationCap className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">
+                  {editingEduId ? "Edit Education" : "Add Education"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddEducationModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEducation} className="space-y-4 pt-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Degree / Qualification <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. B.Tech in Computer Science and Engineering"
+                  value={eduForm.degree}
+                  onChange={(e) => setEduForm((prev) => ({ ...prev, degree: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  College / Institute / University <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. ABC Institute of Technology"
+                  value={eduForm.college}
+                  onChange={(e) => setEduForm((prev) => ({ ...prev, college: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Duration / Years</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 2020 - 2024"
+                    value={eduForm.years}
+                    onChange={(e) => setEduForm((prev) => ({ ...prev, years: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Grade / CGPA</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CGPA: 7.9/10 or 80%"
+                    value={eduForm.grade}
+                    onChange={(e) => setEduForm((prev) => ({ ...prev, grade: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAddEducationModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md shadow-purple-500/20 cursor-pointer"
+                >
+                  {editingEduId ? "Update Education" : "Save Education"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT PROJECT */}
+      {addProjectModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <FolderGit2 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">
+                  {editingProjId ? "Edit Project" : "Add Project"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddProjectModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProject} className="space-y-4 pt-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Project Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Job Portal Platform"
+                    value={projForm.title}
+                    onChange={(e) => setProjForm((prev) => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Tech Stack / Tag
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. React, Node.js, MongoDB"
+                    value={projForm.techStack}
+                    onChange={(e) => setProjForm((prev) => ({ ...prev, techStack: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Project Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Describe key features, your role, and what technologies you used..."
+                  value={projForm.description}
+                  onChange={(e) => setProjForm((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">GitHub Link</label>
+                  <input
+                    type="url"
+                    placeholder="https://github.com/..."
+                    value={projForm.githubUrl}
+                    onChange={(e) => setProjForm((prev) => ({ ...prev, githubUrl: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Live Demo Link</label>
+                  <input
+                    type="url"
+                    placeholder="https://myproject.com"
+                    value={projForm.liveUrl}
+                    onChange={(e) => setProjForm((prev) => ({ ...prev, liveUrl: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAddProjectModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 cursor-pointer"
+                >
+                  {editingProjId ? "Update Project" : "Add Project"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT LANGUAGE */}
+      {addLanguageModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Globe className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">
+                  {editingLangId ? "Edit Language" : "Add Language"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddLanguageModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLanguage} className="space-y-4 pt-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Language Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. French, German, Spanish"
+                  value={langForm.language}
+                  onChange={(e) => setLangForm((prev) => ({ ...prev, language: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Proficiency Level
+                </label>
+                <select
+                  value={langForm.proficiency}
+                  onChange={(e) => setLangForm((prev) => ({ ...prev, proficiency: e.target.value as any }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-white cursor-pointer"
+                >
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="Fluent">Fluent</option>
+                  <option value="Native">Native</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-2">Fluency & Capabilities</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-blue-50/30 transition">
+                    <input
+                      type="checkbox"
+                      checked={langForm.read}
+                      onChange={(e) => setLangForm((prev) => ({ ...prev, read: e.target.checked }))}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-700">Read</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-blue-50/30 transition">
+                    <input
+                      type="checkbox"
+                      checked={langForm.write}
+                      onChange={(e) => setLangForm((prev) => ({ ...prev, write: e.target.checked }))}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-700">Write</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-blue-50/30 transition">
+                    <input
+                      type="checkbox"
+                      checked={langForm.speak}
+                      onChange={(e) => setLangForm((prev) => ({ ...prev, speak: e.target.checked }))}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-700">Speak</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAddLanguageModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 cursor-pointer"
+                >
+                  {editingLangId ? "Update Language" : "Add Language"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT EXPERIENCE */}
+      {addExperienceModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">
+                  {editingExpId ? "Edit Experience" : "Add Experience"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddExperienceModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExperience} className="space-y-4 pt-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Designation / Role <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Frontend Developer"
+                    value={expForm.role}
+                    onChange={(e) => setExpForm((prev) => ({ ...prev, role: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Company / Organization <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Acme Technologies"
+                    value={expForm.company}
+                    onChange={(e) => setExpForm((prev) => ({ ...prev, company: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Duration / Employment Period
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jun 2024 - Aug 2024 • 3 months (or Jan 2023 - Present)"
+                  value={expForm.duration}
+                  onChange={(e) => setExpForm((prev) => ({ ...prev, duration: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Responsibilities & Achievements (one per line)
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder={"Built responsive web components using React.js and Tailwind CSS.\nCollaborated with designers to implement modern UI/UX."}
+                  value={expForm.description}
+                  onChange={(e) => setExpForm((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAddExperienceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 cursor-pointer"
+                >
+                  {editingExpId ? "Update Experience" : "Save Experience"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD SKILLS */}
+      {addSkillModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">Add Skills</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddSkillModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSkillForm} className="space-y-4 pt-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Enter Skill(s) <span className="text-slate-400 font-normal">(comma-separated)</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Next.js, Docker, TypeScript"
+                    value={skillInput}
+                    onChange={(e) => setSkillInput(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (skillInput.trim()) {
+                        handleAddSkills(skillInput.split(",").map((s) => s.trim()).filter(Boolean));
+                      }
+                    }}
+                    className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold cursor-pointer transition shrink-0"
+                  >
+                    + Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Suggestions */}
+              <div>
+                <p className="font-bold text-slate-700 mb-1.5">Popular Suggestions:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "TypeScript",
+                    "React.js",
+                    "Next.js",
+                    "Node.js",
+                    "Tailwind CSS",
+                    "Python",
+                    "Docker",
+                    "AWS",
+                    "MongoDB",
+                    "SQL",
+                    "Figma",
+                    "Git",
+                  ]
+                    .filter((s) => !skills.includes(s))
+                    .slice(0, 8)
+                    .map((sug) => (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => handleAddSkills([sug])}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-100 transition cursor-pointer"
+                      >
+                        + {sug}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Current Skills Preview */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="font-bold text-slate-700">Your Skills ({skills.length})</p>
+                  {skills.length > 0 && (
+                    <span className="text-[10px] text-slate-400">Click × to remove</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
+                  {skills.length === 0 ? (
+                    <p className="text-slate-400 text-[11px] italic">No skills added yet.</p>
+                  ) : (
+                    skills.map((s, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-slate-800 border border-slate-200 shadow-2xs"
+                      >
+                        <span>{s}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSkill(s)}
+                          className="hover:text-rose-600 text-slate-400 transition cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setAddSkillModalOpen(false)}
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md shadow-purple-500/20 cursor-pointer"
+                >
+                  Done
                 </button>
               </div>
             </form>
@@ -1844,16 +3477,120 @@ export default function CandidateDashboardPage() {
         </div>
       )}
 
+
+
+      {/* MODAL: EDIT PERSONAL DETAILS */}
+      {editPersonalModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 my-8 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <User className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-black text-slate-900">Edit Personal Details</h3>
+              </div>
+              <button
+                onClick={() => setEditPersonalModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePersonal} className="space-y-4 pt-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Date of Birth</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 15 Aug 1999"
+                    value={personalForm.dob}
+                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, dob: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Gender</label>
+                  <select
+                    value={personalForm.gender}
+                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, gender: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-white"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Marital Status</label>
+                  <select
+                    value={personalForm.maritalStatus}
+                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, maritalStatus: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-white"
+                  >
+                    <option value="">Select Status</option>
+                    <option value="Single / Unmarried">Single / Unmarried</option>
+                    <option value="Married">Married</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Nationality</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Indian"
+                    value={personalForm.nationality}
+                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, nationality: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Permanent Address / Location</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Delhi NCR / Noida, India"
+                  value={personalForm.address}
+                  onChange={(e) => setPersonalForm((prev) => ({ ...prev, address: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditPersonalModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 font-bold text-slate-600 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-md shadow-blue-500/20 cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Bottom Navigation for Candidate */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex items-center justify-around shadow-lg">
         <button
-          onClick={() => setActiveSidebarTab("dashboard")}
+          onClick={() => setActiveSidebarTab("profile")}
           className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
-            activeSidebarTab === "dashboard" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+            activeSidebarTab === "profile" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
           }`}
         >
-          <Home className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Home</span>
+          <User className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Profile</span>
         </button>
 
         <button
@@ -1872,23 +3609,28 @@ export default function CandidateDashboardPage() {
         </button>
 
         <button
-          onClick={() => setActiveSidebarTab("resume")}
-          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
-            activeSidebarTab === "resume" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+          onClick={() => setActiveSidebarTab("saved")}
+          className={`relative flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeSidebarTab === "saved" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
           }`}
         >
-          <FileText className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Resume</span>
+          <Bookmark className="w-5 h-5" />
+          {savedJobsCount > 0 && (
+            <span className="absolute -top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 text-white text-[8px] font-bold flex items-center justify-center">
+              {savedJobsCount}
+            </span>
+          )}
+          <span className="text-[10px] mt-0.5">Saved</span>
         </button>
 
         <button
-          onClick={() => setActiveSidebarTab("profile")}
+          onClick={() => setActiveSidebarTab("alerts")}
           className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
-            activeSidebarTab === "profile" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
+            activeSidebarTab === "alerts" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
           }`}
         >
-          <User className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Profile</span>
+          <Bell className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Alerts</span>
         </button>
 
         <button

@@ -1,110 +1,43 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   MapPin,
   Heart,
   ArrowRight,
-  Globe,
-  Sprout,
+  Briefcase,
   Layers,
   Sparkles,
+  Globe,
+  Sprout,
   Boxes,
   Triangle,
 } from "lucide-react";
-
-interface Job {
-  id: string;
-  company: string;
-  companyIcon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
-  role: string;
-  companySub: string;
-  location: string;
-  badges: string[];
-  salary: string;
-}
-
-const jobs: Job[] = [
-  {
-    id: "1",
-    company: "NovaTech",
-    companyIcon: Layers,
-    iconBg: "bg-gradient-to-br from-blue-500 to-indigo-600",
-    iconColor: "text-white",
-    role: "Frontend Developer",
-    companySub: "NovaTech Solutions",
-    location: "Bengaluru, Karnataka",
-    badges: ["Full-time", "Remote"],
-    salary: "₹6L - ₹10L/year",
-  },
-  {
-    id: "2",
-    company: "BrightPath",
-    companyIcon: Sparkles,
-    iconBg: "bg-gradient-to-br from-rose-500 to-amber-500",
-    iconColor: "text-white",
-    role: "UI/UX Designer",
-    companySub: "BrightPath Digital",
-    location: "Mohali, Punjab",
-    badges: ["Full-time", "Hybrid"],
-    salary: "₹5L - ₹8L/year",
-  },
-  {
-    id: "3",
-    company: "GreenField",
-    companyIcon: Sprout,
-    iconBg: "bg-gradient-to-br from-emerald-500 to-teal-600",
-    iconColor: "text-white",
-    role: "Marketing Associate",
-    companySub: "GreenField Foods",
-    location: "Noida, Uttar Pradesh",
-    badges: ["Full-time", "On-site"],
-    salary: "₹4L - ₹7L/year",
-  },
-  {
-    id: "4",
-    company: "Skyline",
-    companyIcon: Globe,
-    iconBg: "bg-gradient-to-br from-sky-500 to-blue-600",
-    iconColor: "text-white",
-    role: "Backend Developer",
-    companySub: "Skyline Technologies",
-    location: "Hyderabad, Telangana",
-    badges: ["Full-time", "Remote"],
-    salary: "₹8L - ₹12L/year",
-  },
-  {
-    id: "5",
-    company: "Apex Labs",
-    companyIcon: Triangle,
-    iconBg: "bg-gradient-to-br from-cyan-500 to-blue-600",
-    iconColor: "text-white",
-    role: "DevOps Engineer",
-    companySub: "Apex Labs Cloud",
-    location: "Pune, Maharashtra",
-    badges: ["Full-time", "Remote"],
-    salary: "₹12L - ₹18L/year",
-  },
-  {
-    id: "6",
-    company: "PixelForge",
-    companyIcon: Boxes,
-    iconBg: "bg-gradient-to-br from-purple-500 to-indigo-600",
-    iconColor: "text-white",
-    role: "Product Designer",
-    companySub: "PixelForge Studio",
-    location: "Gurugram, Haryana",
-    badges: ["Full-time", "Hybrid"],
-    salary: "₹9L - ₹14L/year",
-  },
-];
+import { fetchPublicJobs } from "@/lib/api";
 
 export default function RecommendedJobs() {
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [savedJobs, setSavedJobs] = useState<Record<string, boolean>>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchPublicJobs()
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setJobs(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching recommended jobs:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const toggleSave = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -135,80 +68,109 @@ export default function RecommendedJobs() {
           </Link>
         </div>
 
-        {/* Horizontal Manual Scrollable Job Cards Track */}
-        <div
-          ref={scrollContainerRef}
-          className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto pb-4 pt-1 scroll-smooth snap-x snap-mandatory cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {jobs.map((job) => {
-            const Icon = job.companyIcon;
-            const isSaved = !!savedJobs[job.id];
-            return (
-              <Link
-                key={job.id}
-                href={`/jobs/${job.id}`}
-                className="w-[270px] sm:w-[310px] shrink-0 snap-start bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.08)] hover:border-blue-300 transition-all duration-200 flex flex-col justify-between group cursor-pointer"
+        {isLoading ? (
+          <div className="flex items-stretch gap-4 overflow-x-auto pb-4 pt-1">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="w-[270px] sm:w-[310px] shrink-0 bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs animate-pulse space-y-4"
               >
-                <div>
-                  {/* Company Row: Logo + Company Name + Heart Save Icon */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${job.iconBg} flex items-center justify-center shadow-xs shrink-0`}
-                      >
-                        <Icon className={`w-5 h-5 ${job.iconColor}`} />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-200" />
+                  <div className="h-4 bg-slate-200 rounded w-24" />
+                </div>
+                <div className="h-4 bg-slate-200 rounded w-40" />
+                <div className="h-3 bg-slate-100 rounded w-32" />
+              </div>
+            ))}
+          </div>
+        ) : jobs.length === 0 ? (
+          <div className="bg-slate-50 rounded-2xl p-8 text-center border border-slate-100 text-slate-500 text-sm">
+            No jobs currently available. Check back soon!
+          </div>
+        ) : (
+          <div
+            ref={scrollContainerRef}
+            className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto pb-4 pt-1 scroll-smooth snap-x snap-mandatory cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {jobs.map((job) => {
+              const jId = job.id || job._id;
+              const isSaved = !!savedJobs[jId];
+              const title = job.title || job.role || "Job Opportunity";
+              const comp = job.company || "Company";
+              const loc = job.location || "Remote";
+              const salary = job.salary
+                ? String(job.salary).includes("₹")
+                  ? String(job.salary)
+                  : `₹ ${job.salary}`
+                : "Competitive";
+              const badges = [job.type || "Full-time", job.workplace || "Remote"];
+
+              return (
+                <Link
+                  key={jId}
+                  href={`/jobs/${jId}`}
+                  className="w-[270px] sm:w-[310px] shrink-0 snap-start bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.08)] hover:border-blue-300 transition-all duration-200 flex flex-col justify-between group cursor-pointer"
+                >
+                  <div>
+                    {/* Company Row: Logo + Company Name + Heart Save Icon */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100">
+                          {comp.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-bold text-slate-900 text-sm truncate">
+                          {comp}
+                        </span>
                       </div>
-                      <span className="font-bold text-slate-900 text-sm truncate">
-                        {job.company}
-                      </span>
+
+                      <button
+                        type="button"
+                        onClick={(e) => toggleSave(jId, e)}
+                        aria-label={isSaved ? "Unsave job" : "Save job"}
+                        title={isSaved ? "Saved" : "Save Job"}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-50 transition-colors cursor-pointer"
+                      >
+                        <Heart
+                          className={`w-4 h-4 transition-colors ${
+                            isSaved ? "fill-rose-500 text-rose-500" : ""
+                          }`}
+                        />
+                      </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => toggleSave(job.id, e)}
-                      aria-label={isSaved ? "Unsave job" : "Save job"}
-                      title={isSaved ? "Saved" : "Save Job"}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-50 transition-colors cursor-pointer"
-                    >
-                      <Heart
-                        className={`w-4 h-4 transition-colors ${
-                          isSaved ? "fill-rose-500 text-rose-500" : ""
-                        }`}
-                      />
-                    </button>
+                    {/* Job Title */}
+                    <h3 className="font-bold text-slate-900 text-base sm:text-lg mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                      {title}
+                    </h3>
+
+                    {/* Location & Tags Meta Row */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">
+                        {loc} • {badges.filter(Boolean).join(" • ")}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Job Title */}
-                  <h3 className="font-bold text-slate-900 text-base sm:text-lg mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                    {job.role}
-                  </h3>
-
-                  {/* Location & Tags Meta Row */}
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">
-                      {job.location} • {job.badges.join(" • ")}
+                  {/* Salary Row (at the bottom of card) */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] text-slate-400 block font-medium">Offered Salary</span>
+                      <span className="text-sm sm:text-base font-extrabold text-slate-900">
+                        {salary}
+                      </span>
+                    </div>
+                    <span className="text-xs font-semibold text-blue-600 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5">
+                      View
+                      <ArrowRight className="w-3 h-3" />
                     </span>
                   </div>
-                </div>
-
-                {/* Salary Row (at the bottom of card) */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] text-slate-400 block font-medium">Offered Salary</span>
-                    <span className="text-sm sm:text-base font-extrabold text-slate-900">
-                      {job.salary}
-                    </span>
-                  </div>
-                  <span className="text-xs font-semibold text-blue-600 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5">
-                    View
-                    <ArrowRight className="w-3 h-3" />
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

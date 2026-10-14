@@ -13,6 +13,7 @@ export interface UserSession {
   languages?: string;
   targetRole?: string;
   experience?: string;
+  education?: string;
   highestQualification?: string;
   course?: string;
   courseType?: string;
@@ -791,6 +792,192 @@ export function getEffectiveCompanyPermissions(company?: {
     result = { ...result, ...company.permissions };
   }
   return result;
+}
+
+// ================= PUBLIC JOBS & COMPANIES APIs =================
+
+export async function fetchPublicJobs(params?: Record<string, string>): Promise<any[]> {
+  try {
+    const query = params ? '?' + new URLSearchParams(params).toString() : '';
+    const res = await fetch(`${API_BASE_URL}/jobs${query}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.jobs || [];
+  } catch (error) {
+    console.error('fetchPublicJobs error:', error);
+    return [];
+  }
+}
+
+export async function fetchPublicJobById(id: string): Promise<any | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/${id}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.job || null;
+  } catch (error) {
+    console.error('fetchPublicJobById error:', error);
+    return null;
+  }
+}
+
+export async function createPublicJob(payload: any): Promise<{ success: boolean; message: string; job?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('createPublicJob error:', error);
+    return { success: false, message: 'Failed to post job to database' };
+  }
+}
+
+export async function fetchPublicCompanies(params?: Record<string, string>): Promise<any[]> {
+  try {
+    const query = params ? '?' + new URLSearchParams(params).toString() : '';
+    const res = await fetch(`${API_BASE_URL}/companies${query}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.companies || [];
+  } catch (error) {
+    console.error('fetchPublicCompanies error:', error);
+    return [];
+  }
+}
+
+export async function fetchPublicCompanyById(id: string): Promise<{ company: any; jobs: any[] } | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/companies/${id}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error('fetchPublicCompanyById error:', error);
+    return null;
+  }
+}
+
+// ================= CANDIDATE APPLICATIONS & SAVED JOBS =================
+
+export async function submitJobApplication(jobId: string, payload: any): Promise<{ success: boolean; message: string; application?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (err: any) {
+    console.error('submitJobApplication error:', err);
+    return { success: false, message: 'Could not connect to application service.' };
+  }
+}
+
+export async function fetchCandidateApplicationsFromDB(email?: string): Promise<any[]> {
+  try {
+    if (!email) return [];
+    const res = await fetch(`${API_BASE_URL}/jobs/applied/candidate?email=${encodeURIComponent(email)}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.applications || [];
+  } catch (err) {
+    console.error('fetchCandidateApplications error:', err);
+    return [];
+  }
+}
+
+export function getLocalAppliedJobs(uid: string): any[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(`candidate_applied_jobs_${uid}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalAppliedJob(uid: string, jobItem: any): any[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const current = getLocalAppliedJobs(uid);
+    const existingIdx = current.findIndex((j: any) => (j.id || j.jobId) === (jobItem.id || jobItem.jobId));
+    let updated;
+    if (existingIdx >= 0) {
+      updated = [...current];
+      updated[existingIdx] = { ...updated[existingIdx], ...jobItem };
+    } else {
+      updated = [jobItem, ...current];
+    }
+    localStorage.setItem(`candidate_applied_jobs_${uid}`, JSON.stringify(updated));
+    window.dispatchEvent(new Event('applied_jobs_change'));
+    return updated;
+  } catch {
+    return [];
+  }
+}
+
+export function getLocalSavedJobs(uid: string): any[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(`candidate_saved_jobs_${uid}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function toggleLocalSavedJob(uid: string, jobItem: any): { saved: boolean; list: any[] } {
+  if (typeof window === 'undefined') return { saved: false, list: [] };
+  try {
+    const current = getLocalSavedJobs(uid);
+    const jId = jobItem.id || jobItem._id || jobItem.jobId;
+    const exists = current.some((j: any) => (j.id || j._id || j.jobId) === jId);
+    let updated;
+    let saved;
+    if (exists) {
+      updated = current.filter((j: any) => (j.id || j._id || j.jobId) !== jId);
+      saved = false;
+    } else {
+      updated = [jobItem, ...current];
+      saved = true;
+    }
+    localStorage.setItem(`candidate_saved_jobs_${uid}`, JSON.stringify(updated));
+    window.dispatchEvent(new Event('saved_jobs_change'));
+    return { saved, list: updated };
+  } catch {
+    return { saved: false, list: [] };
+  }
+}
+
+export function getLocalCandidateMessages(uid: string): any[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(`candidate_messages_${uid}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalCandidateMessages(uid: string, messages: any[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`candidate_messages_${uid}`, JSON.stringify(messages));
+    window.dispatchEvent(new Event('messages_change'));
+  } catch {}
 }
 
 

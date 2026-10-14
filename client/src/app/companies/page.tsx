@@ -5,8 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { companiesList, Company } from "@/data/companiesData";
-import { jobsList } from "@/data/jobsData";
+import { fetchPublicCompanies } from "@/lib/api";
 import {
   Search,
   MapPin,
@@ -27,9 +26,28 @@ import {
 } from "lucide-react";
 
 export default function CompaniesPage() {
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("All Locations");
   const [selectedIndustry, setSelectedIndustry] = useState("All Industries");
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchPublicCompanies()
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setCompanies(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching companies:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
   const [industryDropdownOpen, setIndustryDropdownOpen] = useState(false);
@@ -79,18 +97,18 @@ export default function CompaniesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filtered = companiesList.filter((c) => {
+  const filtered = companies.filter((c) => {
     const matchesSearch =
       !search ||
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.industry.toLowerCase().includes(search.toLowerCase()) ||
-      c.location.toLowerCase().includes(search.toLowerCase());
+      (c.name && c.name.toLowerCase().includes(search.toLowerCase())) ||
+      (c.industry && c.industry.toLowerCase().includes(search.toLowerCase())) ||
+      (c.location && c.location.toLowerCase().includes(search.toLowerCase()));
     const matchesLocation =
       selectedLocation === "All Locations" ||
-      c.location.toLowerCase().includes(selectedLocation.toLowerCase());
+      (c.location && c.location.toLowerCase().includes(selectedLocation.toLowerCase()));
     const matchesIndustry =
       selectedIndustry === "All Industries" ||
-      c.industry.toLowerCase().includes(selectedIndustry.toLowerCase());
+      (c.industry && c.industry.toLowerCase().includes(selectedIndustry.toLowerCase()));
     return matchesSearch && matchesLocation && matchesIndustry;
   });
 
@@ -591,20 +609,45 @@ export default function CompaniesPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((comp) => {
-            // Count actual open jobs for this specific company
-            const actualOpenJobs = jobsList.filter(
-              (j) =>
-                j.company.toLowerCase().includes(comp.name.toLowerCase()) ||
-                comp.name.toLowerCase().includes(j.company.toLowerCase())
-            );
-            const openCount = actualOpenJobs.length > 0 ? actualOpenJobs.length : comp.openRoles;
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs animate-pulse space-y-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-200" />
+                  <div className="space-y-2 flex-1">
+                    <div className="h-4 bg-slate-200 rounded w-2/3" />
+                    <div className="h-3 bg-slate-100 rounded w-1/3" />
+                  </div>
+                </div>
+                <div className="h-3 bg-slate-100 rounded w-full" />
+                <div className="h-3 bg-slate-100 rounded w-4/5" />
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs max-w-xl mx-auto my-8">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
+              <Building2 className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">No Companies Found</h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+              No registered hiring companies matched your filter criteria. Try searching for a different keyword or location.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((comp) => {
+            const openCount = typeof comp.openRoles === "number" ? comp.openRoles : (parseInt(comp.openRoles, 10) || 0);
+            const compId = comp.id || comp._id;
 
             return (
               <Link
-                key={comp.id}
-                href={`/companies/${comp.id}`}
+                key={compId}
+                href={`/companies/${compId}`}
                 className="group bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:border-blue-400 hover:shadow-[0_12px_32px_rgba(37,99,235,0.09)] transition-all duration-200 flex flex-col justify-between cursor-pointer"
               >
                 <div>
@@ -659,7 +702,8 @@ export default function CompaniesPage() {
               </Link>
             );
           })}
-        </div>
+          </div>
+        )}
       </main>
 
       <Footer />

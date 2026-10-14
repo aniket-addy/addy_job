@@ -1,57 +1,38 @@
 "use client";
 
-import React from "react";
-import {
-  Layers,
-  Sparkles,
-  Sprout,
-  Globe,
-  Boxes,
-  Triangle,
-} from "lucide-react";
-
-const companies = [
-  {
-    name: "NovaTech",
-    icon: Layers,
-    color: "text-blue-600",
-  },
-  {
-    name: "BrightPath",
-    icon: Sparkles,
-    color: "text-rose-500",
-  },
-  {
-    name: "GreenField",
-    icon: Sprout,
-    color: "text-emerald-600",
-  },
-  {
-    name: "Skyline",
-    icon: Globe,
-    color: "text-sky-500",
-  },
-  {
-    name: "PixelForge",
-    icon: Boxes,
-    color: "text-purple-600",
-  },
-  {
-    name: "Apex Labs",
-    icon: Triangle,
-    color: "text-cyan-600",
-  },
-];
-
-// Duplicate list 4 times for seamless continuous loop on any screen width
-const marqueeList = [
-  ...companies,
-  ...companies,
-  ...companies,
-  ...companies,
-];
+import React, { useState, useEffect } from "react";
+import { Building2 } from "lucide-react";
+import { fetchPublicCompanies } from "@/lib/api";
 
 export default function TopCompanies() {
+  const [companies, setCompanies] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchPublicCompanies()
+      .then((data) => {
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          setCompanies(data);
+        }
+      })
+      .catch((err) => console.error("Error fetching companies:", err));
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (companies.length === 0) {
+    return null;
+  }
+
+  // Duplicate list for smooth marquee
+  const marqueeList = [
+    ...companies,
+    ...companies,
+    ...companies,
+    ...companies,
+  ];
+
   return (
     <section className="py-12 sm:py-16 bg-slate-50/50 overflow-hidden">
       {/* Inline styles for guaranteed infinite marquee animation */}
@@ -82,26 +63,25 @@ export default function TopCompanies() {
             Trusted by Top Companies
           </h2>
           <p className="text-slate-500 text-sm mt-1">
-            Join 5,000+ hiring companies
+            Hiring actively on AddyJob
           </p>
         </div>
 
-        {/* Infinite Scrolling Logos Container (Transparent Background) */}
+        {/* Infinite Scrolling Logos Container */}
         <div className="relative py-2 sm:py-3 overflow-hidden">
-          {/* Continuous Moving Track */}
           <div className="infinite-marquee-slider flex items-center gap-12 sm:gap-16 pr-12 sm:pr-16">
             {marqueeList.map((comp, idx) => {
-              const Icon = comp.icon;
+              const compName = comp.name || "Company";
               return (
                 <div
-                  key={`${comp.name}-${idx}`}
+                  key={`${compName}-${idx}`}
                   className="flex items-center gap-3 shrink-0 opacity-80 hover:opacity-100 transition-opacity cursor-pointer group"
                 >
-                  <Icon
-                    className={`w-6 h-6 ${comp.color} transition-transform group-hover:scale-110`}
-                  />
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                    {compName.charAt(0).toUpperCase()}
+                  </div>
                   <span className="font-bold text-slate-800 text-base sm:text-lg tracking-tight select-none">
-                    {comp.name}
+                    {compName}
                   </span>
                 </div>
               );

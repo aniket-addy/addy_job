@@ -82,14 +82,6 @@ export default function JobCategories() {
               Find opportunities in your area of expertise and grow your career.
             </p>
           </div>
-
-          <Link
-            href="/jobs"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group self-start sm:self-auto"
-          >
-            <span>View All Categories</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </Link>
         </div>
 
         {/* Categories Grid */}

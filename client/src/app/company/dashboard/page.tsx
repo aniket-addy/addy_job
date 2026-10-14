@@ -58,6 +58,8 @@ import {
   fetchCurrentUser,
   updateUserProfile,
   fetchAdminPlans,
+  fetchPublicJobs,
+  createPublicJob,
 } from "@/lib/api";
 
 // Types
@@ -634,6 +636,22 @@ export default function CompanyDashboardPage() {
             setJobs([]);
           }
 
+          // Authoritative jobs posted by this company from MongoDB
+          const cName = u.companyName || u.name;
+          fetchPublicJobs({ companyId: uid }).then((dbJobs) => {
+            if (Array.isArray(dbJobs) && dbJobs.length > 0) {
+              setJobs(dbJobs);
+              localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(dbJobs));
+            } else if (cName) {
+              fetchPublicJobs({ company: cName }).then((nameJobs) => {
+                if (Array.isArray(nameJobs) && nameJobs.length > 0) {
+                  setJobs(nameJobs);
+                  localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(nameJobs));
+                }
+              });
+            }
+          }).catch((err) => console.warn("Error fetching company jobs:", err));
+
           const savedApplicants = localStorage.getItem(`company_applicants_data_${uid}`);
           if (savedApplicants) {
             try {
@@ -867,17 +885,21 @@ export default function CompanyDashboardPage() {
       showToast(`Job posting "${jobTitle}" updated successfully!`);
     } else {
       // Create new job
+      const user = getStoredUser();
+      const uid = (user as any)?._id || user?.id || user?.userId || "";
+      const effectiveCompany = companyName || user?.companyName || user?.name || "Company";
+
       const newJob: PostedJob = {
         id: `JOB-${Math.floor(100 + Math.random() * 900)}`,
         title: jobTitle,
         department: jobDepartment,
-        location: jobLocation,
-        workplace: jobWorkplace,
-        type: jobType,
-        experience: jobExperience,
-        salary: jobSalary,
+        location: jobLocation || "Remote",
+        workplace: jobWorkplace || "Hybrid",
+        type: jobType || "Full-time",
+        experience: jobExperience || "1-3 years",
+        salary: jobSalary || "Competitive",
         openings: Number(jobOpenings) || 1,
-        postedBy: jobPostedBy,
+        postedBy: jobPostedBy || effectiveCompany,
         tags: parsedTags.length > 0 ? parsedTags : ["Engineering", "Tech"],
         description: jobDescription,
         responsibilities: parsedResponsibilities,
@@ -887,12 +909,40 @@ export default function CompanyDashboardPage() {
         status: "Active",
         postedOn: "Just now",
       };
+
+      // Persist to MongoDB backend
+      createPublicJob({
+        title: jobTitle,
+        company: effectiveCompany,
+        companyId: uid,
+        department: jobDepartment,
+        location: jobLocation || "Remote",
+        workplace: jobWorkplace || "Hybrid",
+        type: jobType || "Full-time",
+        experience: jobExperience || "1-3 years",
+        salary: jobSalary || "Competitive",
+        openings: Number(jobOpenings) || 1,
+        postedBy: jobPostedBy || effectiveCompany,
+        tags: parsedTags.length > 0 ? parsedTags : ["Engineering", "Tech"],
+        description: jobDescription,
+        responsibilities: parsedResponsibilities,
+        requirements: parsedRequirements,
+        benefits: parsedBenefits,
+        status: "Active",
+      }).then((res) => {
+        if (res?.success && res.job) {
+          const dbJob = res.job;
+          setJobs((current) =>
+            current.map((j) => (j.id === newJob.id ? { ...j, id: dbJob.id || dbJob._id || j.id } : j))
+          );
+        }
+      }).catch((err) => console.error("Error creating job in DB:", err));
+
       setJobs((prev) => {
         const updated = [newJob, ...prev];
         try {
-          const user = getStoredUser();
-          const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
-          if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
+          const uKey = uid || user?.email;
+          if (uKey) localStorage.setItem(`company_posted_jobs_${uKey}`, JSON.stringify(updated));
         } catch (err) {}
         return updated;
       });

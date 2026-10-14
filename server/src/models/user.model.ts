@@ -12,6 +12,7 @@ export interface IUser extends Document {
   bio?: string;
   targetRole?: string;
   experience?: string;
+  education?: string;
   highestQualification?: string;
   course?: string;
   courseType?: string;
@@ -107,6 +108,11 @@ const userSchema = new Schema<IUser>(
       default: '',
     },
     experience: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    education: {
       type: String,
       trim: true,
       default: '',

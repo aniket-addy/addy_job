@@ -8,6 +8,7 @@ export interface IUserProfile extends Document {
   workStatus?: string;
   highestQualification?: string;
   course?: string;
+  education?: string;
   courseType?: string;
   specialization?: string;
   university?: string;
@@ -69,6 +70,10 @@ const userProfileSchema = new Schema<IUserProfile>(
       trim: true,
     },
     course: {
+      type: String,
+      trim: true,
+    },
+    education: {
       type: String,
       trim: true,
     },
