@@ -22,6 +22,7 @@ export interface IUserProfile extends Document {
   languages?: string;
   resumeName?: string;
   resumeDate?: string;
+  resumeUrl?: string;
   preferredLocation?: string;
   expectedSalary?: string;
   // Company fields if role is company
@@ -126,6 +127,9 @@ const userProfileSchema = new Schema<IUserProfile>(
     resumeDate: {
       type: String,
       trim: true,
+    },
+    resumeUrl: {
+      type: String,
     },
     preferredLocation: {
       type: String,

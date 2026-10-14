@@ -21,11 +21,13 @@ import {
   X,
   TrendingUp,
   Sparkles,
+  Users,
 } from "lucide-react";
 
 export type AdminTab =
   | "dashboard"
   | "companies"
+  | "jobseekers"
   | "subscriptions"
   | "jobs"
   | "applications"
@@ -41,6 +43,7 @@ interface AdminSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   pendingCompaniesCount?: number;
+  jobSeekersCount?: number;
 }
 
 export default function AdminSidebar({
@@ -49,6 +52,7 @@ export default function AdminSidebar({
   isOpen,
   onClose,
   pendingCompaniesCount = 12,
+  jobSeekersCount = 0,
 }: AdminSidebarProps) {
   const router = useRouter();
 
@@ -68,6 +72,12 @@ export default function AdminSidebar({
       label: "Companies",
       icon: Building2,
       badge: pendingCompaniesCount > 0 ? pendingCompaniesCount : undefined,
+    },
+    {
+      id: "jobseekers" as AdminTab,
+      label: "Job Seekers",
+      icon: Users,
+      badge: jobSeekersCount > 0 ? jobSeekersCount : undefined,
     },
     {
       id: "plans" as AdminTab,

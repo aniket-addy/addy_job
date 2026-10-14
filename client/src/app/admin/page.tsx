@@ -32,6 +32,7 @@ import CreatePlanModal from "@/components/admin/CreatePlanModal";
 import MobileBottomNav from "@/components/admin/MobileBottomNav";
 import PlansPricingManager, { PlanItem } from "@/components/admin/PlansPricingManager";
 import PermissionsSettingsManager from "@/components/admin/PermissionsSettingsManager";
+import JobSeekersManager from "@/components/admin/JobSeekersManager";
 import {
   getStoredUser,
   fetchAdminOverview,
@@ -46,6 +47,9 @@ import {
   createAdminPlan,
   updateAdminPlan,
   deleteAdminPlan,
+  fetchAdminJobSeekers,
+  deleteAdminJobSeeker,
+  JobSeekerRecord,
   AdminOverviewStats,
 } from "@/lib/api";
 
@@ -79,12 +83,13 @@ export default function SuperAdminPage() {
   const loadDatabaseData = async () => {
     try {
       setIsLoading(true);
-      const [overview, companies, jobsData, appsData, plansData] = await Promise.all([
+      const [overview, companies, jobsData, appsData, plansData, jobSeekersData] = await Promise.all([
         fetchAdminOverview(),
         fetchAdminCompanies(),
         fetchAdminJobs(),
         fetchAdminApplications(),
         fetchAdminPlans(),
+        fetchAdminJobSeekers(),
       ]);
 
       if (overview) {
@@ -106,6 +111,10 @@ export default function SuperAdminPage() {
 
       if (Array.isArray(plansData)) {
         setPlans(plansData);
+      }
+
+      if (Array.isArray(jobSeekersData)) {
+        setJobSeekers(jobSeekersData);
       }
     } catch (err) {
       console.error("Failed to load admin data from DB:", err);
@@ -129,6 +138,7 @@ export default function SuperAdminPage() {
   // Real Database Data States (default empty arrays, no mock/dummy records)
   const [pendingCompanies, setPendingCompanies] = useState<PendingCompany[]>([]);
   const [allCompanies, setAllCompanies] = useState<CompanyRecord[]>([]);
+  const [jobSeekers, setJobSeekers] = useState<JobSeekerRecord[]>([]);
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [jobs, setJobs] = useState<JobPosting[]>([]);
 
@@ -283,6 +293,23 @@ export default function SuperAdminPage() {
     }
   };
 
+  const handleDeleteJobSeeker = async (id: string, name: string) => {
+    try {
+      const res = await deleteAdminJobSeeker(id);
+      if (res.success) {
+        showToast(`Candidate "${name}" removed successfully.`, "error");
+        setJobSeekers((prev) => prev.filter((j) => j.id !== id));
+        const overview = await fetchAdminOverview();
+        if (overview) setOverviewStats(overview);
+      } else {
+        showToast(res.message || "Failed to remove candidate", "error");
+      }
+    } catch (err) {
+      console.error("Delete candidate error:", err);
+      showToast("Failed to remove candidate", "error");
+    }
+  };
+
   const pendingCount = pendingCompanies.filter((c) => c.status === "Pending").length;
 
   return (
@@ -316,6 +343,7 @@ export default function SuperAdminPage() {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           pendingCompaniesCount={pendingCount}
+          jobSeekersCount={jobSeekers.length}
         />
 
         {/* 2. Right Content Area */}
@@ -455,6 +483,15 @@ export default function SuperAdminPage() {
                     prev.map((c) => (c.id === updated.id ? updated : c))
                   );
                 }}
+              />
+            )}
+
+            {/* Dedicated Job Seekers Directory Tab */}
+            {activeTab === "jobseekers" && (
+              <JobSeekersManager
+                jobSeekers={jobSeekers}
+                onDeleteJobSeeker={handleDeleteJobSeeker}
+                onRefresh={loadDatabaseData}
               />
             )}
 

@@ -28,6 +28,7 @@ export interface IUser extends Document {
   expectedSalary?: string;
   resumeName?: string;
   resumeDate?: string;
+  resumeUrl?: string;
   appliedJobsCount?: number;
   savedJobsCount?: number;
   interviewsCount?: number;
@@ -187,6 +188,10 @@ const userSchema = new Schema<IUser>(
     resumeDate: {
       type: String,
       trim: true,
+      default: '',
+    },
+    resumeUrl: {
+      type: String,
       default: '',
     },
     appliedJobsCount: {

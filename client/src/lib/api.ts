@@ -28,6 +28,7 @@ export interface UserSession {
   expectedSalary?: string;
   resumeName?: string;
   resumeDate?: string;
+  resumeUrl?: string;
   appliedJobsCount?: number;
   savedJobsCount?: number;
   interviewsCount?: number;
@@ -325,6 +326,64 @@ export async function deleteAdminCompany(
   } catch (error: any) {
     console.error('deleteAdminCompany error:', error);
     return { success: false, message: 'Failed to delete company' };
+  }
+}
+
+export interface JobSeekerRecord {
+  id: string;
+  userId?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  headline?: string;
+  targetRole?: string;
+  experience?: string;
+  location?: string;
+  highestQualification?: string;
+  course?: string;
+  courseType?: string;
+  specialization?: string;
+  university?: string;
+  startingYear?: string;
+  passingYear?: string;
+  gradingSystem?: string;
+  gradeScore?: string;
+  skills?: string[];
+  languages?: string;
+  workStatus?: string;
+  expectedSalary?: string;
+  resumeName?: string;
+  resumeDate?: string;
+  resumeUrl?: string;
+  status?: string;
+  registeredOn?: string;
+  avatarBg?: string;
+  avatarLetter?: string;
+}
+
+export async function fetchAdminJobSeekers(): Promise<JobSeekerRecord[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/jobseekers`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.jobSeekers || [];
+  } catch (error) {
+    console.error('fetchAdminJobSeekers error:', error);
+    return [];
+  }
+}
+
+export async function deleteAdminJobSeeker(
+  id: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/jobseekers/${id}`, {
+      method: 'DELETE',
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('deleteAdminJobSeeker error:', error);
+    return { success: false, message: 'Failed to delete candidate' };
   }
 }
 

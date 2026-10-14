@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { User, IUser } from '../models/user.model.js';
 import { UserCredential } from '../models/credential.model.js';
 import { UserProfile } from '../models/profile.model.js';
+import { Application } from '../models/application.model.js';
 import { ensureDBConnection } from '../config/db.js';
 import {
   getNextCustomUserId,
@@ -25,6 +26,33 @@ const generateToken = (user: IUser) => {
     JWT_SECRET,
     { expiresIn: '7d' }
   );
+};
+
+const getInitials = (name: string): string => {
+  if (!name) return 'CD';
+  const parts = name.trim().split(' ');
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+};
+
+const bgColors = [
+  'bg-blue-600',
+  'bg-indigo-600',
+  'bg-emerald-600',
+  'bg-violet-600',
+  'bg-amber-500',
+  'bg-rose-600',
+  'bg-teal-600',
+  'bg-purple-600',
+];
+
+const getColorForName = (name: string): string => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % bgColors.length;
+  return bgColors[index];
 };
 
 // Format user object to return without password
@@ -56,6 +84,7 @@ const formatUser = (user: IUser) => {
     expectedSalary: user.expectedSalary || '',
     resumeName: user.resumeName || '',
     resumeDate: user.resumeDate || '',
+    resumeUrl: user.resumeUrl || '',
     appliedJobsCount: user.appliedJobsCount ?? 0,
     savedJobsCount: user.savedJobsCount ?? 0,
     interviewsCount: user.interviewsCount ?? 0,
@@ -521,6 +550,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       workStatus,
       resumeName,
       resumeDate,
+      resumeUrl,
       // Company profile fields
       companyName,
       workEmail,
@@ -558,6 +588,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     if (workStatus !== undefined) user.workStatus = workStatus;
     if (resumeName !== undefined) user.resumeName = resumeName;
     if (resumeDate !== undefined) user.resumeDate = resumeDate;
+    if (resumeUrl !== undefined) user.resumeUrl = resumeUrl;
 
     if (skills !== undefined) {
       user.skills = Array.isArray(skills)
@@ -568,6 +599,47 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     }
 
     await user.save();
+
+    // If job seeker has a resume uploaded, sync to Application so admin immediately sees it
+    if (user.role === 'job_seeker' && (resumeName || user.resumeName)) {
+      const activeResumeName = resumeName || user.resumeName || '';
+      const activeResumeUrl = resumeUrl !== undefined ? resumeUrl : user.resumeUrl || '';
+      try {
+        await Application.findOneAndUpdate(
+          {
+            $or: [
+              { candidateId: user._id },
+              { candidateEmail: user.email },
+            ],
+          },
+          {
+            candidateName: user.name || 'Candidate',
+            candidateEmail: user.email,
+            candidatePhone: user.phone || '',
+            avatarLetter: getInitials(user.name || 'Candidate'),
+            avatarBg: getColorForName(user.name || 'Candidate'),
+            position: user.headline || user.targetRole || 'Job Seeker',
+            company: 'Candidate Profile Upload',
+            domain: user.specialization || user.targetRole || 'General Pool',
+            experience: user.experience || 'Fresher',
+            skills: user.skills || [],
+            fileName: activeResumeName,
+            resumeUrl: activeResumeUrl,
+            pdfData: activeResumeUrl,
+            appliedOn: new Date().toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }),
+            status: 'New',
+            candidateId: user._id,
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (appErr: any) {
+        console.warn('Warning syncing Application on resume upload:', appErr.message);
+      }
+    }
 
     // Sync to UserProfile collection & disk backup
     const customId = user.userId || user.customId || 'us01';
@@ -584,6 +656,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
           languages: user.languages,
           resumeName: user.resumeName,
           resumeDate: user.resumeDate,
+          resumeUrl: user.resumeUrl,
           experience: user.experience,
           skills: user.skills,
           highestQualification: user.highestQualification,

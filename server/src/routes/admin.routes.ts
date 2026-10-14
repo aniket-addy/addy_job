@@ -17,6 +17,8 @@ import {
   createAdminPlan,
   updateAdminPlan,
   deleteAdminPlan,
+  getAdminJobSeekers,
+  deleteAdminJobSeeker,
 } from '../controllers/admin.controller.js';
 
 const router = Router();
@@ -29,6 +31,10 @@ router.get('/companies', getAdminCompanies);
 router.patch('/companies/:id/status', updateCompanyStatus);
 router.patch('/companies/:id/permissions', updateCompanyPermissions);
 router.delete('/companies/:id', deleteCompany);
+
+// Job Seekers management
+router.get('/jobseekers', getAdminJobSeekers);
+router.delete('/jobseekers/:id', deleteAdminJobSeeker);
 
 // Permissions & Auto-approval Settings
 router.get('/permissions-settings', getAdminPermissionsSettings);

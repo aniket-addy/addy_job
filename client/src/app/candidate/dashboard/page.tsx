@@ -105,6 +105,7 @@ export default function CandidateDashboardPage() {
   const [skills, setSkills] = useState<string[]>([]);
   const [resumeName, setResumeName] = useState("");
   const [resumeDate, setResumeDate] = useState("");
+  const [resumeUrl, setResumeUrl] = useState("");
 
   // Real backend metrics
   const [appliedJobsCount, setAppliedJobsCount] = useState(0);
@@ -155,6 +156,7 @@ export default function CandidateDashboardPage() {
 
     setResumeName(u.resumeName || "");
     setResumeDate(u.resumeDate || "");
+    setResumeUrl(u.resumeUrl || "");
 
     setAppliedJobsCount(u.appliedJobsCount ?? 0);
     setSavedJobsCount(u.savedJobsCount ?? 0);
@@ -255,9 +257,26 @@ export default function CandidateDashboardPage() {
     const input = document.getElementById("resume-file-input") as HTMLInputElement;
     let fileName = "";
     let fileMeta = "";
+    let fileData = "";
+
     if (input?.files && input.files[0]) {
-      fileName = input.files[0].name;
-      fileMeta = "Updated just now • " + (input.files[0].size / (1024 * 1024)).toFixed(1) + " MB";
+      const file = input.files[0];
+      fileName = file.name;
+      fileMeta = "Updated just now • " + (file.size / (1024 * 1024)).toFixed(1) + " MB";
+
+      // Read file data URL if file size is under 8 MB
+      if (file.size < 8 * 1024 * 1024) {
+        try {
+          fileData = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string) || "");
+            reader.onerror = () => resolve("");
+            reader.readAsDataURL(file);
+          });
+        } catch (err) {
+          console.warn("Could not read file data URL:", err);
+        }
+      }
     } else {
       fileName = `${(name || "Candidate").replace(/\s+/g, "_")}_Resume.pdf`;
       fileMeta = "Updated just now • 1.2 MB";
@@ -267,11 +286,15 @@ export default function CandidateDashboardPage() {
       const res = await updateUserProfile({
         resumeName: fileName,
         resumeDate: fileMeta,
+        resumeUrl: fileData || undefined,
       });
       if (res.success && res.user) {
         populateFromUser(res.user);
         setUploadResumeModalOpen(false);
         showToast("Resume uploaded and saved to profile!");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("resume_uploaded"));
+        }
       } else {
         showToast(res.message || "Failed to save resume.");
       }
@@ -1243,7 +1266,18 @@ export default function CandidateDashboardPage() {
                     </div>
 
                     <button
-                      onClick={() => showToast(`Downloading ${resumeName}...`)}
+                      onClick={() => {
+                        if (resumeUrl) {
+                          const a = document.createElement("a");
+                          a.href = resumeUrl;
+                          a.download = resumeName || "Resume.pdf";
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                        } else {
+                          showToast(`Downloading ${resumeName}...`);
+                        }
+                      }}
                       className="w-9 h-9 rounded-xl hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shrink-0 cursor-pointer"
                       title="Download Resume"
                     >

@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { User } from '../models/user.model.js';
+import { UserCredential } from '../models/credential.model.js';
+import { UserProfile } from '../models/profile.model.js';
 import { Job } from '../models/job.model.js';
 import { Application } from '../models/application.model.js';
 import { Plan } from '../models/plan.model.js';
@@ -336,24 +338,60 @@ export const getAdminApplications = async (req: Request, res: Response) => {
 
     const apps = await Application.find({}).sort({ createdAt: -1 });
 
-    const formatted = apps.map((a: any) => ({
-      id: a._id.toString(),
-      candidateName: a.candidateName,
-      candidateEmail: a.candidateEmail || '',
-      candidatePhone: a.candidatePhone || '',
-      avatarLetter: a.avatarLetter || getInitials(a.candidateName),
-      avatarBg: a.avatarBg || getColorForName(a.candidateName),
-      position: a.position,
-      company: a.company,
-      appliedOn: a.appliedOn || 'Recent',
-      status: a.status,
-      resumeUrl: a.resumeUrl || '',
-      domain: a.domain || '',
-      experience: a.experience || '',
-      skills: a.skills || [],
-      pdfData: a.pdfData || '',
-      fileName: a.fileName || '',
-    }));
+    // Also include any registered job seekers who uploaded resumes from their profile
+    const candidatesWithResume = await User.find({
+      role: 'job_seeker',
+      resumeName: { $exists: true, $ne: '' },
+    }).sort({ updatedAt: -1 });
+
+    const existingEmails = new Set(apps.map((a: any) => (a.candidateEmail || '').toLowerCase().trim()));
+    const existingIds = new Set(apps.map((a: any) => (a.candidateId ? String(a.candidateId) : '')));
+
+    const profileResumes = candidatesWithResume
+      .filter((u) => !existingEmails.has(u.email.toLowerCase().trim()) && !existingIds.has(String(u._id)))
+      .map((u) => {
+        const cName = u.name || 'Candidate';
+        return {
+          id: u._id.toString(),
+          candidateName: cName,
+          candidateEmail: u.email,
+          candidatePhone: u.phone || '',
+          avatarLetter: getInitials(cName),
+          avatarBg: getColorForName(cName),
+          position: u.headline || u.targetRole || 'Candidate Profile',
+          company: 'Candidate Profile Upload',
+          appliedOn: u.resumeDate ? u.resumeDate.split('•')[0].trim() : 'Recent',
+          status: 'New',
+          resumeUrl: u.resumeUrl || '',
+          domain: u.specialization || u.targetRole || 'General Pool',
+          experience: u.experience || 'Fresher',
+          skills: u.skills || [],
+          pdfData: u.resumeUrl || '',
+          fileName: u.resumeName || '',
+        };
+      });
+
+    const formatted = [
+      ...apps.map((a: any) => ({
+        id: a._id.toString(),
+        candidateName: a.candidateName,
+        candidateEmail: a.candidateEmail || '',
+        candidatePhone: a.candidatePhone || '',
+        avatarLetter: a.avatarLetter || getInitials(a.candidateName),
+        avatarBg: a.avatarBg || getColorForName(a.candidateName),
+        position: a.position,
+        company: a.company,
+        appliedOn: a.appliedOn || 'Recent',
+        status: a.status,
+        resumeUrl: a.resumeUrl || '',
+        domain: a.domain || '',
+        experience: a.experience || '',
+        skills: a.skills || [],
+        pdfData: a.pdfData || '',
+        fileName: a.fileName || '',
+      })),
+      ...profileResumes,
+    ];
 
     res.json({ success: true, applications: formatted });
   } catch (error: any) {
@@ -833,6 +871,99 @@ export const updateAdminPermissionsSettings = async (req: Request, res: Response
   } catch (error: any) {
     console.error('updateAdminPermissionsSettings error:', error);
     res.status(500).json({ success: false, message: 'Failed to update permissions settings' });
+  }
+};
+
+// @desc    Get all registered job seekers
+// @route   GET /api/admin/jobseekers
+export const getAdminJobSeekers = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+
+    const users = await User.find({
+      $or: [{ role: 'job_seeker' }, { role: { $nin: ['company', 'admin'] } }],
+    }).sort({ createdAt: -1 });
+
+    const jobSeekers = users.map((u) => {
+      const name = u.name || 'Candidate';
+      return {
+        id: u._id.toString(),
+        userId: u.userId || u.customId || 'N/A',
+        name,
+        email: u.email,
+        phone: u.phone || '',
+        headline: u.headline || u.targetRole || 'Job Seeker',
+        targetRole: u.targetRole || '',
+        experience: u.experience || 'Fresher',
+        location: u.preferredLocation || u.location || 'India',
+        highestQualification: u.highestQualification || '',
+        course: u.course || '',
+        courseType: u.courseType || '',
+        specialization: u.specialization || '',
+        university: u.university || '',
+        startingYear: u.startingYear || '',
+        passingYear: u.passingYear || '',
+        gradingSystem: u.gradingSystem || '',
+        gradeScore: u.gradeScore || '',
+        skills: u.skills || [],
+        languages: u.languages || '',
+        workStatus: u.workStatus || '',
+        expectedSalary: u.expectedSalary || '',
+        resumeName: u.resumeName || '',
+        resumeDate: u.resumeDate || '',
+        resumeUrl: u.resumeUrl || '',
+        status: u.status || 'Active',
+        registeredOn: u.createdAt
+          ? new Date(u.createdAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : 'Recent',
+        avatarBg: getColorForName(name),
+        avatarLetter: getInitials(name),
+      };
+    });
+
+    res.json({ success: true, jobSeekers, count: jobSeekers.length });
+  } catch (error: any) {
+    console.error('getAdminJobSeekers error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve job seekers' });
+  }
+};
+
+// @desc    Delete a job seeker
+// @route   DELETE /api/admin/jobseekers/:id
+export const deleteAdminJobSeeker = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'Job seeker not found' });
+      return;
+    }
+
+    const email = user.email;
+    const customId = user.userId || user.customId;
+
+    await User.findByIdAndDelete(id);
+
+    if (customId) {
+      await Promise.all([
+        UserCredential.deleteMany({ $or: [{ userId: customId }, { email }] }).catch(() => {}),
+        UserProfile.deleteMany({ $or: [{ userId: customId }, { email }] }).catch(() => {}),
+      ]);
+    }
+    await Application.deleteMany({
+      $or: [{ candidateId: id }, { candidateEmail: email }],
+    }).catch(() => {});
+
+    res.json({ success: true, message: 'Job seeker removed successfully' });
+  } catch (error: any) {
+    console.error('deleteAdminJobSeeker error:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete job seeker' });
   }
 };
 
