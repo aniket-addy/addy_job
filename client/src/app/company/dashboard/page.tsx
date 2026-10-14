@@ -2500,62 +2500,6 @@ export default function CompanyDashboardPage() {
                 </span>
               </div>
 
-              {/* Current Active Plan Overview Card */}
-              {currentPlan !== "No Active Plan" ? (
-                <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#EDE9FE]/70 via-purple-50/50 to-white border border-[#DDD6FE] shadow-xs hover:shadow-xl hover:shadow-violet-500/10 hover:border-[#7C3AED]/50 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6">
-                  <div>
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#7C3AED] block mb-1">
-                      Current Active Tier
-                    </span>
-                    <h3 className="text-2xl font-black text-slate-900">{currentPlan}</h3>
-                    <p className="text-xs text-slate-500 mt-1">{planValidity}</p>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 pt-4 border-t border-slate-200/80 text-xs">
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold">Job Posts</span>
-                        <p className="font-bold text-slate-900">Unlimited</p>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold">
-                          Resume Credits
-                        </span>
-                        <p className="font-bold text-emerald-600">{totalResumesPurchased} / Month</p>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold">Team Seats</span>
-                        <p className="font-bold text-slate-900">5 Recruiters</p>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold">Support</span>
-                        <p className="font-bold text-purple-600">24/7 Dedicated</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      const el = document.getElementById("available-plans-section");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                      else setIsUpgradePlanModalOpen(true);
-                    }}
-                    className="w-full md:w-auto text-center px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-md transition hover:scale-105 cursor-pointer shrink-0"
-                  >
-                    Change / Upgrade Plan
-                  </button>
-                </div>
-              ) : (
-                <div className="p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-slate-50 border border-dashed border-slate-200 text-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-5 h-5 text-slate-400" />
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900">No Active Subscription Plan</h3>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Click any of the tiers below to select and activate your recruitment package.
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* Dynamic Subscription Plans Section (Styled exactly like Image 3, synced with Super Admin) */}
               <div id="available-plans-section" className="pt-2">
