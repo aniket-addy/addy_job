@@ -12,6 +12,7 @@ import {
   getLocalSavedJobs,
   toggleLocalSavedJob,
 } from "@/lib/api";
+import { jobsList } from "@/data/jobsData";
 import {
   Search,
   MapPin,
@@ -54,18 +55,37 @@ function JobsContent() {
     });
     setSavedJobs(map);
 
-    fetchPublicJobs()
-      .then((data) => {
-        if (isMounted && Array.isArray(data)) {
-          setJobs(data);
-        }
-      })
-      .catch((err) => console.error("Error fetching public jobs:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    const loadJobs = () => {
+      fetchPublicJobs()
+        .then((data) => {
+          if (isMounted) {
+            if (Array.isArray(data) && data.length > 0) {
+              setJobs(data);
+            } else {
+              setJobs(jobsList);
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("Error fetching public jobs:", err);
+          if (isMounted) setJobs(jobsList);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    };
+
+    loadJobs();
+
+    window.addEventListener("job_created", loadJobs);
+    window.addEventListener("job_updated", loadJobs);
+    window.addEventListener("storage", loadJobs);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("job_created", loadJobs);
+      window.removeEventListener("job_updated", loadJobs);
+      window.removeEventListener("storage", loadJobs);
     };
   }, []);
 

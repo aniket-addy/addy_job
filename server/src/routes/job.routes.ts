@@ -8,6 +8,7 @@ import {
   applyToJob,
   getCandidateApplications,
 } from '../controllers/job.controller.js';
+import { updateJobStatus } from '../controllers/admin.controller.js';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.get('/:id', getJobById);
 router.post('/', createJob);
 router.post('/:id/apply', applyToJob);
 router.put('/:id', updateJob);
+router.patch('/:id/status', updateJobStatus);
 router.patch('/:id', updateJob);
 router.delete('/:id', deleteJob);
 

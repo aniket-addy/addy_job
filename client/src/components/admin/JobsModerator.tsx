@@ -13,17 +13,30 @@ import {
   Trash2,
   ShieldAlert,
 } from "lucide-react";
+import JobDetailModal from "./JobDetailModal";
 
 export interface JobPosting {
   id: string;
   title: string;
   company: string;
+  companyId?: string;
   type: string;
   location: string;
   salary: string;
-  status: "Active" | "Pending" | "Expired" | "Closed";
+  status: "Active" | "Pending" | "Expired" | "Closed" | "Paused";
   postedOn: string;
   applicantsCount: number;
+  department?: string;
+  workplace?: string;
+  experience?: string;
+  openings?: number | string;
+  postedBy?: string;
+  tags?: string[];
+  skills?: string[];
+  description?: string;
+  responsibilities?: string[];
+  requirements?: string[];
+  benefits?: string[];
 }
 
 interface JobsModeratorProps {
@@ -39,6 +52,13 @@ export default function JobsModerator({
 }: JobsModeratorProps) {
   const [filter, setFilter] = useState<string>("All");
   const [search, setSearch] = useState("");
+  const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  const handleViewJob = (job: JobPosting) => {
+    setSelectedJob(job);
+    setIsDetailModalOpen(true);
+  };
 
   const filteredJobs = jobs.filter((j) => {
     const matchesFilter = filter === "All" || j.status === filter;
@@ -66,7 +86,7 @@ export default function JobsModerator({
 
           {/* Filter Pills */}
           <div className="flex flex-wrap items-center gap-2">
-            {["All", "Active", "Pending", "Expired", "Closed"].map((f) => (
+            {["All", "Active", "Pending", "Paused", "Expired", "Closed"].map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -121,12 +141,16 @@ export default function JobsModerator({
                 filteredJobs.map((j) => (
                   <tr key={j.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2 whitespace-nowrap">
-                        <span className="font-bold text-slate-900">
+                      <div
+                        onClick={() => handleViewJob(j)}
+                        className="flex items-center gap-2 whitespace-nowrap cursor-pointer group"
+                        title="Click to view full job details"
+                      >
+                        <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                           {j.title}
                         </span>
                         <span className="text-slate-300">•</span>
-                        <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                        <span className="text-xs text-slate-500 font-medium flex items-center gap-1 group-hover:text-slate-700 transition-colors">
                           <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           {j.company}
                         </span>
@@ -162,6 +186,8 @@ export default function JobsModerator({
                           j.status === "Active"
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : j.status === "Pending"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : j.status === "Paused"
                             ? "bg-amber-50 text-amber-700 border-amber-200"
                             : j.status === "Expired"
                             ? "bg-slate-100 text-slate-600 border-slate-200"
@@ -174,6 +200,16 @@ export default function JobsModerator({
 
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        {/* Eye Button to inspect job details */}
+                        <button
+                          onClick={() => handleViewJob(j)}
+                          aria-label="View job posting"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-slate-200/90 hover:border-blue-300 rounded-lg transition-all cursor-pointer shadow-2xs"
+                          title="View Job Details"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+
                         {j.status === "Pending" && (
                           <button
                             onClick={() => onToggleStatus(j.id, "Active")}
@@ -201,6 +237,7 @@ export default function JobsModerator({
                           onClick={() => onDeleteJob(j.id)}
                           aria-label="Delete job posting"
                           className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Delete Job"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -213,6 +250,21 @@ export default function JobsModerator({
           </table>
         </div>
       </div>
+
+      {/* Job Details Modal */}
+      <JobDetailModal
+        job={selectedJob}
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedJob(null);
+        }}
+        onToggleStatus={(id, newStatus) => {
+          onToggleStatus(id, newStatus);
+          setSelectedJob((prev) => (prev && prev.id === id ? { ...prev, status: newStatus } : prev));
+        }}
+        onDeleteJob={onDeleteJob}
+      />
     </div>
   );
 }

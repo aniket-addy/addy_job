@@ -42,6 +42,11 @@ export interface UserSession {
   phone?: string;
   gstNumber?: string;
   status?: string;
+  plan?: string;
+  permissions?: any;
+  purchasedResumes?: any[];
+  resumeCredits?: number;
+  resumesUsed?: number;
 }
 
 export interface AuthResponse {
@@ -397,6 +402,102 @@ export async function fetchAdminJobs(): Promise<any[]> {
   } catch (error) {
     console.error('fetchAdminJobs error:', error);
     return [];
+  }
+}
+
+// Create a new job posting on the backend
+export async function createCompanyJob(jobData: any): Promise<{ success: boolean; message: string; job?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobData),
+    });
+    const data = await res.json();
+    if (data.success && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('job_created'));
+      window.dispatchEvent(new Event('storage'));
+    }
+    return data;
+  } catch (error: any) {
+    console.error('createCompanyJob error:', error);
+    return { success: false, message: error.message || 'Failed to post job' };
+  }
+}
+
+// Fetch jobs for a specific company or all jobs
+export async function fetchCompanyJobs(params?: { companyId?: string; company?: string }): Promise<any[]> {
+  try {
+    const query = new URLSearchParams();
+    if (params?.companyId) query.set("companyId", params.companyId);
+    if (params?.company) query.set("company", params.company);
+    const qs = query.toString();
+    const url = qs ? `${API_BASE_URL}/jobs?${qs}` : `${API_BASE_URL}/jobs`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.jobs || [];
+  } catch (error) {
+    console.error('fetchCompanyJobs error:', error);
+    return [];
+  }
+}
+
+// Update existing job posting details
+export async function updateCompanyJob(id: string, jobData: any): Promise<{ success: boolean; message: string; job?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobData),
+    });
+    const data = await res.json();
+    if (data.success && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('job_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+    return data;
+  } catch (error: any) {
+    console.error('updateCompanyJob error:', error);
+    return { success: false, message: error.message || 'Failed to update job' };
+  }
+}
+
+// Update job status (Active, Paused, Closed, Expired)
+export async function updateCompanyJobStatus(id: string, status: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (data.success && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('job_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+    return data;
+  } catch (error: any) {
+    console.error('updateCompanyJobStatus error:', error);
+    return { success: false, message: 'Failed to update job status' };
+  }
+}
+
+// Delete job posting
+export async function deleteCompanyJob(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/${id}`, {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+    if (data.success && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('job_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+    return data;
+  } catch (error: any) {
+    console.error('deleteCompanyJob error:', error);
+    return { success: false, message: 'Failed to delete job' };
   }
 }
 
@@ -980,4 +1081,87 @@ export function saveLocalCandidateMessages(uid: string, messages: any[]): void {
   } catch {}
 }
 
+// Bulk send candidate resumes to a company
+export async function sendBulkResumesToCompany(
+  companyId: string,
+  resumes: any[]
+): Promise<{
+  success: boolean;
+  message: string;
+  sentResumesCount?: number;
+  company?: any;
+  purchasedResumes?: any[];
+}> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/resumes/bulk-send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId, resumes }),
+    });
+    const data = await res.json();
 
+    // Sync to localStorage for instant reactivity in any open dashboard tab
+    if (typeof window !== 'undefined' && data.success) {
+      const storageKey = `company_purchased_resumes_${companyId}`;
+      const existingStr = localStorage.getItem(storageKey);
+      let existing: any[] = [];
+      if (existingStr) {
+        try {
+          existing = JSON.parse(existingStr);
+        } catch (e) {}
+      }
+      const existingIds = new Set(existing.map((r: any) => r.id));
+      const newItems = (data.purchasedResumes || resumes).filter((r: any) => !existingIds.has(r.id)).map((r: any) => ({
+        ...r,
+        candidateName: r.candidateName || r.name || 'Candidate',
+        title: r.title || r.targetRole || r.headline || 'Candidate Profile',
+        experience: r.experience || 'Fresher',
+        location: r.location || 'India',
+        purchasedDate: r.purchasedDate || new Date().toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        email: r.email || r.candidateEmail || `${String(r.name || 'candidate').toLowerCase().replace(/\s+/g, '')}@example.com`,
+        phone: r.phone || r.candidatePhone || '+91 98765 43210',
+        skills: Array.isArray(r.skills)
+          ? r.skills
+          : typeof r.skills === 'string' && r.skills.trim()
+          ? r.skills.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : r.specialization
+          ? [r.specialization]
+          : r.domain
+          ? [r.domain]
+          : [],
+        isUnlocked: Boolean(r.isUnlocked),
+        unlockedAt: r.unlockedAt || '',
+      }));
+      const updatedVault = [...newItems, ...existing];
+      localStorage.setItem(storageKey, JSON.stringify(updatedVault));
+
+      // Also unlock resumes permission locally
+      const permKey = `company_permissions_${companyId}`;
+      const cachedPermStr = localStorage.getItem(permKey);
+      let cachedPerm = {};
+      if (cachedPermStr) {
+        try {
+          cachedPerm = JSON.parse(cachedPermStr);
+        } catch (e) {}
+      }
+      localStorage.setItem(permKey, JSON.stringify({ ...cachedPerm, resumes: true }));
+
+      // Dispatch events
+      window.dispatchEvent(new Event('purchased_resumes_updated'));
+      window.dispatchEvent(new Event('company_permissions_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error('sendBulkResumesToCompany error:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to send resumes to company',
+    };
+  }
+}

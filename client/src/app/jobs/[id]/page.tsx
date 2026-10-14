@@ -14,6 +14,7 @@ import {
   toggleLocalSavedJob,
   getLocalSavedJobs,
 } from "@/lib/api";
+import { jobsList, JobDetail } from "@/data/jobsData";
 import {
   ArrowLeft,
   MapPin,
@@ -48,16 +49,27 @@ function JobDetailPageContent() {
       setIsLoading(true);
       fetchPublicJobById(jobId)
         .then((data) => {
-          if (isMounted && data) {
+          if (!isMounted) return;
+          if (data) {
             setJob(data);
-            const storedUser = getStoredUser();
-            const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
-            const savedList = getLocalSavedJobs(uid);
-            const foundSaved = savedList.some((s: any) => (s.id || s._id) === (data.id || data._id));
-            setIsSaved(foundSaved);
+          } else {
+            const staticMatch = jobsList.find((j) => j.id === jobId);
+            if (staticMatch) setJob(staticMatch);
+          }
+          const storedUser = getStoredUser();
+          const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+          const savedList = getLocalSavedJobs(uid);
+          const currentTargetId = data?.id || data?._id || jobId;
+          const foundSaved = savedList.some((s: any) => (s.id || s._id) === currentTargetId);
+          setIsSaved(foundSaved);
+        })
+        .catch((err) => {
+          console.error("Error fetching job:", err);
+          if (isMounted) {
+            const staticMatch = jobsList.find((j) => j.id === jobId);
+            if (staticMatch) setJob(staticMatch);
           }
         })
-        .catch((err) => console.error("Error fetching job:", err))
         .finally(() => {
           if (isMounted) setIsLoading(false);
         });
@@ -65,11 +77,18 @@ function JobDetailPageContent() {
 
     fetchPublicJobs()
       .then((data) => {
-        if (isMounted && Array.isArray(data)) {
-          setAllJobs(data);
+        if (isMounted) {
+          if (Array.isArray(data) && data.length > 0) {
+            setAllJobs(data);
+          } else {
+            setAllJobs(jobsList);
+          }
         }
       })
-      .catch((err) => console.error("Error fetching all jobs:", err));
+      .catch((err) => {
+        console.error("Error fetching all jobs:", err);
+        if (isMounted) setAllJobs(jobsList);
+      });
 
     return () => {
       isMounted = false;

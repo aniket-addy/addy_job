@@ -125,6 +125,19 @@ export default function SuperAdminPage() {
 
   useEffect(() => {
     loadDatabaseData();
+
+    const handleSync = () => {
+      loadDatabaseData();
+    };
+    window.addEventListener("job_created", handleSync);
+    window.addEventListener("job_updated", handleSync);
+    window.addEventListener("storage", handleSync);
+
+    return () => {
+      window.removeEventListener("job_created", handleSync);
+      window.removeEventListener("job_updated", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
   }, []);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -490,6 +503,7 @@ export default function SuperAdminPage() {
             {activeTab === "jobseekers" && (
               <JobSeekersManager
                 jobSeekers={jobSeekers}
+                companies={allCompanies}
                 onDeleteJobSeeker={handleDeleteJobSeeker}
                 onRefresh={loadDatabaseData}
               />

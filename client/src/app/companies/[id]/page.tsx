@@ -6,6 +6,8 @@ import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { fetchPublicCompanyById } from "@/lib/api";
+import { companiesList, Company } from "@/data/companiesData";
+import { jobsList, JobDetail } from "@/data/jobsData";
 import {
   ArrowLeft,
   Building2,
@@ -56,16 +58,40 @@ function CompanyDetailPageContent() {
       setIsLoading(true);
       fetchPublicCompanyById(companyId)
         .then((data) => {
-          if (isMounted && data) {
-            if (data.company) {
-              setCompany(data.company);
-            }
+          if (!isMounted) return;
+          if (data && data.company) {
+            setCompany(data.company);
             if (Array.isArray(data.jobs)) {
               setAllCompanyJobs(data.jobs);
             }
+          } else {
+            const fallbackCompany =
+              companiesList.find(
+                (c) =>
+                  c.id === companyId ||
+                  c.name.toLowerCase().replace(/\s+/g, "-") === companyId?.toLowerCase()
+              ) || companiesList[0];
+            setCompany(fallbackCompany);
+            const fallbackJobs = jobsList.filter(
+              (j) =>
+                j.company.toLowerCase().includes(fallbackCompany.name.toLowerCase()) ||
+                fallbackCompany.name.toLowerCase().includes(j.company.toLowerCase())
+            );
+            setAllCompanyJobs(fallbackJobs);
           }
         })
-        .catch((err) => console.error("Error fetching company details:", err))
+        .catch((err) => {
+          console.error("Error fetching company details:", err);
+          if (isMounted) {
+            const fallbackCompany =
+              companiesList.find(
+                (c) =>
+                  c.id === companyId ||
+                  c.name.toLowerCase().replace(/\s+/g, "-") === companyId?.toLowerCase()
+              ) || companiesList[0];
+            setCompany(fallbackCompany);
+          }
+        })
         .finally(() => {
           if (isMounted) setIsLoading(false);
         });

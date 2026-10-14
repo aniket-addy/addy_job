@@ -7,7 +7,7 @@ export interface IJob extends Document {
   type: string;
   location: string;
   salary: string;
-  status: 'Active' | 'Pending' | 'Expired' | 'Closed';
+  status: 'Active' | 'Pending' | 'Expired' | 'Closed' | 'Paused';
   postedOn: string;
   applicantsCount: number;
   description?: string;
@@ -43,7 +43,7 @@ const jobSchema = new Schema<IJob>(
     },
     type: {
       type: String,
-      default: 'Full-Time',
+      default: 'Full-time',
     },
     location: {
       type: String,
@@ -55,7 +55,7 @@ const jobSchema = new Schema<IJob>(
     },
     status: {
       type: String,
-      enum: ['Active', 'Pending', 'Expired', 'Closed'],
+      enum: ['Active', 'Pending', 'Expired', 'Closed', 'Paused'],
       default: 'Active',
     },
     postedOn: {

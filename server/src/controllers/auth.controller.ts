@@ -107,6 +107,9 @@ const formatUser = (user: IUser) => {
       settings: false,
       autoApproveFromSubscription: true,
     },
+    purchasedResumes: user.purchasedResumes || [],
+    resumeCredits: user.resumeCredits ?? 0,
+    resumesUsed: user.resumesUsed ?? 0,
     createdAt: user.createdAt,
   };
 };
@@ -605,6 +608,10 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         ? skills.split(',').map((s: string) => s.trim()).filter(Boolean)
         : [];
     }
+
+    if (req.body.purchasedResumes !== undefined) user.purchasedResumes = req.body.purchasedResumes;
+    if (req.body.resumeCredits !== undefined) user.resumeCredits = req.body.resumeCredits;
+    if (req.body.resumesUsed !== undefined) user.resumesUsed = req.body.resumesUsed;
 
     await user.save();
 

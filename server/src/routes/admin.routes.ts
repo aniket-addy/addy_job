@@ -8,6 +8,8 @@ import {
   getAdminPermissionsSettings,
   updateAdminPermissionsSettings,
   getAdminJobs,
+  createJob,
+  updateJob,
   updateJobStatus,
   deleteJob,
   getAdminApplications,
@@ -19,6 +21,7 @@ import {
   deleteAdminPlan,
   getAdminJobSeekers,
   deleteAdminJobSeeker,
+  sendBulkResumesToCompany,
 } from '../controllers/admin.controller.js';
 
 const router = Router();
@@ -42,13 +45,17 @@ router.put('/permissions-settings', updateAdminPermissionsSettings);
 
 // Jobs moderation
 router.get('/jobs', getAdminJobs);
+router.post('/jobs', createJob);
+router.put('/jobs/:id', updateJob);
 router.patch('/jobs/:id/status', updateJobStatus);
 router.delete('/jobs/:id', deleteJob);
 
-// Applications management
+// Applications & Resumes management
 router.get('/applications', getAdminApplications);
 router.post('/applications', createAdminApplication);
 router.patch('/applications/:id/status', updateApplicationStatus);
+router.post('/resumes/bulk-send', sendBulkResumesToCompany);
+router.post('/companies/:id/send-resumes', sendBulkResumesToCompany);
 
 // Plans & Pricing
 router.get('/plans', getAdminPlans);
