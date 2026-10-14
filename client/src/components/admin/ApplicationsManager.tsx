@@ -20,15 +20,18 @@ import {
   Download,
   ExternalLink,
   ChevronDown,
+  Send,
+  X,
 } from "lucide-react";
 import { ApplicationItem } from "./RecentApplications";
 import UploadResumeModal from "./UploadResumeModal";
 import ResumeDetailModal from "./ResumeDetailModal";
+import BulkSendResumesModal, { CompanyOption } from "./BulkSendResumesModal";
 
 interface ApplicationsManagerProps {
   applications: ApplicationItem[];
   onUpdateStatus: (id: string, status: ApplicationItem["status"]) => void;
-  companies?: Array<{ id: string; name: string }>;
+  companies?: CompanyOption[];
   onAddApplication?: (newApp: ApplicationItem) => void;
   activeView?: string;
 }
@@ -47,8 +50,10 @@ export default function ApplicationsManager({
   
   // Modals state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isBulkSendModalOpen, setIsBulkSendModalOpen] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<ApplicationItem | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Extract unique domains from applications
   const uniqueDomains = Array.from(
@@ -150,7 +155,7 @@ export default function ApplicationsManager({
               )}
             </div>
 
-            {/* UPLOAD RESUME BUTTON (User's Core Requirement) */}
+            {/* UPLOAD RESUME BUTTON */}
             <button
               type="button"
               onClick={() => setIsUploadModalOpen(true)}
@@ -159,8 +164,36 @@ export default function ApplicationsManager({
               <Upload className="w-4 h-4" />
               <span>Upload Resume</span>
             </button>
+
+            {/* BULK SEND TO COMPANY BUTTON (User's Core Requirement) */}
+            <button
+              type="button"
+              onClick={() => setIsBulkSendModalOpen(true)}
+              disabled={filteredApps.length === 0}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl text-xs font-bold shadow-md shadow-emerald-500/25 transition-all hover:scale-[1.02] cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send className="w-4 h-4" />
+              <span>Send Resumes ({filteredApps.length})</span>
+            </button>
           </div>
         </div>
+
+        {/* Success Toast */}
+        {toastMessage && (
+          <div className="mt-4 flex items-center justify-between p-3.5 bg-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-600/30 text-xs font-bold animate-fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{toastMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastMessage(null)}
+              className="p-1 hover:bg-white/20 rounded-lg transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Filter & Search Bar */}
         <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -425,6 +458,18 @@ export default function ApplicationsManager({
           setSelectedCandidate(null);
         }}
         onUpdateStatus={onUpdateStatus}
+      />
+
+      {/* Bulk Send Resumes to Company Modal */}
+      <BulkSendResumesModal
+        isOpen={isBulkSendModalOpen}
+        onClose={() => setIsBulkSendModalOpen(false)}
+        filteredResumes={filteredApps}
+        companies={companies}
+        onSuccess={(companyName, count) => {
+          setToastMessage(`Delivered ${count} candidate resumes to ${companyName} successfully!`);
+          setTimeout(() => setToastMessage(null), 6000);
+        }}
       />
     </div>
   );
