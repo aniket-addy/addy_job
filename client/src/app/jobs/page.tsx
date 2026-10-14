@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { jobsList } from "@/data/jobsData";
+import { jobsList, JobDetail } from "@/data/jobsData";
+import { fetchCompanyJobs } from "@/lib/api";
 import {
   Search,
   MapPin,
@@ -34,6 +35,7 @@ function JobsContent() {
   const [selectedJobType, setSelectedJobType] = useState(initialType);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [savedJobs, setSavedJobs] = useState<Record<string, boolean>>({});
+  const [liveJobs, setLiveJobs] = useState<any[]>([]);
 
   const [jobTypeDropdownOpen, setJobTypeDropdownOpen] = useState(false);
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
@@ -58,6 +60,30 @@ function JobsContent() {
     "Hyderabad",
     "Pune",
   ];
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      try {
+        const data = await fetchCompanyJobs();
+        if (Array.isArray(data)) {
+          const activeOnly = data.filter((j) => j.status === "Active" || !j.status);
+          setLiveJobs(activeOnly);
+        }
+      } catch (err) {
+        console.error("Failed to load jobs from backend:", err);
+      }
+    };
+    loadJobs();
+
+    window.addEventListener("job_created", loadJobs);
+    window.addEventListener("job_updated", loadJobs);
+    window.addEventListener("storage", loadJobs);
+    return () => {
+      window.removeEventListener("job_created", loadJobs);
+      window.removeEventListener("job_updated", loadJobs);
+      window.removeEventListener("storage", loadJobs);
+    };
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -85,7 +111,38 @@ function JobsContent() {
 
   const categories = ["All", "Engineering", "Design", "Marketing", "Product", "Finance", "HR"];
 
-  const filteredJobs = jobsList.filter((job) => {
+  const formattedLiveJobs: JobDetail[] = liveJobs.map((j) => ({
+    id: j.id || j._id,
+    title: j.title,
+    company: j.company,
+    location: j.location || "Remote",
+    type: j.type || "Full-time",
+    workplace: j.workplace || "Remote",
+    salary: j.salary || "Competitive",
+    posted: j.postedOn || "Just now",
+    category: j.department || "Engineering",
+    tags:
+      Array.isArray(j.tags) && j.tags.length > 0
+        ? j.tags
+        : Array.isArray(j.skills) && j.skills.length > 0
+        ? j.skills
+        : ["Tech"],
+    aboutCompany: `Verified employer on AddyJob: ${j.company}`,
+    companySize: "100+ employees",
+    founded: "2020",
+    industry: j.department || "Technology",
+    website: "#",
+    description: j.description || `Exciting opportunity for ${j.title} at ${j.company}`,
+    responsibilities: j.responsibilities || [],
+    requirements: j.requirements || [],
+    experience: j.experience || "2+ years",
+    openings: j.openings || 1,
+    benefits: j.benefits || [],
+  }));
+
+  const allJobsList: JobDetail[] = [...formattedLiveJobs, ...jobsList];
+
+  const filteredJobs = allJobsList.filter((job) => {
     const matchesCategory =
       selectedCategory === "All" || job.category === selectedCategory;
     const matchesSearch =

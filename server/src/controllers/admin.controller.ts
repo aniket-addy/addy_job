@@ -245,19 +245,41 @@ export const deleteCompany = async (req: Request, res: Response) => {
   }
 };
 
-// @desc    Get all jobs from database
-// @route   GET /api/admin/jobs
+// @desc    Get all jobs from database (supports company filtering)
+// @route   GET /api/admin/jobs or GET /api/jobs
 export const getAdminJobs = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
     await seedInitialAdminData();
 
-    const jobs = await Job.find({}).sort({ createdAt: -1 });
+    const { companyId, company } = req.query;
+    const filter: any = {};
+    const orConditions: any[] = [];
+
+    if (companyId) {
+      orConditions.push({ companyId: String(companyId) });
+      orConditions.push({ companyId: companyId });
+      if (mongoose.isValidObjectId(companyId)) {
+        orConditions.push({ companyId: new mongoose.Types.ObjectId(String(companyId)) });
+      }
+    }
+    if (company) {
+      const trimmed = String(company).trim();
+      const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      orConditions.push({ company: new RegExp(`^${escaped}$`, 'i') });
+    }
+
+    if (orConditions.length > 0) {
+      filter.$or = orConditions;
+    }
+
+    const jobs = await Job.find(filter).sort({ createdAt: -1 });
 
     const formatted = jobs.map((j) => ({
       id: j._id.toString(),
       title: j.title,
       company: j.company,
+      companyId: j.companyId ? j.companyId.toString() : undefined,
       type: j.type,
       location: j.location,
       salary: j.salary,
@@ -265,7 +287,16 @@ export const getAdminJobs = async (req: Request, res: Response) => {
       postedOn: j.postedOn || 'Recent',
       applicantsCount: j.applicantsCount || 0,
       department: j.department || 'Engineering',
+      workplace: j.workplace || 'Hybrid',
+      experience: j.experience || '2-4 years',
+      openings: j.openings || 1,
+      postedBy: j.postedBy || 'Talent Acquisition Team',
+      tags: j.tags && j.tags.length > 0 ? j.tags : j.skills || [],
+      skills: j.skills || [],
       description: j.description || '',
+      responsibilities: j.responsibilities || [],
+      requirements: j.requirements || [],
+      benefits: j.benefits || [],
     }));
 
     res.json({ success: true, jobs: formatted });
@@ -275,20 +306,182 @@ export const getAdminJobs = async (req: Request, res: Response) => {
   }
 };
 
-// @desc    Update job status (Active, Pending, Expired, Closed)
-// @route   PATCH /api/admin/jobs/:id/status
+// @desc    Create a new job posting (used by companies or admin)
+// @route   POST /api/admin/jobs or POST /api/jobs
+export const createJob = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const {
+      title,
+      company,
+      companyId,
+      department = 'Engineering',
+      location = 'Remote',
+      workplace = 'Hybrid',
+      type = 'Full-time',
+      experience = '2-4 years',
+      salary = 'Competitive',
+      openings = 1,
+      postedBy = 'Talent Acquisition Team',
+      tags = [],
+      skills = [],
+      description = '',
+      responsibilities = [],
+      requirements = [],
+      benefits = [],
+      status = 'Active',
+    } = req.body;
+
+    if (!title || !String(title).trim()) {
+      res.status(400).json({ success: false, message: 'Job title is required' });
+      return;
+    }
+
+    if (!company || !String(company).trim()) {
+      res.status(400).json({ success: false, message: 'Company name is required' });
+      return;
+    }
+
+    const tagList = Array.isArray(tags) ? tags : [];
+    const skillList = Array.isArray(skills) ? skills : tagList;
+
+    const newJob = new Job({
+      title: String(title).trim(),
+      company: String(company).trim(),
+      companyId: companyId || undefined,
+      department: String(department || 'Engineering').trim(),
+      location: String(location || 'Remote').trim(),
+      workplace: String(workplace || 'Hybrid').trim(),
+      type: String(type || 'Full-time').trim(),
+      experience: String(experience || '2-4 years').trim(),
+      salary: String(salary || 'Competitive').trim(),
+      openings: Number(openings) || 1,
+      postedBy: String(postedBy || 'Talent Acquisition Team').trim(),
+      tags: tagList,
+      skills: skillList,
+      description: String(description || '').trim(),
+      responsibilities: Array.isArray(responsibilities) ? responsibilities : [],
+      requirements: Array.isArray(requirements) ? requirements : [],
+      benefits: Array.isArray(benefits) ? benefits : [],
+      status: ['Active', 'Pending', 'Expired', 'Closed', 'Paused'].includes(status) ? status : 'Active',
+      postedOn: 'Just now',
+      applicantsCount: 0,
+    });
+
+    await newJob.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Job "${newJob.title}" posted successfully!`,
+      job: {
+        id: newJob._id.toString(),
+        title: newJob.title,
+        company: newJob.company,
+        companyId: newJob.companyId,
+        department: newJob.department,
+        location: newJob.location,
+        workplace: newJob.workplace,
+        type: newJob.type,
+        experience: newJob.experience,
+        salary: newJob.salary,
+        openings: newJob.openings,
+        postedBy: newJob.postedBy,
+        tags: newJob.tags,
+        skills: newJob.skills,
+        description: newJob.description,
+        responsibilities: newJob.responsibilities,
+        requirements: newJob.requirements,
+        benefits: newJob.benefits,
+        status: newJob.status,
+        postedOn: newJob.postedOn,
+        applicantsCount: newJob.applicantsCount,
+      },
+    });
+  } catch (error: any) {
+    console.error('createJob error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to create job posting' });
+  }
+};
+
+// @desc    Update existing job posting details
+// @route   PUT /api/admin/jobs/:id or PUT /api/jobs/:id
+export const updateJob = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { id } = req.params;
+    const updateData = { ...req.body };
+    delete updateData.id;
+    delete updateData._id;
+
+    if (updateData.tags && !updateData.skills) {
+      updateData.skills = updateData.tags;
+    }
+
+    let job = null;
+    if (mongoose.isValidObjectId(id)) {
+      job = await Job.findByIdAndUpdate(id, updateData, { new: true });
+    } else {
+      job = await Job.findOneAndUpdate({ $or: [{ customId: id }, { title: id }] }, updateData, { new: true });
+    }
+
+    if (!job) {
+      res.status(404).json({ success: false, message: 'Job not found' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: `Job "${job.title}" updated successfully`,
+      job: {
+        id: job._id.toString(),
+        title: job.title,
+        company: job.company,
+        companyId: job.companyId,
+        department: job.department,
+        location: job.location,
+        workplace: job.workplace,
+        type: job.type,
+        experience: job.experience,
+        salary: job.salary,
+        openings: job.openings,
+        postedBy: job.postedBy,
+        tags: job.tags,
+        skills: job.skills,
+        description: job.description,
+        responsibilities: job.responsibilities,
+        requirements: job.requirements,
+        benefits: job.benefits,
+        status: job.status,
+        postedOn: job.postedOn,
+        applicantsCount: job.applicantsCount,
+      },
+    });
+  } catch (error: any) {
+    console.error('updateJob error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to update job' });
+  }
+};
+
+// @desc    Update job status (Active, Pending, Expired, Closed, Paused)
+// @route   PATCH /api/admin/jobs/:id/status or PATCH /api/jobs/:id/status
 export const updateJobStatus = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!['Active', 'Pending', 'Expired', 'Closed'].includes(status)) {
+    if (!['Active', 'Pending', 'Expired', 'Closed', 'Paused'].includes(status)) {
       res.status(400).json({ success: false, message: 'Invalid job status' });
       return;
     }
 
-    const job = await Job.findByIdAndUpdate(id, { status }, { new: true });
+    let job = null;
+    if (mongoose.isValidObjectId(id)) {
+      job = await Job.findByIdAndUpdate(id, { status }, { new: true });
+    } else {
+      job = await Job.findOneAndUpdate({ $or: [{ customId: id }, { title: id }] }, { status }, { new: true });
+    }
+
     if (!job) {
       res.status(404).json({ success: false, message: 'Job not found' });
       return;
@@ -310,13 +503,19 @@ export const updateJobStatus = async (req: Request, res: Response) => {
 };
 
 // @desc    Delete a job
-// @route   DELETE /api/admin/jobs/:id
+// @route   DELETE /api/admin/jobs/:id or DELETE /api/jobs/:id
 export const deleteJob = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
     const { id } = req.params;
 
-    const job = await Job.findByIdAndDelete(id);
+    let job = null;
+    if (mongoose.isValidObjectId(id)) {
+      job = await Job.findByIdAndDelete(id);
+    } else {
+      job = await Job.findOneAndDelete({ $or: [{ customId: id }, { title: id }] });
+    }
+
     if (!job) {
       res.status(404).json({ success: false, message: 'Job not found' });
       return;
@@ -479,6 +678,161 @@ export const createAdminApplication = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('createAdminApplication error:', error);
     res.status(500).json({ success: false, message: 'Failed to create resume/application' });
+  }
+};
+
+// @desc    Send bulk resumes to a specific company
+// @route   POST /api/admin/resumes/bulk-send
+export const sendBulkResumesToCompany = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { companyId, resumes, resumeIds } = req.body;
+    const targetCompanyId = req.params.id || companyId;
+
+    if (!targetCompanyId) {
+      res.status(400).json({ success: false, message: 'Company ID is required' });
+      return;
+    }
+
+    // Find company by _id, userId, customId, email, or companyName
+    let company: any = null;
+    if (mongoose.Types.ObjectId.isValid(targetCompanyId)) {
+      company = await User.findById(targetCompanyId);
+    }
+    if (!company) {
+      company = await User.findOne({
+        $or: [
+          { userId: targetCompanyId },
+          { customId: targetCompanyId },
+          { email: String(targetCompanyId).toLowerCase().trim() },
+          { companyName: String(targetCompanyId).trim() },
+        ],
+        role: 'company',
+      });
+    }
+
+    if (!company) {
+      res.status(404).json({ success: false, message: 'Company not found with specified ID or email' });
+      return;
+    }
+
+    // Determine resumes to transfer
+    let resumesToAdd: any[] = [];
+    if (Array.isArray(resumes) && resumes.length > 0) {
+      resumesToAdd = resumes.map((r: any, idx: number) => ({
+        id: r.id || `purchased-${Date.now()}-${idx}`,
+        candidateName: r.candidateName || r.name || 'Candidate',
+        title: r.targetRole || r.headline || r.position || r.title || r.domain || 'Candidate Profile',
+        experience: r.experience || 'Fresher',
+        location: r.location || 'India',
+        purchasedDate: new Date().toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        fileSize: r.fileSize || '250 KB',
+        downloadUrl: r.resumeUrl || r.downloadUrl || '',
+        email:
+          r.candidateEmail ||
+          r.email ||
+          `${String(r.candidateName || r.name || 'candidate').toLowerCase().replace(/\s+/g, '')}@example.com`,
+        phone: r.candidatePhone || r.phone || '+91 98765 43210',
+        pdfData: r.resumeUrl || r.pdfData || '',
+        domain: r.targetRole || r.domain || '',
+        skills: Array.isArray(r.skills)
+          ? r.skills
+          : typeof r.skills === 'string' && r.skills.trim()
+          ? r.skills.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : r.specialization
+          ? [r.specialization]
+          : r.domain
+          ? [r.domain]
+          : [],
+        isUnlocked: Boolean(r.isUnlocked),
+        unlockedAt: r.unlockedAt || '',
+      }));
+    } else if (Array.isArray(resumeIds) && resumeIds.length > 0) {
+      const dbApps = await Application.find({ _id: { $in: resumeIds } });
+      resumesToAdd = dbApps.map((a: any) => ({
+        id: a._id.toString(),
+        candidateName: a.candidateName,
+        title: a.position || a.domain || 'Candidate Profile',
+        experience: a.experience || '1-2 Years',
+        location: 'India',
+        purchasedDate: new Date().toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        fileSize: '280 KB',
+        downloadUrl: a.resumeUrl || '',
+        email: a.candidateEmail || `${a.candidateName.toLowerCase().replace(/\s+/g, '')}@example.com`,
+        phone: a.candidatePhone || '+91 98765 43210',
+        pdfData: a.pdfData || '',
+        domain: a.domain || '',
+        skills: Array.isArray(a.skills)
+          ? a.skills
+          : typeof a.skills === 'string' && a.skills.trim()
+          ? a.skills.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : a.domain
+          ? [a.domain]
+          : [],
+        isUnlocked: false,
+        unlockedAt: '',
+      }));
+    }
+
+    if (resumesToAdd.length === 0) {
+      res.status(400).json({ success: false, message: 'No resumes provided to send.' });
+      return;
+    }
+
+    // Initialize purchasedResumes if undefined
+    if (!company.purchasedResumes) {
+      company.purchasedResumes = [];
+    }
+
+    // Avoid duplicate additions by ID
+    const existingIds = new Set(company.purchasedResumes.map((r: any) => r.id));
+    const newItems = resumesToAdd.filter((r) => !existingIds.has(r.id));
+    company.purchasedResumes = [...newItems, ...company.purchasedResumes];
+
+    // Ensure company has resumes tab unlocked in permissions
+    if (!company.permissions) {
+      company.permissions = {
+        dashboard: false,
+        jobs: false,
+        applicants: false,
+        resumes: true,
+        settings: false,
+        autoApproveFromSubscription: true,
+      };
+    } else {
+      company.permissions.resumes = true;
+    }
+
+    await company.save();
+
+    res.json({
+      success: true,
+      message: `Successfully sent ${newItems.length} candidate resumes to ${company.companyName || company.name || company.email}.`,
+      company: {
+        id: company._id.toString(),
+        userId: company.userId || company.customId,
+        companyName: company.companyName || company.name,
+        email: company.email,
+        phone: company.phone,
+        industry: company.industry,
+        location: company.location,
+        plan: company.plan,
+        purchasedResumesCount: company.purchasedResumes.length,
+      },
+      sentResumesCount: newItems.length,
+      purchasedResumes: company.purchasedResumes,
+    });
+  } catch (error: any) {
+    console.error('sendBulkResumesToCompany error:', error);
+    res.status(500).json({ success: false, message: 'Failed to send bulk resumes to company' });
   }
 };
 

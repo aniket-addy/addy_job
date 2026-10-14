@@ -45,6 +45,9 @@ import {
   AlertCircle,
   Send,
   Star,
+  Lock,
+  Unlock,
+  KeyRound,
 } from "lucide-react";
 import {
   getStoredUser,
@@ -58,6 +61,11 @@ import {
   fetchCurrentUser,
   updateUserProfile,
   fetchAdminPlans,
+  createCompanyJob,
+  fetchCompanyJobs,
+  updateCompanyJob,
+  updateCompanyJobStatus,
+  deleteCompanyJob,
 } from "@/lib/api";
 
 // Types
@@ -110,6 +118,11 @@ interface PurchasedResume {
   downloadUrl: string;
   email: string;
   phone: string;
+  skills?: string[];
+  pdfData?: string;
+  domain?: string;
+  isUnlocked?: boolean;
+  unlockedAt?: string;
 }
 
 export default function CompanyDashboardPage() {
@@ -476,6 +489,11 @@ export default function CompanyDashboardPage() {
     // 4. Update session & localStorage so everything stays in sync
     if (typeof window !== "undefined") {
       const storedUser = getStoredUser();
+      const uid = (storedUser as any)?._id || storedUser?.id || (storedUser as any)?.userId || storedUser?.email;
+      if (uid) {
+        localStorage.setItem(`company_total_credits_${uid}`, String(credits));
+        localStorage.setItem(`company_resumes_used_${uid}`, "0");
+      }
       if (storedUser) {
         const updatedUser = {
           ...storedUser,
@@ -634,6 +652,25 @@ export default function CompanyDashboardPage() {
             setJobs([]);
           }
 
+          // Fetch live company jobs directly from MongoDB database
+          const compName = u.companyName || u.name || "";
+          fetchCompanyJobs({ companyId: uid, company: compName })
+            .then((dbJobs) => {
+              if (Array.isArray(dbJobs)) {
+                if (dbJobs.length > 0) {
+                  setJobs(dbJobs);
+                  try {
+                    localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(dbJobs));
+                  } catch (e) {}
+                } else if (!savedJobs || savedJobs === "[]") {
+                  setJobs([]);
+                }
+              }
+            })
+            .catch((err) => {
+              console.warn("Backend jobs fetch error:", err);
+            });
+
           const savedApplicants = localStorage.getItem(`company_applicants_data_${uid}`);
           if (savedApplicants) {
             try {
@@ -644,15 +681,53 @@ export default function CompanyDashboardPage() {
             setApplicants([]);
           }
 
-          const savedPurchasedResumes = localStorage.getItem(`company_purchased_resumes_${uid}`);
-          if (savedPurchasedResumes) {
+          let currentVault: PurchasedResume[] = [];
+          if (Array.isArray(u.purchasedResumes) && u.purchasedResumes.length > 0) {
+            currentVault = u.purchasedResumes;
+            setPurchasedResumes(u.purchasedResumes);
             try {
-              const parsedResumes = JSON.parse(savedPurchasedResumes);
-              if (Array.isArray(parsedResumes)) setPurchasedResumes(parsedResumes);
+              localStorage.setItem(`company_purchased_resumes_${uid}`, JSON.stringify(u.purchasedResumes));
             } catch (e) {}
           } else {
-            setPurchasedResumes([]);
+            const savedPurchasedResumes = localStorage.getItem(`company_purchased_resumes_${uid}`);
+            if (savedPurchasedResumes) {
+              try {
+                const parsedResumes = JSON.parse(savedPurchasedResumes);
+                if (Array.isArray(parsedResumes)) {
+                  currentVault = parsedResumes;
+                  setPurchasedResumes(parsedResumes);
+                }
+              } catch (e) {}
+            } else {
+              setPurchasedResumes([]);
+            }
           }
+
+          // Credit balance initialization & persistence
+          const savedTotalCredits = localStorage.getItem(`company_total_credits_${uid}`);
+          const savedUsedCredits = localStorage.getItem(`company_resumes_used_${uid}`);
+
+          let totalCredits = savedTotalCredits !== null ? parseInt(savedTotalCredits, 10) : (u.resumeCredits ?? 0);
+          let usedCredits = savedUsedCredits !== null ? parseInt(savedUsedCredits, 10) : (u.resumesUsed ?? 0);
+
+          if (totalCredits === 0 && u.plan) {
+            const p = u.plan.toLowerCase();
+            if (p.includes("enterprise")) totalCredits = 100;
+            else if (p.includes("pro") || p.includes("growth")) totalCredits = 50;
+            else if (p.includes("basic") || p.includes("starter")) totalCredits = 25;
+          }
+          if (totalCredits === 0) {
+            totalCredits = 10; // Baseline complimentary starter credits
+          }
+
+          // Count resumes unlocked in vault
+          const countUnlockedInVault = currentVault.filter((r) => r.isUnlocked).length;
+          if (countUnlockedInVault > usedCredits) {
+            usedCredits = countUnlockedInVault;
+          }
+
+          setTotalResumesPurchased(totalCredits);
+          setResumesUsed(usedCredits);
         }
       };
 
@@ -663,12 +738,139 @@ export default function CompanyDashboardPage() {
       fetchCurrentUser().then((fresh) => {
         if (fresh) applyUserData(fresh);
       });
+
+      const handleVaultSync = () => {
+        const u = getStoredUser();
+        if (u) {
+          const uid = (u as any)._id || u.id || (u as any).userId || u.email;
+          const saved = localStorage.getItem(`company_purchased_resumes_${uid}`);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) setPurchasedResumes(parsed);
+            } catch (e) {}
+          }
+          const savedTotalCredits = localStorage.getItem(`company_total_credits_${uid}`);
+          const savedUsedCredits = localStorage.getItem(`company_resumes_used_${uid}`);
+          if (savedTotalCredits !== null) {
+            const num = parseInt(savedTotalCredits, 10);
+            if (!isNaN(num)) setTotalResumesPurchased(num);
+          }
+          if (savedUsedCredits !== null) {
+            const num = parseInt(savedUsedCredits, 10);
+            if (!isNaN(num)) setResumesUsed(num);
+          }
+        }
+      };
+
+      const handleJobSync = () => {
+        const u = getStoredUser();
+        if (u) {
+          const uid = (u as any)._id || u.id || (u as any).userId || u.email;
+          const compName = (u as any).companyName || u.name || "";
+          fetchCompanyJobs({ companyId: uid, company: compName })
+            .then((dbJobs) => {
+              if (Array.isArray(dbJobs) && dbJobs.length > 0) {
+                setJobs(dbJobs);
+                try {
+                  localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(dbJobs));
+                } catch (e) {}
+              }
+            })
+            .catch(() => {});
+        }
+      };
+
+      window.addEventListener("purchased_resumes_updated", handleVaultSync);
+      window.addEventListener("job_created", handleJobSync);
+      window.addEventListener("job_updated", handleJobSync);
+      window.addEventListener("storage", handleVaultSync);
+      window.addEventListener("storage", handleJobSync);
+
+      return () => {
+        window.removeEventListener("purchased_resumes_updated", handleVaultSync);
+        window.removeEventListener("job_created", handleJobSync);
+        window.removeEventListener("job_updated", handleJobSync);
+        window.removeEventListener("storage", handleVaultSync);
+        window.removeEventListener("storage", handleJobSync);
+      };
     }
   }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleDownloadPurchasedResume = (res: PurchasedResume) => {
+    const downloadSource = res.downloadUrl || res.pdfData;
+    if (downloadSource && typeof window !== "undefined") {
+      const link = document.createElement("a");
+      link.href = downloadSource;
+      link.download = `${res.candidateName.replace(/\s+/g, "_")}_Resume.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Downloading verified resume for ${res.candidateName}...`);
+    } else {
+      showToast(`Downloading verified resume for ${res.candidateName}...`);
+    }
+  };
+
+  // Action: Unlock a candidate resume using 1 credit
+  const handleUnlockResume = async (resume: PurchasedResume) => {
+    const availableCredits = totalResumesPurchased - resumesUsed;
+    if (availableCredits <= 0) {
+      showToast("⚠️ Insufficient credits! Please purchase more credits to unlock this candidate.");
+      setIsBuyCreditsModalOpen(true);
+      return;
+    }
+
+    const u = getStoredUser();
+    const uid = (u as any)?._id || u?.id || (u as any)?.userId || u?.email;
+
+    // 1. Mark this candidate resume as unlocked
+    const updatedVault = purchasedResumes.map((r) => {
+      if (r.id === resume.id) {
+        return {
+          ...r,
+          isUnlocked: true,
+          unlockedAt: new Date().toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+        };
+      }
+      return r;
+    });
+
+    // 2. Decrement 1 credit (increment resumesUsed by 1)
+    const newUsed = resumesUsed + 1;
+    setResumesUsed(newUsed);
+    setPurchasedResumes(updatedVault);
+
+    // 3. Persist locally for instant reactivity
+    if (uid && typeof window !== "undefined") {
+      localStorage.setItem(`company_purchased_resumes_${uid}`, JSON.stringify(updatedVault));
+      localStorage.setItem(`company_resumes_used_${uid}`, String(newUsed));
+      localStorage.setItem(`company_total_credits_${uid}`, String(totalResumesPurchased));
+      window.dispatchEvent(new Event("purchased_resumes_updated"));
+      window.dispatchEvent(new Event("storage"));
+    }
+
+    // 4. Persist to MongoDB backend
+    try {
+      await updateUserProfile({
+        purchasedResumes: updatedVault,
+        resumesUsed: newUsed,
+        resumeCredits: totalResumesPurchased,
+      });
+    } catch (err) {
+      console.warn("Backend unlock sync error:", err);
+    }
+
+    showToast(`🎉 ${resume.candidateName}'s contact details unlocked! 1 Credit used. (${availableCredits - 1} credits left)`);
   };
 
   // Image Upload & Removal Handlers (See, Update, Remove)
@@ -832,43 +1034,13 @@ export default function CompanyDashboardPage() {
       .map((b) => b.trim())
       .filter(Boolean);
 
+    const user = getStoredUser();
+    const uid = (user as any)?._id || user?.id || (user as any)?.userId || user?.email;
+    const compName = companyName || (user as any)?.companyName || user?.name || "Company";
+
     if (editingJobId) {
       // Update existing job
-      setJobs((prev) => {
-        const updated = prev.map((j) => {
-          if (j.id === editingJobId) {
-            return {
-              ...j,
-              title: jobTitle,
-              department: jobDepartment,
-              location: jobLocation,
-              workplace: jobWorkplace,
-              type: jobType,
-              experience: jobExperience,
-              salary: jobSalary,
-              openings: Number(jobOpenings) || 1,
-              postedBy: jobPostedBy,
-              tags: parsedTags,
-              description: jobDescription,
-              responsibilities: parsedResponsibilities,
-              requirements: parsedRequirements,
-              benefits: parsedBenefits,
-            };
-          }
-          return j;
-        });
-        try {
-          const user = getStoredUser();
-          const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
-          if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
-        } catch (err) {}
-        return updated;
-      });
-      showToast(`Job posting "${jobTitle}" updated successfully!`);
-    } else {
-      // Create new job
-      const newJob: PostedJob = {
-        id: `JOB-${Math.floor(100 + Math.random() * 900)}`,
+      const updatePayload = {
         title: jobTitle,
         department: jobDepartment,
         location: jobLocation,
@@ -877,26 +1049,96 @@ export default function CompanyDashboardPage() {
         experience: jobExperience,
         salary: jobSalary,
         openings: Number(jobOpenings) || 1,
-        postedBy: jobPostedBy,
-        tags: parsedTags.length > 0 ? parsedTags : ["Engineering", "Tech"],
+        postedBy: jobPostedBy || compName || "Talent Acquisition Team",
+        tags: parsedTags,
+        skills: parsedTags,
         description: jobDescription,
         responsibilities: parsedResponsibilities,
         requirements: parsedRequirements,
         benefits: parsedBenefits,
-        applicantsCount: 0,
-        status: "Active",
-        postedOn: "Just now",
       };
+
       setJobs((prev) => {
-        const updated = [newJob, ...prev];
+        const updated = prev.map((j) => {
+          if (j.id === editingJobId) {
+            return {
+              ...j,
+              ...updatePayload,
+            };
+          }
+          return j;
+        });
         try {
-          const user = getStoredUser();
-          const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
           if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
         } catch (err) {}
         return updated;
       });
-      showToast(`Job posting "${newJob.title}" is now LIVE!`);
+      showToast(`Job posting "${jobTitle}" updated successfully!`);
+
+      // Persist to MongoDB backend
+      updateCompanyJob(editingJobId, updatePayload).catch((err) => {
+        console.error("Backend update job error:", err);
+      });
+    } else {
+      // Create new job
+      const jobPayload = {
+        title: jobTitle,
+        company: compName,
+        companyId: uid,
+        department: jobDepartment,
+        location: jobLocation,
+        workplace: jobWorkplace,
+        type: jobType,
+        experience: jobExperience,
+        salary: jobSalary,
+        openings: Number(jobOpenings) || 1,
+        postedBy: jobPostedBy || compName || "Talent Acquisition Team",
+        tags: parsedTags.length > 0 ? parsedTags : ["Engineering", "Tech"],
+        skills: parsedTags.length > 0 ? parsedTags : ["Engineering", "Tech"],
+        description: jobDescription,
+        responsibilities: parsedResponsibilities,
+        requirements: parsedRequirements,
+        benefits: parsedBenefits,
+        status: "Active" as const,
+      };
+
+      const tempId = `temp-${Date.now()}`;
+      const newJob: PostedJob = {
+        ...jobPayload,
+        id: tempId,
+        applicantsCount: 0,
+        postedOn: "Just now",
+      };
+
+      setJobs((prev) => {
+        const updated = [newJob, ...prev];
+        try {
+          if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
+        } catch (err) {}
+        return updated;
+      });
+      showToast(`Job posting "${jobTitle}" is now LIVE!`);
+
+      // Persist to MongoDB backend and sync real id
+      createCompanyJob(jobPayload)
+        .then((res) => {
+          if (res.success && res.job) {
+            const saved = res.job;
+            const realId = saved.id || saved._id?.toString() || tempId;
+            setJobs((prev) => {
+              const updated = prev.map((j) =>
+                j.id === tempId ? { ...saved, id: realId } : j
+              );
+              try {
+                if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
+              } catch (err) {}
+              return updated;
+            });
+          }
+        })
+        .catch((err) => {
+          console.error("Backend job creation error:", err);
+        });
     }
 
     setIsPostJobModalOpen(false);
@@ -904,7 +1146,15 @@ export default function CompanyDashboardPage() {
 
   // Action: Buy More Resume Credits
   const handleBuyCredits = (credits: number, price: string) => {
-    setTotalResumesPurchased((prev) => prev + credits);
+    const nextTotal = totalResumesPurchased + credits;
+    setTotalResumesPurchased(nextTotal);
+    if (typeof window !== "undefined") {
+      const u = getStoredUser();
+      const uid = (u as any)?._id || u?.id || (u as any)?.userId || u?.email;
+      if (uid) {
+        localStorage.setItem(`company_total_credits_${uid}`, String(nextTotal));
+      }
+    }
     setIsBuyCreditsModalOpen(false);
     showToast(`Successfully purchased ${credits} Resume Credits for ${price}!`);
   };
@@ -2147,13 +2397,14 @@ export default function CompanyDashboardPage() {
                                 <span>Edit</span>
                               </button>
                               <button
-                                onClick={() => {
+                                onClick={async () => {
+                                  const newStatus = (job.status === "Active" ? "Paused" : "Active") as "Active" | "Paused" | "Closed";
                                   setJobs((prev) => {
                                     const updated = prev.map((j) =>
                                       j.id === job.id
                                         ? {
                                             ...j,
-                                            status: (j.status === "Active" ? "Paused" : "Active") as "Active" | "Paused" | "Closed",
+                                            status: newStatus,
                                           }
                                         : j
                                     );
@@ -2165,13 +2416,19 @@ export default function CompanyDashboardPage() {
                                     return updated;
                                   });
                                   showToast(`Job status updated for ${job.title}`);
+                                  try {
+                                    await updateCompanyJobStatus(job.id, newStatus);
+                                  } catch (err) {
+                                    console.error("Failed to update status on backend:", err);
+                                  }
                                 }}
                                 className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition border border-slate-200/60 shadow-2xs"
                               >
                                 {job.status === "Active" ? "Pause" : "Activate"}
                               </button>
                               <button
-                                onClick={() => {
+                                onClick={async () => {
+                                  if (!confirm(`Are you sure you want to delete job "${job.title}"?`)) return;
                                   setJobs((prev) => {
                                     const updated = prev.filter((j) => j.id !== job.id);
                                     try {
@@ -2182,6 +2439,11 @@ export default function CompanyDashboardPage() {
                                     return updated;
                                   });
                                   showToast(`Job ${job.title} deleted`);
+                                  try {
+                                    await deleteCompanyJob(job.id);
+                                  } catch (err) {
+                                    console.error("Failed to delete job on backend:", err);
+                                  }
                                 }}
                                 className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-100 cursor-pointer transition shadow-2xs"
                                 title="Delete job"
@@ -2412,8 +2674,14 @@ export default function CompanyDashboardPage() {
                 </div>
 
                 <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
-                  <span className="text-[11px] font-bold text-slate-500">Resumes Downloaded</span>
-                  <p className="text-3xl font-black text-[#6D28D9] mt-1">{resumesUsed}</p>
+                  <span className="text-[11px] font-bold text-slate-500">Total Resumes In Vault</span>
+                  <p className="text-3xl font-black text-slate-900 mt-1">{purchasedResumes.length}</p>
+                  <p className="text-xs text-slate-500 mt-1">Available candidate profiles</p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-500">Resumes Unlocked</span>
+                  <p className="text-3xl font-black text-[#6D28D9] mt-1">{purchasedResumes.filter((r) => r.isUnlocked).length}</p>
                   <p className="text-xs text-slate-500 mt-1">Unlocked candidate contacts</p>
                 </div>
 
@@ -2424,62 +2692,197 @@ export default function CompanyDashboardPage() {
                 </div>
               </div>
 
-              {/* Purchased Resumes List */}
-              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs p-4 sm:p-6 space-y-4">
-                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  <FolderDown className="w-4 h-4 text-emerald-600" />
-                  <span>Unlocked Resumes Vault</span>
-                </h3>
+              {/* Purchased Resumes List (Single-Row Table Layout with Skills & Unlock Action) */}
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+                <div className="p-4 sm:p-5 border-b border-slate-200/80 flex items-center justify-between gap-3 bg-slate-50/50">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center border border-purple-100">
+                      <FolderDown className="w-4 h-4 text-[#7C3AED]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">
+                        Purchased Resumes Vault
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Unlock candidate contact details using your credits and download verified CVs
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-[#7C3AED] border border-purple-200">
+                    {purchasedResumes.filter((r) => r.isUnlocked).length} / {purchasedResumes.length} Unlocked
+                  </span>
+                </div>
 
-                <div className="space-y-3">
+                <div className="overflow-x-auto">
                   {purchasedResumes.length === 0 ? (
-                    <div className="py-12 text-center text-slate-400">
-                      <FolderDown className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                      <p className="font-semibold text-slate-600">No resumes purchased yet</p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Unlock candidate resumes from the talent pool using your available credits.
+                    <div className="py-14 text-center text-slate-400">
+                      <FolderDown className="w-10 h-10 mx-auto text-slate-300 mb-2.5" />
+                      <p className="font-bold text-slate-700 text-sm">No resumes purchased yet</p>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        Candidate resumes sent by platform admin or unlocked from candidate pool will appear here in your vault.
                       </p>
                     </div>
                   ) : (
-                    purchasedResumes.map((res) => (
-                    <div
-                      key={res.id}
-                      className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-slate-100/70 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
-                    >
-                      <div className="flex items-center gap-3 sm:gap-3.5">
-                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-rose-50 text-rose-600 font-black text-xs flex items-center justify-center shrink-0 border border-rose-200">
-                          PDF
-                        </div>
-                        <div>
-                          <h4 className="text-xs sm:text-sm font-bold text-slate-900">
-                            {res.candidateName}
-                          </h4>
-                          <p className="text-xs text-slate-600">{res.title}</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            {res.experience} • {res.location} • Purchased: {res.purchasedDate}
-                          </p>
-                        </div>
-                      </div>
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                          <th className="py-3.5 px-4">Candidate</th>
+                          <th className="py-3.5 px-4">Role / Title</th>
+                          <th className="py-3.5 px-4">Experience & Location</th>
+                          <th className="py-3.5 px-4">Skills</th>
+                          <th className="py-3.5 px-4">Contact Details</th>
+                          <th className="py-3.5 px-4">Purchased On</th>
+                          <th className="py-3.5 px-4 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {purchasedResumes.map((res) => {
+                          const skillsList = Array.isArray(res.skills) && res.skills.length > 0
+                            ? res.skills
+                            : typeof (res as any).skills === "string" && (res as any).skills.trim()
+                            ? (res as any).skills.split(",").map((s: string) => s.trim()).filter(Boolean)
+                            : (res as any).domain
+                            ? [(res as any).domain]
+                            : [];
+                          return (
+                            <tr
+                              key={res.id}
+                              className="hover:bg-slate-50/80 transition-colors group"
+                            >
+                              {/* 1. Candidate Name + PDF Icon */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 font-black text-xs flex items-center justify-center shrink-0 border border-rose-200">
+                                    PDF
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-900 group-hover:text-[#7C3AED] transition block">
+                                      {res.candidateName}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">
+                                      Verified Candidate
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
 
-                      <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                        <div className="text-right text-[11px] text-slate-500 hidden md:block">
-                          <p>{res.email}</p>
-                          <p>{res.phone}</p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            showToast(`Downloading verified resume for ${res.candidateName}...`)
-                          }
-                          className="w-full sm:w-auto justify-center px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Download CV</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                              {/* 2. Role / Position */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                <span className="font-bold text-slate-800 block">
+                                  {res.title || "Job Seeker"}
+                                </span>
+                              </td>
+
+                              {/* 3. Experience & Location */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700">
+                                    <Briefcase className="w-3 h-3 text-slate-400" />
+                                    {res.experience || "Fresher"}
+                                  </span>
+                                  <span className="text-[11px] text-slate-500 flex items-center gap-0.5">
+                                    <MapPin className="w-3 h-3 text-slate-400" />
+                                    {res.location || "India"}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* 4. Skills (Tag Badges) */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                <div className="flex items-center gap-1 max-w-[280px]" title={skillsList.join(", ")}>
+                                  {skillsList.length > 0 ? (
+                                    <>
+                                      {skillsList.slice(0, 3).map((sk: string, idx: number) => (
+                                        <span
+                                          key={idx}
+                                          className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 text-[#7C3AED] text-[10px] font-bold border border-purple-100 whitespace-nowrap"
+                                        >
+                                          {sk}
+                                        </span>
+                                      ))}
+                                      {skillsList.length > 3 && (
+                                        <span
+                                          className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap cursor-help"
+                                          title={skillsList.slice(3).join(", ")}
+                                        >
+                                          +{skillsList.length - 3}
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-[11px] text-slate-400 italic">
+                                      General Profile
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* 5. Contact Details (Email & Phone - Hidden until unlocked) */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                {res.isUnlocked ? (
+                                  <div className="space-y-0.5 text-[11px] animate-fade-in">
+                                    <p className="flex items-center gap-1.5 text-slate-800 font-semibold">
+                                      <Mail className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>{res.email}</span>
+                                    </p>
+                                    <p className="flex items-center gap-1.5 text-slate-600">
+                                      <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>{res.phone || "+91 98765 43210"}</span>
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-0.5 text-[11px] select-none">
+                                    <p className="flex items-center gap-1.5 text-slate-400 font-medium">
+                                      <Lock className="w-3 h-3 text-amber-500 shrink-0" />
+                                      <span className="font-mono tracking-wider">••••••••@••••.com</span>
+                                    </p>
+                                    <p className="flex items-center gap-1.5 text-slate-400">
+                                      <Phone className="w-3 h-3 text-slate-300 shrink-0" />
+                                      <span className="font-mono tracking-wider">+91 ••••• ••••</span>
+                                    </p>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* 6. Purchased Date */}
+                              <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 text-[11px]">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3 text-slate-400" />
+                                  <span>{res.purchasedDate || "Recent"}</span>
+                                </span>
+                              </td>
+
+                              {/* 7. Action Button (Unlock vs Download CV) */}
+                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                {res.isUnlocked ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadPurchasedResume(res)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold transition cursor-pointer shadow-xs whitespace-nowrap hover:shadow-md"
+                                    title="Download verified resume PDF"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Download CV</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUnlockResume(res)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-[0.98] text-white text-xs font-bold transition cursor-pointer shadow-xs whitespace-nowrap hover:shadow-md"
+                                    title="Unlock candidate contact details & CV (Deducts 1 Credit)"
+                                  >
+                                    <Lock className="w-3.5 h-3.5" />
+                                    <span>Unlock Contact</span>
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             </div>
           )}

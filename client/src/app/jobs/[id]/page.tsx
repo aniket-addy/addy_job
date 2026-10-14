@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { jobsList, JobDetail } from "@/data/jobsData";
+import { fetchCompanyJobs } from "@/lib/api";
 import {
   ArrowLeft,
   MapPin,
@@ -30,8 +31,53 @@ function JobDetailPageContent() {
   const params = useParams();
   const jobId = params?.id as string;
 
-  const job: JobDetail | undefined =
-    jobsList.find((j) => j.id === jobId) || jobsList[0];
+  const [liveJob, setLiveJob] = useState<JobDetail | null>(null);
+
+  React.useEffect(() => {
+    if (!jobId) return;
+    const staticMatch = jobsList.find((j) => j.id === jobId);
+    if (staticMatch) {
+      setLiveJob(staticMatch);
+      return;
+    }
+    fetchCompanyJobs().then((jobs) => {
+      if (Array.isArray(jobs)) {
+        const found = jobs.find((j) => j.id === jobId || j._id === jobId);
+        if (found) {
+          setLiveJob({
+            id: found.id || found._id,
+            title: found.title,
+            company: found.company,
+            location: found.location || "Remote",
+            type: found.type || "Full-time",
+            workplace: found.workplace || "Remote",
+            salary: found.salary || "Competitive",
+            posted: found.postedOn || "Just now",
+            category: found.department || "Engineering",
+            tags:
+              Array.isArray(found.tags) && found.tags.length > 0
+                ? found.tags
+                : Array.isArray(found.skills) && found.skills.length > 0
+                ? found.skills
+                : ["Tech"],
+            aboutCompany: `Verified employer on AddyJob: ${found.company}`,
+            companySize: "100+ employees",
+            founded: "2020",
+            industry: found.department || "Technology",
+            website: "#",
+            description: found.description || `Exciting opportunity for ${found.title} at ${found.company}`,
+            responsibilities: found.responsibilities || [],
+            requirements: found.requirements || [],
+            experience: found.experience || "2+ years",
+            openings: found.openings || 1,
+            benefits: found.benefits || [],
+          });
+        }
+      }
+    }).catch(() => {});
+  }, [jobId]);
+
+  const job: JobDetail = liveJob || jobsList.find((j) => j.id === jobId) || jobsList[0];
 
   const [isSaved, setIsSaved] = useState(false);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);

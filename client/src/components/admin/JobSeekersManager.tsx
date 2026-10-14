@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Users,
   Search,
@@ -21,11 +21,160 @@ import {
   Award,
   Globe,
   DollarSign,
+  ChevronDown,
+  Clock,
+  RotateCcw,
+  Filter,
+  Check,
+  Send,
 } from "lucide-react";
 import { JobSeekerRecord } from "@/lib/api";
+import BulkSendResumesModal from "./BulkSendResumesModal";
+import { CompanyRecord } from "./CompaniesManager";
+
+interface DropdownOption {
+  value: string;
+  label: string;
+}
+
+interface CustomSelectProps {
+  icon: React.ReactNode;
+  value: string;
+  options: DropdownOption[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+  searchable?: boolean;
+}
+
+// Custom dropdown that always opens downwards, displays 6 items at once, and scrolls the rest
+function CustomSelect({
+  icon,
+  value,
+  options,
+  onChange,
+  placeholder = "Select...",
+  searchable = false,
+}: CustomSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close when clicked outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const selectedOption = options.find((o) => o.value === value);
+  const displayLabel = selectedOption ? selectedOption.label : placeholder;
+
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    const q = searchTerm.toLowerCase().trim();
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, searchTerm]);
+
+  return (
+    <div ref={dropdownRef} className="relative w-full">
+      {/* Trigger Button */}
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen((prev) => !prev);
+          setSearchTerm("");
+        }}
+        className={`w-full flex items-center justify-between pl-10 pr-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/70 border rounded-xl text-xs sm:text-sm font-medium transition-all cursor-pointer text-left ${
+          isOpen
+            ? "border-blue-500 bg-white ring-2 ring-blue-100 shadow-xs"
+            : value !== "ALL"
+            ? "border-blue-300 bg-blue-50/40 text-blue-900"
+            : "border-slate-200 text-slate-800"
+        }`}
+      >
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          {icon}
+        </span>
+        <span className="truncate pr-2 block font-medium">
+          {displayLabel}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 pointer-events-none ${
+            isOpen ? "rotate-180 text-blue-600" : ""
+          }`}
+        />
+      </button>
+
+      {/* Dropdown Menu - Always opens downwards (top-full mt-1.5), shows ~6 items then scrolls */}
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-900/10 py-1 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100">
+          {searchable && options.length > 7 && (
+            <div className="p-2 border-b border-slate-100">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Filter options..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 text-slate-800 placeholder:text-slate-400 font-medium"
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                />
+              </div>
+            </div>
+          )}
+
+          {/* List items: max-h-[220px] gives exactly 6 items, remainder scrolls */}
+          <div className="max-h-[220px] overflow-y-auto divide-y divide-slate-50 overscroll-contain">
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-center text-xs text-slate-400 italic">
+                No matching options
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.value === value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                      setSearchTerm("");
+                    }}
+                    className={`w-full px-3.5 py-2 text-left text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${
+                      isSelected
+                        ? "bg-blue-50 text-blue-700 font-bold"
+                        : "text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                    }`}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {isSelected && (
+                      <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-2" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface JobSeekersManagerProps {
   jobSeekers: JobSeekerRecord[];
+  companies?: CompanyRecord[];
   onDeleteJobSeeker: (id: string, name: string) => void;
   onRefresh?: () => void;
   onViewResume?: (candidate: JobSeekerRecord) => void;
@@ -33,17 +182,147 @@ interface JobSeekersManagerProps {
 
 export default function JobSeekersManager({
   jobSeekers,
+  companies,
   onDeleteJobSeeker,
   onRefresh,
   onViewResume,
 }: JobSeekersManagerProps) {
   const [filter, setFilter] = useState<"ALL" | "WITH_RESUME" | "NO_RESUME" | "FRESHER" | "EXPERIENCED">("ALL");
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [experienceFilter, setExperienceFilter] = useState<string>("ALL");
+  const [skillFilter, setSkillFilter] = useState<string>("ALL");
   const [selectedCandidate, setSelectedCandidate] = useState<JobSeekerRecord | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Dynamic extraction of unique roles from candidates + standard industry roles
+  const allRoles = useMemo(() => {
+    const rolesSet = new Set<string>();
+    jobSeekers.forEach((c) => {
+      if (c.targetRole && c.targetRole.trim()) rolesSet.add(c.targetRole.trim());
+      if (c.headline && c.headline.trim() && c.headline.trim().length <= 35) {
+        rolesSet.add(c.headline.trim());
+      }
+    });
+
+    const standardRoles = [
+      "Frontend Developer",
+      "Backend Developer",
+      "Full Stack Developer",
+      "Mobile App Developer",
+      "UI/UX Designer",
+      "Data Scientist / Analyst",
+      "DevOps Engineer",
+      "Quality Assurance (QA)",
+      "Product Manager",
+      "Human Resources (HR)",
+      "Sales & Business Development",
+    ];
+    standardRoles.forEach((r) => rolesSet.add(r));
+    return Array.from(rolesSet).sort((a, b) => a.localeCompare(b));
+  }, [jobSeekers]);
+
+  // Dynamic extraction of unique skills from candidates + standard tech skills
+  const allSkills = useMemo(() => {
+    const skillsSet = new Set<string>();
+    jobSeekers.forEach((c) => {
+      (c.skills || []).forEach((s) => {
+        if (s && s.trim()) skillsSet.add(s.trim());
+      });
+    });
+
+    const standardSkills = [
+      "React",
+      "Next.js",
+      "Node.js",
+      "TypeScript",
+      "JavaScript",
+      "Python",
+      "Java",
+      "SQL",
+      "MongoDB",
+      "PostgreSQL",
+      "Tailwind CSS",
+      "HTML/CSS",
+      "Figma",
+      "AWS",
+      "Docker",
+      "Git",
+    ];
+    standardSkills.forEach((s) => skillsSet.add(s));
+    return Array.from(skillsSet).sort((a, b) => a.localeCompare(b));
+  }, [jobSeekers]);
+
+  const roleOptions: DropdownOption[] = useMemo(
+    () => [
+      { value: "ALL", label: "All Roles / Positions" },
+      ...allRoles.map((role) => ({ value: role, label: role })),
+    ],
+    [allRoles]
+  );
+
+  const experienceOptions: DropdownOption[] = useMemo(
+    () => [
+      { value: "ALL", label: "All Experience" },
+      { value: "FRESHER", label: "Fresher (0 - 1 Year)" },
+      { value: "1-2", label: "1 - 2 Years" },
+      { value: "3-5", label: "3 - 5 Years" },
+      { value: "5-8", label: "5 - 8 Years" },
+      { value: "8+", label: "8+ Years" },
+    ],
+    []
+  );
+
+  const skillOptions: DropdownOption[] = useMemo(
+    () => [
+      { value: "ALL", label: "All Skills" },
+      ...allSkills.map((sk) => ({ value: sk, label: sk })),
+    ],
+    [allSkills]
+  );
+
+  const getExpLabel = (val: string) => {
+    switch (val) {
+      case "FRESHER":
+        return "Fresher (0 - 1 Yr)";
+      case "1-2":
+        return "1 - 2 Years";
+      case "3-5":
+        return "3 - 5 Years";
+      case "5-8":
+        return "5 - 8 Years";
+      case "8+":
+        return "8+ Years";
+      default:
+        return val;
+    }
+  };
+
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    roleFilter !== "ALL" ||
+    experienceFilter !== "ALL" ||
+    skillFilter !== "ALL";
+
+  const activeFiltersCount =
+    (search.trim() ? 1 : 0) +
+    (roleFilter !== "ALL" ? 1 : 0) +
+    (experienceFilter !== "ALL" ? 1 : 0) +
+    (skillFilter !== "ALL" ? 1 : 0) +
+    (filter !== "ALL" ? 1 : 0);
+
+  const resetAllFilters = () => {
+    setSearch("");
+    setRoleFilter("ALL");
+    setExperienceFilter("ALL");
+    setSkillFilter("ALL");
+    setFilter("ALL");
+  };
 
   const filteredCandidates = jobSeekers.filter((c) => {
-    // Filter logic
+    // 1. Status Filter Pills
     if (filter === "WITH_RESUME" && !c.resumeName) return false;
     if (filter === "NO_RESUME" && c.resumeName) return false;
     if (filter === "FRESHER") {
@@ -55,7 +334,51 @@ export default function JobSeekersManager({
       if (exp.includes("fresher") || exp.includes("0 year") || exp === "0" || !exp) return false;
     }
 
-    // Search query
+    // 2. Role Filter
+    if (roleFilter !== "ALL") {
+      const rLower = roleFilter.toLowerCase().trim();
+      const targetRole = (c.targetRole || "").toLowerCase();
+      const headline = (c.headline || "").toLowerCase();
+      if (!targetRole.includes(rLower) && !headline.includes(rLower)) {
+        return false;
+      }
+    }
+
+    // 3. Experience Filter
+    if (experienceFilter !== "ALL") {
+      const exp = (c.experience || "").toLowerCase().trim();
+      if (experienceFilter === "FRESHER") {
+        const isFresher = exp.includes("fresher") || exp.includes("0 year") || exp === "0" || !exp;
+        if (!isFresher) return false;
+      } else if (experienceFilter === "1-2") {
+        if (!exp.includes("1") && !exp.includes("2")) return false;
+      } else if (experienceFilter === "3-5") {
+        if (!exp.includes("3") && !exp.includes("4") && !exp.includes("5")) return false;
+      } else if (experienceFilter === "5-8") {
+        if (!exp.includes("5") && !exp.includes("6") && !exp.includes("7") && !exp.includes("8")) return false;
+      } else if (experienceFilter === "8+") {
+        if (
+          !exp.includes("8") &&
+          !exp.includes("9") &&
+          !exp.includes("10") &&
+          !exp.includes("lead") &&
+          !exp.includes("principal") &&
+          !exp.includes("senior")
+        )
+          return false;
+      } else {
+        if (!exp.includes(experienceFilter.toLowerCase())) return false;
+      }
+    }
+
+    // 4. Skills Filter
+    if (skillFilter !== "ALL") {
+      const sLower = skillFilter.toLowerCase().trim();
+      const hasSkill = (c.skills || []).some((s) => s.toLowerCase().includes(sLower));
+      if (!hasSkill) return false;
+    }
+
+    // 5. Keyword Search query
     const q = search.toLowerCase().trim();
     if (!q) return true;
 
@@ -92,39 +415,55 @@ export default function JobSeekersManager({
                 Job Seekers & Candidates
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                {filteredCandidates.length} Registered
+                {hasActiveFilters || filter !== "ALL"
+                  ? `${filteredCandidates.length} of ${totalCount} Shown`
+                  : `${filteredCandidates.length} Registered`}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Review registered candidates, resumes uploaded from profile, contact info, and education credentials.
+              Review registered candidates, filter by role, experience level, technical skills, and manage uploaded resumes.
             </p>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
-            {[
-              { id: "ALL", label: "All Candidates" },
-              { id: "WITH_RESUME", label: `With Resume (${withResumeCount})` },
-              { id: "NO_RESUME", label: "No Resume" },
-              { id: "FRESHER", label: `Freshers (${fresherCount})` },
-              { id: "EXPERIENCED", label: `Experienced (${experiencedCount})` },
-            ].map((tab) => {
-              const isActive = filter === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setFilter(tab.id as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
-                    isActive
-                      ? "bg-white text-blue-700 shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+          {/* Action Row: Filter Pills + Send Resumes Button */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+              {[
+                { id: "ALL", label: "All Candidates" },
+                { id: "WITH_RESUME", label: `With Resume (${withResumeCount})` },
+                { id: "NO_RESUME", label: "No Resume" },
+                { id: "FRESHER", label: `Freshers (${fresherCount})` },
+                { id: "EXPERIENCED", label: `Experienced (${experiencedCount})` },
+              ].map((tab) => {
+                const isActive = filter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setFilter(tab.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                      isActive
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* SEND RESUMES BUTTON (Always Present) */}
+            <button
+              type="button"
+              onClick={() => setIsSendModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02] cursor-pointer whitespace-nowrap shrink-0"
+              title="Send candidate resumes from current view/filter to a company"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Send Resumes {filteredCandidates.length > 0 ? `(${filteredCandidates.length})` : ""}</span>
+            </button>
           </div>
         </div>
 
@@ -159,16 +498,156 @@ export default function JobSeekersManager({
           </div>
         </div>
 
-        {/* Search Input */}
-        <div className="mt-4 relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search candidate by name, email, phone, role, university, or skills..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-800"
-          />
+        {/* Advanced Filters Bar (Search, Role, Experience, Skills) */}
+        <div className="mt-5 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+            {/* 1. Search Query */}
+            <div className="lg:col-span-4 relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search candidate name, email, phone..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-800 placeholder:text-slate-400"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center absolute right-2.5 top-1/2 -translate-y-1/2 transition cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* 2. Role Filter */}
+            <div className="lg:col-span-3">
+              <CustomSelect
+                icon={<Briefcase className="w-4 h-4" />}
+                value={roleFilter}
+                options={roleOptions}
+                onChange={setRoleFilter}
+                placeholder="All Roles / Positions"
+                searchable={true}
+              />
+            </div>
+
+            {/* 3. Experience Filter */}
+            <div className="lg:col-span-2">
+              <CustomSelect
+                icon={<Clock className="w-4 h-4" />}
+                value={experienceFilter}
+                options={experienceOptions}
+                onChange={setExperienceFilter}
+                placeholder="All Experience"
+                searchable={false}
+              />
+            </div>
+
+            {/* 4. Skills Filter */}
+            <div className="lg:col-span-3">
+              <CustomSelect
+                icon={<Sparkles className="w-4 h-4" />}
+                value={skillFilter}
+                options={skillOptions}
+                onChange={setSkillFilter}
+                placeholder="All Skills"
+                searchable={true}
+              />
+            </div>
+          </div>
+
+          {/* Active Filter Badges & Reset Controls */}
+          {(hasActiveFilters || filter !== "ALL") && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                  Active Filters ({activeFiltersCount}):
+                </span>
+
+                {search.trim() && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold">
+                    <Search className="w-3 h-3 text-blue-500" />
+                    <span>"{search.trim()}"</span>
+                    <button
+                      type="button"
+                      onClick={() => setSearch("")}
+                      className="hover:text-blue-900 ml-0.5 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {roleFilter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold">
+                    <Briefcase className="w-3 h-3 text-indigo-500" />
+                    <span>Role: {roleFilter}</span>
+                    <button
+                      type="button"
+                      onClick={() => setRoleFilter("ALL")}
+                      className="hover:text-indigo-900 ml-0.5 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {experienceFilter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
+                    <Clock className="w-3 h-3 text-amber-500" />
+                    <span>Exp: {getExpLabel(experienceFilter)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setExperienceFilter("ALL")}
+                      className="hover:text-amber-900 ml-0.5 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {skillFilter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
+                    <Sparkles className="w-3 h-3 text-emerald-500" />
+                    <span>Skill: {skillFilter}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSkillFilter("ALL")}
+                      className="hover:text-emerald-900 ml-0.5 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {filter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold">
+                    <span>Tab: {filter}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFilter("ALL")}
+                      className="hover:text-slate-900 ml-0.5 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset All Filters</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -196,13 +675,23 @@ export default function JobSeekersManager({
                         <Users className="w-6 h-6" />
                       </div>
                       <p className="font-bold text-slate-700 text-sm">
-                        No job seekers found
+                        No candidates match your filters
                       </p>
                       <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                        {search
-                          ? "Try adjusting your search keywords."
+                        {hasActiveFilters || filter !== "ALL"
+                          ? "Try clearing some search terms or adjusting the role, experience, or skill filters."
                           : "When candidates sign up on the platform, their details will appear here automatically."}
                       </p>
+                      {(hasActiveFilters || filter !== "ALL") && (
+                        <button
+                          type="button"
+                          onClick={resetAllFilters}
+                          className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Clear All Filters</span>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -625,6 +1114,33 @@ export default function JobSeekersManager({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* BULK SEND RESUMES MODAL */}
+      <BulkSendResumesModal
+        isOpen={isSendModalOpen}
+        onClose={() => setIsSendModalOpen(false)}
+        candidates={filteredCandidates}
+        companies={companies}
+        activeFilterInfo={{
+          role: roleFilter,
+          experience: experienceFilter,
+          skills: skillFilter,
+          search,
+        }}
+        onSuccess={(count, compName) => {
+          setToastMsg(`Successfully sent ${count} candidate resumes to ${compName}!`);
+          setTimeout(() => setToastMsg(null), 4000);
+          if (onRefresh) onRefresh();
+        }}
+      />
+
+      {/* TOAST NOTIFICATION */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 text-xs font-semibold animate-in fade-in slide-in-from-bottom-4">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMsg}</span>
         </div>
       )}
     </div>

@@ -15,6 +15,12 @@ export interface IJob extends Document {
   workplace?: string;
   experience?: string;
   skills?: string[];
+  tags?: string[];
+  openings?: number;
+  postedBy?: string;
+  responsibilities?: string[];
+  requirements?: string[];
+  benefits?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,7 +43,7 @@ const jobSchema = new Schema<IJob>(
     },
     type: {
       type: String,
-      default: 'Full-Time',
+      default: 'Full-time',
     },
     location: {
       type: String,
@@ -49,7 +55,7 @@ const jobSchema = new Schema<IJob>(
     },
     status: {
       type: String,
-      enum: ['Active', 'Pending', 'Expired', 'Closed'],
+      enum: ['Active', 'Pending', 'Expired', 'Closed', 'Paused'],
       default: 'Active',
     },
     postedOn: {
@@ -82,6 +88,30 @@ const jobSchema = new Schema<IJob>(
       default: '2-4 years',
     },
     skills: {
+      type: [String],
+      default: [],
+    },
+    tags: {
+      type: [String],
+      default: [],
+    },
+    openings: {
+      type: Number,
+      default: 1,
+    },
+    postedBy: {
+      type: String,
+      default: 'Talent Acquisition Team',
+    },
+    responsibilities: {
+      type: [String],
+      default: [],
+    },
+    requirements: {
+      type: [String],
+      default: [],
+    },
+    benefits: {
       type: [String],
       default: [],
     },

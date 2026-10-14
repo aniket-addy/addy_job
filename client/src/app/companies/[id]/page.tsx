@@ -6,7 +6,8 @@ import { useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { companiesList, Company } from "@/data/companiesData";
-import { jobsList } from "@/data/jobsData";
+import { jobsList, JobDetail } from "@/data/jobsData";
+import { fetchCompanyJobs } from "@/lib/api";
 import {
   ArrowLeft,
   Building2,
@@ -50,12 +51,60 @@ function CompanyDetailPageContent() {
         c.name.toLowerCase().replace(/\s+/g, "-") === companyId?.toLowerCase()
     ) || companiesList[0];
 
-  // Find all jobs for this company
-  const allCompanyJobs = jobsList.filter(
-    (j) =>
-      j.company.toLowerCase().includes(company.name.toLowerCase()) ||
-      company.name.toLowerCase().includes(j.company.toLowerCase())
-  );
+  const [liveCompanyJobs, setLiveCompanyJobs] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const loadCompanyJobs = async () => {
+      try {
+        const jobs = await fetchCompanyJobs({ company: company.name, companyId });
+        if (Array.isArray(jobs)) {
+          setLiveCompanyJobs(jobs.filter((j) => j.status === "Active" || !j.status));
+        }
+      } catch (err) {
+        console.error("Failed to fetch live company jobs:", err);
+      }
+    };
+    loadCompanyJobs();
+  }, [company.name, companyId]);
+
+  const formattedLiveJobs: JobDetail[] = liveCompanyJobs.map((j) => ({
+    id: j.id || j._id,
+    title: j.title,
+    company: j.company,
+    location: j.location || "Remote",
+    type: j.type || "Full-time",
+    workplace: j.workplace || "Remote",
+    salary: j.salary || "Competitive",
+    posted: j.postedOn || "Just now",
+    category: j.department || "Engineering",
+    tags:
+      Array.isArray(j.tags) && j.tags.length > 0
+        ? (j.tags as string[])
+        : Array.isArray(j.skills) && j.skills.length > 0
+        ? (j.skills as string[])
+        : ["Tech"],
+    aboutCompany: `Verified company: ${j.company}`,
+    companySize: "100+ employees",
+    founded: "2020",
+    industry: j.department || "Technology",
+    website: "#",
+    description: j.description || "",
+    responsibilities: j.responsibilities || [],
+    requirements: j.requirements || [],
+    experience: j.experience || "2+ years",
+    openings: j.openings || 1,
+    benefits: j.benefits || [],
+  }));
+
+  // Find all jobs for this company (live backend jobs + mock fallback)
+  const allCompanyJobs: JobDetail[] = [
+    ...formattedLiveJobs,
+    ...jobsList.filter(
+      (j) =>
+        j.company.toLowerCase().includes(company.name.toLowerCase()) ||
+        company.name.toLowerCase().includes(j.company.toLowerCase())
+    ),
+  ];
 
   const [searchTerm, setSearchTerm] = useState("");
   const [workplaceFilter, setWorkplaceFilter] = useState("All");
@@ -65,7 +114,7 @@ function CompanyDetailPageContent() {
   const filteredJobs = allCompanyJobs.filter((job) => {
     const matchesSearch =
       job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.tags.some((t) => t.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      job.tags.some((t: string) => t.toLowerCase().includes(searchTerm.toLowerCase())) ||
       job.location.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesWorkplace =
@@ -455,7 +504,7 @@ function CompanyDetailPageContent() {
 
                     {/* Skills Tags */}
                     <div className="flex flex-wrap gap-1.5 mt-4">
-                      {job.tags.slice(0, 4).map((tag) => (
+                      {job.tags.slice(0, 4).map((tag: string) => (
                         <span
                           key={tag}
                           className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-600"
