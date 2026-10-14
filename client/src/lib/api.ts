@@ -400,6 +400,33 @@ export async function updateAdminApplicationStatus(
   }
 }
 
+export async function createAdminApplication(payload: {
+  candidateName: string;
+  candidateEmail?: string;
+  candidatePhone?: string;
+  position?: string;
+  company?: string;
+  domain: string;
+  experience: string;
+  skills?: string[];
+  pdfData?: string;
+  fileName?: string;
+  status?: string;
+  resumeUrl?: string;
+}): Promise<{ success: boolean; message: string; application?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/applications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('createAdminApplication error:', error);
+    return { success: false, message: 'Failed to upload resume' };
+  }
+}
+
 export async function fetchAdminPlans(): Promise<any[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/plans`);

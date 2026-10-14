@@ -10,6 +10,11 @@ export interface IApplication extends Document {
   company: string;
   appliedOn: string;
   status: 'New' | 'Shortlisted' | 'Reviewed' | 'Hired' | 'Rejected';
+  domain?: string;
+  experience?: string;
+  skills?: string[];
+  pdfData?: string;
+  fileName?: string;
   resumeUrl?: string;
   jobId?: mongoose.Types.ObjectId | string;
   candidateId?: mongoose.Types.ObjectId | string;
@@ -65,6 +70,28 @@ const applicationSchema = new Schema<IApplication>(
       type: String,
       enum: ['New', 'Shortlisted', 'Reviewed', 'Hired', 'Rejected'],
       default: 'New',
+    },
+    domain: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    experience: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    skills: {
+      type: [String],
+      default: [],
+    },
+    pdfData: {
+      type: String,
+      default: '',
+    },
+    fileName: {
+      type: String,
+      default: '',
     },
     resumeUrl: {
       type: String,

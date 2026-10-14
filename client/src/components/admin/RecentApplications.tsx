@@ -14,6 +14,12 @@ export interface ApplicationItem {
   status: "New" | "Shortlisted" | "Reviewed" | "Hired" | "Rejected";
   candidateEmail?: string;
   candidatePhone?: string;
+  domain?: string;
+  experience?: string;
+  skills?: string[];
+  pdfData?: string;
+  fileName?: string;
+  resumeUrl?: string;
 }
 
 interface RecentApplicationsProps {

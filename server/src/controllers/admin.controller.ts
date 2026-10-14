@@ -336,10 +336,11 @@ export const getAdminApplications = async (req: Request, res: Response) => {
 
     const apps = await Application.find({}).sort({ createdAt: -1 });
 
-    const formatted = apps.map((a) => ({
+    const formatted = apps.map((a: any) => ({
       id: a._id.toString(),
       candidateName: a.candidateName,
       candidateEmail: a.candidateEmail || '',
+      candidatePhone: a.candidatePhone || '',
       avatarLetter: a.avatarLetter || getInitials(a.candidateName),
       avatarBg: a.avatarBg || getColorForName(a.candidateName),
       position: a.position,
@@ -347,12 +348,99 @@ export const getAdminApplications = async (req: Request, res: Response) => {
       appliedOn: a.appliedOn || 'Recent',
       status: a.status,
       resumeUrl: a.resumeUrl || '',
+      domain: a.domain || '',
+      experience: a.experience || '',
+      skills: a.skills || [],
+      pdfData: a.pdfData || '',
+      fileName: a.fileName || '',
     }));
 
     res.json({ success: true, applications: formatted });
   } catch (error: any) {
     console.error('getAdminApplications error:', error);
     res.status(500).json({ success: false, message: 'Failed to retrieve applications' });
+  }
+};
+
+// @desc    Upload / Create candidate application or resume
+// @route   POST /api/admin/applications
+export const createAdminApplication = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const {
+      candidateName,
+      candidateEmail,
+      candidatePhone,
+      position,
+      company,
+      domain,
+      experience,
+      skills,
+      pdfData,
+      fileName,
+      status,
+      resumeUrl,
+    } = req.body;
+
+    if (!candidateName || !domain || !experience) {
+      res.status(400).json({
+        success: false,
+        message: 'Candidate name, domain, and experience are required.',
+      });
+      return;
+    }
+
+    const newApp = new Application({
+      candidateName: candidateName.trim(),
+      candidateEmail: (candidateEmail || '').trim(),
+      candidatePhone: (candidatePhone || '').trim(),
+      position: (position || domain || 'Candidate').trim(),
+      company: (company || 'General Pool / Open').trim(),
+      domain: domain.trim(),
+      experience: experience.trim(),
+      skills: Array.isArray(skills)
+        ? skills
+        : skills
+        ? String(skills)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
+      pdfData: pdfData || '',
+      fileName: fileName || '',
+      resumeUrl: resumeUrl || '',
+      status: status || 'New',
+      avatarLetter: getInitials(candidateName),
+      avatarBg: getColorForName(candidateName),
+    });
+
+    await newApp.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Resume uploaded successfully',
+      application: {
+        id: newApp._id.toString(),
+        candidateName: newApp.candidateName,
+        candidateEmail: newApp.candidateEmail,
+        candidatePhone: newApp.candidatePhone,
+        avatarLetter: newApp.avatarLetter,
+        avatarBg: newApp.avatarBg,
+        position: newApp.position,
+        company: newApp.company,
+        appliedOn: newApp.appliedOn,
+        status: newApp.status,
+        domain: newApp.domain,
+        experience: newApp.experience,
+        skills: newApp.skills,
+        pdfData: newApp.pdfData,
+        fileName: newApp.fileName,
+        resumeUrl: newApp.resumeUrl,
+      },
+    });
+  } catch (error: any) {
+    console.error('createAdminApplication error:', error);
+    res.status(500).json({ success: false, message: 'Failed to create resume/application' });
   }
 };
 

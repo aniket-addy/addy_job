@@ -462,7 +462,12 @@ export default function SuperAdminPage() {
             {(activeTab === "applications" || activeTab === "resumes") && (
               <ApplicationsManager
                 applications={applications}
+                companies={allCompanies.map((c) => ({ id: c.id, name: c.name }))}
                 onUpdateStatus={handleUpdateApplicationStatus}
+                activeView={activeTab}
+                onAddApplication={(newApp) => {
+                  setApplications((prev) => [newApp, ...prev]);
+                }}
               />
             )}
 

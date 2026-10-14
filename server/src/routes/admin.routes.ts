@@ -11,6 +11,7 @@ import {
   updateJobStatus,
   deleteJob,
   getAdminApplications,
+  createAdminApplication,
   updateApplicationStatus,
   getAdminPlans,
   createAdminPlan,
@@ -40,6 +41,7 @@ router.delete('/jobs/:id', deleteJob);
 
 // Applications management
 router.get('/applications', getAdminApplications);
+router.post('/applications', createAdminApplication);
 router.patch('/applications/:id/status', updateApplicationStatus);
 
 // Plans & Pricing
