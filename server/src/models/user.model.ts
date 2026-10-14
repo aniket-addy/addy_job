@@ -40,6 +40,15 @@ export interface IUser extends Document {
   phone?: string;
   gstNumber?: string;
   status?: 'Pending' | 'Approved' | 'Rejected';
+  plan?: string;
+  permissions?: {
+    dashboard?: boolean;
+    jobs?: boolean;
+    applicants?: boolean;
+    resumes?: boolean;
+    settings?: boolean;
+    autoApproveFromSubscription?: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -208,17 +217,17 @@ const userSchema = new Schema<IUser>(
     industry: {
       type: String,
       trim: true,
-      default: 'Information Technology',
+      default: '',
     },
     companySize: {
       type: String,
       trim: true,
-      default: '11-50 employees',
+      default: '',
     },
     location: {
       type: String,
       trim: true,
-      default: 'Bengaluru, India',
+      default: '',
     },
     phone: {
       type: String,
@@ -232,6 +241,19 @@ const userSchema = new Schema<IUser>(
       type: String,
       enum: ['Pending', 'Approved', 'Rejected'],
       default: 'Approved',
+    },
+    plan: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    permissions: {
+      dashboard: { type: Boolean, default: false },
+      jobs: { type: Boolean, default: false },
+      applicants: { type: Boolean, default: false },
+      resumes: { type: Boolean, default: false },
+      settings: { type: Boolean, default: false },
+      autoApproveFromSubscription: { type: Boolean, default: true },
     },
   },
   {

@@ -29,16 +29,16 @@ interface MetricCardsProps {
 }
 
 export default function MetricCards({ onSelectTab, pendingCount, stats }: MetricCardsProps) {
-  const totalComp = stats?.totalCompanies ?? 245;
-  const approvedComp = stats?.approvedCompanies ?? 198;
-  const pendComp = stats?.pendingCompanies ?? pendingCount;
+  const totalComp = stats?.totalCompanies ?? 0;
+  const approvedComp = stats?.approvedCompanies ?? 0;
+  const pendComp = stats?.pendingCompanies ?? pendingCount ?? 0;
 
-  const totalJobs = stats?.totalJobs ?? 1248;
-  const activeJobs = stats?.activeJobs ?? 842;
-  const expiredJobs = stats?.expiredJobs ?? 406;
+  const totalJobs = stats?.totalJobs ?? 0;
+  const activeJobs = stats?.activeJobs ?? 0;
+  const expiredJobs = stats?.expiredJobs ?? 0;
 
-  const totalApps = stats?.totalApplications ?? 28476;
-  const revenue = stats?.totalRevenue ?? "₹ 12,45,230";
+  const totalApps = stats?.totalApplications ?? 0;
+  const revenue = stats?.totalRevenue ?? "₹ 0";
 
   const cards = [
     {

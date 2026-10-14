@@ -5,9 +5,17 @@ import { Building2, Briefcase, Users, CreditCard } from "lucide-react";
 
 interface QuickStatsProps {
   pendingCompanies: number;
+  activeJobs?: number;
+  totalApplications?: number;
+  revenue?: string;
 }
 
-export default function QuickStats({ pendingCompanies }: QuickStatsProps) {
+export default function QuickStats({
+  pendingCompanies,
+  activeJobs = 0,
+  totalApplications = 0,
+  revenue = "₹ 0",
+}: QuickStatsProps) {
   const stats = [
     {
       title: "Pending Companies",
@@ -17,19 +25,19 @@ export default function QuickStats({ pendingCompanies }: QuickStatsProps) {
     },
     {
       title: "Active Jobs",
-      value: "842",
+      value: activeJobs.toLocaleString("en-IN"),
       icon: Briefcase,
       color: "text-blue-600 bg-blue-50 border-blue-100",
     },
     {
-      title: "Today's Applications",
-      value: "2,482",
+      title: "Applications",
+      value: totalApplications.toLocaleString("en-IN"),
       icon: Users,
       color: "text-violet-600 bg-violet-50 border-violet-100",
     },
     {
-      title: "Today's Revenue",
-      value: "₹ 3,45,000",
+      title: "Platform Revenue",
+      value: revenue,
       icon: CreditCard,
       color: "text-emerald-600 bg-emerald-50 border-emerald-100",
     },

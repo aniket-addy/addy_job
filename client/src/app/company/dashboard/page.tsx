@@ -41,8 +41,21 @@ import {
   Share2,
   Pencil,
   Menu,
+  Clock,
+  AlertCircle,
 } from "lucide-react";
-import { getStoredUser, clearAuthSession } from "@/lib/api";
+import {
+  getStoredUser,
+  clearAuthSession,
+  getEffectiveCompanyPermissions,
+  CompanyPermissions,
+  PLAN_AUTO_PERMISSIONS,
+  getMatchingPlanRule,
+  syncGlobalPermissionsRules,
+  updateCompanyPermissions,
+  fetchCurrentUser,
+  updateUserProfile,
+} from "@/lib/api";
 
 // Types
 interface PostedJob {
@@ -99,10 +112,20 @@ interface PurchasedResume {
 export default function CompanyDashboardPage() {
   const router = useRouter();
 
-  // Active Tab
+  // Active Tab - default to profile as default details are always visible
   const [activeTab, setActiveTab] = useState<
     "dashboard" | "profile" | "jobs" | "applicants" | "resumes" | "subscription" | "settings"
-  >("dashboard");
+  >("profile");
+
+  // Company Permissions State (controlled by Super Admin + Plan Auto-Approval)
+  const [permissions, setPermissions] = useState<CompanyPermissions>({
+    dashboard: false,
+    jobs: false,
+    applicants: false,
+    resumes: false,
+    settings: false,
+    autoApproveFromSubscription: true,
+  });
 
   // Mobile sidebar drawer state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -114,19 +137,17 @@ export default function CompanyDashboardPage() {
     setIsMobileSidebarOpen(false);
   };
 
-  // Company Profile Info
-  const [companyName, setCompanyName] = useState("Acme Global Technologies");
-  const [tagline, setTagline] = useState("Innovating enterprise software solutions");
-  const [industry, setIndustry] = useState("Information Technology & Services");
-  const [companySize, setCompanySize] = useState("250 - 500 Employees");
-  const [headquarters, setHeadquarters] = useState("Bengaluru, Karnataka, India");
-  const [website, setWebsite] = useState("https://acmetech.global");
-  const [contactEmail, setContactEmail] = useState("recruiting@acmetech.global");
-  const [contactPhone, setContactPhone] = useState("+91 80 4123 5678");
-  const [gstNumber, setGstNumber] = useState("29AABCN1234F1Z6");
-  const [aboutCompany, setAboutCompany] = useState(
-    "Acme Global Technologies is a leading cloud infrastructure and enterprise product engineering company building high-scale distributed systems and digital platforms for Fortune 500 clients worldwide."
-  );
+  // Company Profile Info (Initialized with real user data or clean empty defaults)
+  const [companyName, setCompanyName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [companySize, setCompanySize] = useState("");
+  const [headquarters, setHeadquarters] = useState("");
+  const [website, setWebsite] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [gstNumber, setGstNumber] = useState("");
+  const [aboutCompany, setAboutCompany] = useState("");
 
   // Profile Image & Banner Cover Image states
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -140,12 +161,151 @@ export default function CompanyDashboardPage() {
   const profileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  // Subscription & Resume Credits state
-  const [currentPlan, setCurrentPlan] = useState("Professional Growth");
-  const [planValidity, setPlanValidity] = useState("Valid until Dec 31, 2026");
-  const [totalResumesPurchased, setTotalResumesPurchased] = useState(50);
-  const [resumesUsed, setResumesUsed] = useState(15);
-  const [activePlanCard, setActivePlanCard] = useState<"starter" | "pro" | "enterprise">("pro");
+  // Subscription & Resume Credits state (Default 0 until activated/purchased)
+  const [currentPlan, setCurrentPlan] = useState("No Active Plan");
+  const [planValidity, setPlanValidity] = useState("No Active Plan");
+  const [totalResumesPurchased, setTotalResumesPurchased] = useState(0);
+  const [resumesUsed, setResumesUsed] = useState(0);
+  const [activePlanCard, setActivePlanCard] = useState<"starter" | "pro" | "enterprise" | null>(null);
+  const [companyStatus, setCompanyStatus] = useState<"Pending" | "Approved" | "Rejected">("Pending");
+
+  // Sync permissions from Super Admin / User session / Subscription Plan
+  useEffect(() => {
+    const syncPermissions = () => {
+      const user = getStoredUser();
+      const perms = getEffectiveCompanyPermissions({
+        id: (user as any)?._id || user?.id,
+        plan: (user as any)?.plan || currentPlan,
+        permissions: (user as any)?.permissions,
+      });
+      setPermissions(perms);
+
+      // Guard activeTab: profile and subscription are ALWAYS accessible.
+      // Other tabs require explicit permission (via manual grant or plan auto-approval)
+      setActiveTab((current) => {
+        if (current === "profile" || current === "subscription") return current;
+        if (perms[current as keyof CompanyPermissions]) return current;
+        return "profile";
+      });
+    };
+
+    syncPermissions();
+    // Sync latest global plan rules configured by Super Admin
+    syncGlobalPermissionsRules().then(() => syncPermissions());
+
+    window.addEventListener("company_permissions_updated", syncPermissions);
+    window.addEventListener("storage", syncPermissions);
+    window.addEventListener("focus", syncPermissions);
+    return () => {
+      window.removeEventListener("company_permissions_updated", syncPermissions);
+      window.removeEventListener("storage", syncPermissions);
+      window.removeEventListener("focus", syncPermissions);
+    };
+  }, [currentPlan]);
+
+  // Initial plan load from user session (clean from database user only)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const user = getStoredUser();
+      const planName = (user as any)?.plan;
+      if (planName) {
+        if (planName.toLowerCase().includes("enterprise")) {
+          setCurrentPlan("Enterprise Scaled");
+          setActivePlanCard("enterprise");
+        } else if (planName.toLowerCase().includes("pro")) {
+          setCurrentPlan("Professional Growth");
+          setActivePlanCard("pro");
+        } else if (
+          planName.toLowerCase().includes("basic") ||
+          planName.toLowerCase().includes("starter")
+        ) {
+          setCurrentPlan("Starter Recruiter");
+          setActivePlanCard("starter");
+        }
+      } else {
+        setCurrentPlan("No Active Plan");
+        setPlanValidity("No Active Plan");
+        setTotalResumesPurchased(0);
+        setResumesUsed(0);
+      }
+    }
+  }, []);
+
+  // Handle 1-click plan activation and auto-unlock of permissions
+  const handleActivatePlan = async (
+    planKey: "starter" | "pro" | "enterprise",
+    planTitle: string,
+    credits: number
+  ) => {
+    // 1. Map to standard Plan name for auto-approval system
+    const standardPlanName =
+      planKey === "enterprise"
+        ? "Enterprise"
+        : planKey === "pro"
+        ? "Pro Plan"
+        : "Basic Plan";
+
+    // 2. Compute plan auto permissions from dynamic plan rules set by Super Admin
+    const dynamicRule = getMatchingPlanRule(standardPlanName);
+    const planAuto = dynamicRule || PLAN_AUTO_PERMISSIONS[standardPlanName] || {
+      dashboard: planKey !== "starter",
+      jobs: true,
+      applicants: true,
+      resumes: planKey !== "starter",
+      settings: planKey === "enterprise",
+    };
+
+    const newPerms: CompanyPermissions = {
+      ...permissions,
+      ...planAuto,
+      autoApproveFromSubscription: true,
+    };
+
+    // 3. Update component states
+    setCurrentPlan(planTitle);
+    setActivePlanCard(planKey);
+    setTotalResumesPurchased(credits);
+    setResumesUsed(0);
+    setPlanValidity("Valid for 1 Year");
+    setPermissions(newPerms);
+
+    // 4. Update session & localStorage so everything stays in sync
+    if (typeof window !== "undefined") {
+      const storedUser = getStoredUser();
+      if (storedUser) {
+        const updatedUser = {
+          ...storedUser,
+          plan: standardPlanName,
+          permissions: newPerms,
+        };
+        localStorage.setItem("career_user", JSON.stringify(updatedUser));
+        if (storedUser.id) {
+          localStorage.setItem(`company_permissions_${storedUser.id}`, JSON.stringify(newPerms));
+        }
+      }
+      localStorage.setItem("company_active_plan", standardPlanName);
+      localStorage.setItem("company_permissions_active", JSON.stringify(newPerms));
+      window.dispatchEvent(new Event("company_permissions_updated"));
+      window.dispatchEvent(new Event("storage"));
+    }
+
+    // 5. Update backend database asynchronously
+    const user = getStoredUser();
+    const companyId = (user as any)?._id || user?.id || "c1";
+    try {
+      await updateCompanyPermissions(companyId, newPerms, {
+        name: companyName,
+        email: contactEmail,
+        plan: standardPlanName,
+      });
+    } catch (e) {
+      console.warn("Background plan sync error:", e);
+    }
+
+    setToastMessage(`🎉 ${planTitle} activated! New permissions have been unlocked.`);
+    setTimeout(() => setToastMessage(null), 4000);
+    setIsUpgradePlanModalOpen(false);
+  };
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -179,375 +339,126 @@ export default function CompanyDashboardPage() {
   const [jobRequirements, setJobRequirements] = useState("");
   const [jobBenefits, setJobBenefits] = useState("");
 
-  // Initial Jobs List (Kitne Post Hai)
-  const [jobs, setJobs] = useState<PostedJob[]>([
-    {
-      id: "JOB-101",
-      title: "Senior Full Stack Engineer (React / Node.js)",
-      department: "Engineering",
-      location: "Bengaluru, Karnataka",
-      type: "Full-time",
-      workplace: "Remote",
-      experience: "3 - 5 years",
-      salary: "₹20L - ₹28L/yr",
-      openings: 2,
-      postedBy: "Talent Acquisition Team",
-      tags: ["React", "TypeScript", "Next.js", "Tailwind", "Node.js"],
-      description:
-        "We are looking for an experienced Senior Full Stack Engineer to architect and build our next-generation cloud dashboard. You will work closely with product and design teams to create snappy, accessible, and high-performance interfaces using React, Next.js, and TypeScript.",
-      responsibilities: [
-        "Architect and ship modern, performant web applications using Next.js and TypeScript.",
-        "Collaborate with UX designers to translate complex cloud telemetry into elegant dashboards.",
-        "Optimize frontend asset loading, runtime performance, and core web vitals.",
-        "Mentor junior frontend developers and uphold clean code, CI/CD, and testing standards.",
-      ],
-      requirements: [
-        "4+ years of professional experience with React, Next.js, and TypeScript.",
-        "Deep understanding of server components, state management, and modern CSS frameworks.",
-        "Familiarity with REST and GraphQL APIs, WebSockets, and performance profiling.",
-        "Strong communication and autonomous problem-solving capabilities.",
-      ],
-      benefits: [
-        "100% Remote flexibility with home-office setup allowance",
-        "Competitive stock options (ESOPs) & annual bonuses",
-        "Comprehensive medical insurance for employee and dependents",
-        "₹1,00,000 annual learning & certification budget",
-      ],
-      applicantsCount: 42,
-      status: "Active",
-      postedOn: "3 days ago",
-    },
-    {
-      id: "JOB-102",
-      title: "Lead UI/UX Designer & Design Systems",
-      department: "Product Design",
-      location: "Mohali, Punjab",
-      type: "Full-time",
-      workplace: "Hybrid",
-      experience: "4+ years",
-      salary: "₹18L - ₹24L/yr",
-      openings: 1,
-      postedBy: "Design Hiring Team",
-      tags: ["Figma", "Design Systems", "Prototyping", "UI/UX"],
-      description:
-        "As Lead Product Designer, you will shape the future visual language and user experience across our flagship client applications. You'll lead design systems and guide product discovery workshops.",
-      responsibilities: [
-        "Lead end-to-end product design from user discovery to interactive prototypes.",
-        "Maintain and scale centralized Figma multi-brand design tokens system.",
-        "Conduct user testing sessions, synthesize feedback, and iterate rapidly.",
-      ],
-      requirements: [
-        "4+ years of experience in product design, UI/UX, or digital product studios.",
-        "Mastery of Figma, micro-animations, user testing, and interactive prototyping.",
-      ],
-      benefits: [
-        "Flexible hybrid working schedule (2 days in-office)",
-        "Top-tier MacBook Pro and ergonomic workspace",
-        "Health & wellness subsidies and gym memberships",
-      ],
-      applicantsCount: 28,
-      status: "Active",
-      postedOn: "1 week ago",
-    },
-    {
-      id: "JOB-103",
-      title: "DevOps & Cloud Infrastructure Architect",
-      department: "Platform Eng",
-      location: "Hyderabad, India",
-      type: "Full-time",
-      workplace: "On-site",
-      experience: "5+ years",
-      salary: "₹24L - ₹32L/yr",
-      openings: 1,
-      postedBy: "Platform HR",
-      tags: ["Kubernetes", "AWS", "Terraform", "CI/CD", "Docker"],
-      description:
-        "Looking for an experienced DevOps Architect to manage our AWS multi-region infrastructure and automated CI/CD pipelines.",
-      responsibilities: [
-        "Manage cloud infrastructure as code via Terraform and Helm charts.",
-        "Ensure 99.99% high-availability and security compliance.",
-      ],
-      requirements: [
-        "5+ years cloud infrastructure experience with AWS, Kubernetes, and Linux internals.",
-      ],
-      benefits: [
-        "Premium comprehensive medical insurance",
-        "Annual performance bonuses & certification funding",
-      ],
-      applicantsCount: 19,
-      status: "Active",
-      postedOn: "2 weeks ago",
-    },
-    {
-      id: "JOB-104",
-      title: "Product Marketing Manager (B2B SaaS)",
-      department: "Marketing",
-      location: "Mumbai, India",
-      type: "Full-time",
-      workplace: "Hybrid",
-      experience: "3 - 5 years",
-      salary: "₹15L - ₹20L/yr",
-      openings: 1,
-      postedBy: "Growth Team",
-      tags: ["Product Marketing", "B2B SaaS", "Go-to-Market", "Content"],
-      description:
-        "Drive product messaging, positioning, and go-to-market strategies for our B2B SaaS platform.",
-      responsibilities: [
-        "Create high-impact positioning documents, case studies, and customer stories.",
-        "Partner with sales team to deliver high-converting enablement material.",
-      ],
-      requirements: [
-        "3+ years product marketing experience in fast-growth B2B SaaS.",
-      ],
-      benefits: [
-        "Hybrid workplace flexibility",
-        "Performance incentives & quarterly bonuses",
-      ],
-      applicantsCount: 14,
-      status: "Paused",
-      postedOn: "3 weeks ago",
-    },
-    {
-      id: "JOB-105",
-      title: "Associate React Frontend Developer",
-      department: "Engineering",
-      location: "Noida, India",
-      type: "Full-time",
-      workplace: "Remote",
-      experience: "1 - 3 years",
-      salary: "₹8L - ₹12L/yr",
-      openings: 3,
-      postedBy: "Engineering Recruitment",
-      tags: ["React", "JavaScript", "HTML/CSS", "Tailwind"],
-      description:
-        "Join our frontend team to build modern responsive web applications and customer portals using React.",
-      responsibilities: [
-        "Develop pixel-perfect components based on Figma design guidelines.",
-        "Integrate RESTful APIs and ensure cross-browser compatibility.",
-      ],
-      requirements: [
-        "1-3 years of solid frontend experience with React and JavaScript/TypeScript.",
-      ],
-      benefits: [
-        "100% Remote flexibility",
-        "Medical insurance and paid time off",
-      ],
-      applicantsCount: 83,
-      status: "Active",
-      postedOn: "Just now",
-    },
-  ]);
+  // Jobs List (Real data only, default empty)
+  const [jobs, setJobs] = useState<PostedJob[]>([]);
 
-  // Applicants List (Applications received, Hired, Rejected)
-  const [applicants, setApplicants] = useState<RecruiterApplicant[]>([
-    {
-      id: "APP-001",
-      candidateName: "Rahul Sharma",
-      appliedRole: "Associate React Frontend Developer",
-      jobId: "JOB-105",
-      experience: "2+ Years",
-      location: "Noida, UP",
-      appliedDate: "Today, 11:30 AM",
-      resumeFileName: "Rahul_Sharma_Resume.pdf",
-      skills: ["React.js", "Next.js", "Tailwind CSS", "TypeScript"],
-      status: "Applied",
-      matchScore: 94,
-      email: "rahul.sharma@gmail.com",
-      phone: "+91 98765 43210",
-      notes: "Strong frontend fundamentals, verified portfolio.",
-    },
-    {
-      id: "APP-002",
-      candidateName: "Priya Venkatesh",
-      appliedRole: "Senior Full Stack Engineer (React / Node.js)",
-      jobId: "JOB-101",
-      experience: "5 Years",
-      location: "Bengaluru, KA",
-      appliedDate: "Yesterday",
-      resumeFileName: "Priya_Venkatesh_FullStack.pdf",
-      skills: ["React", "Node.js", "TypeScript", "PostgreSQL", "AWS"],
-      status: "Interview",
-      matchScore: 98,
-      email: "priya.v@techmail.com",
-      phone: "+91 98112 34567",
-      notes: "Completed Technical Round 1 with high rating.",
-    },
-    {
-      id: "APP-003",
-      candidateName: "Amit Patel",
-      appliedRole: "Lead UI/UX Designer & Design Systems",
-      jobId: "JOB-102",
-      experience: "6 Years",
-      location: "Ahmedabad / Remote",
-      appliedDate: "3 days ago",
-      resumeFileName: "Amit_Patel_ProductDesign.pdf",
-      skills: ["Figma", "Design Systems", "Prototyping", "User Research"],
-      status: "Hired",
-      matchScore: 96,
-      email: "amit.design@gmail.com",
-      phone: "+91 99001 22334",
-      notes: "Offer accepted! Joining date set for 1st of next month.",
-    },
-    {
-      id: "APP-004",
-      candidateName: "Sneha Mukherjee",
-      appliedRole: "DevOps & Cloud Infrastructure Architect",
-      jobId: "JOB-103",
-      experience: "4 Years",
-      location: "Kolkata, WB",
-      appliedDate: "4 days ago",
-      resumeFileName: "Sneha_M_CloudArch.pdf",
-      skills: ["Kubernetes", "Terraform", "Docker", "GCP"],
-      status: "Shortlisted",
-      matchScore: 89,
-      email: "sneha.devops@outlook.com",
-      phone: "+91 97480 11223",
-      notes: "Shortlisted for Round 2 technical assessment.",
-    },
-    {
-      id: "APP-005",
-      candidateName: "Vikramaditya Rao",
-      appliedRole: "Senior Full Stack Engineer (React / Node.js)",
-      jobId: "JOB-101",
-      experience: "1 Year",
-      location: "Chennai, TN",
-      appliedDate: "5 days ago",
-      resumeFileName: "Vikram_CV_2025.pdf",
-      skills: ["HTML", "Basic JS", "Express"],
-      status: "Rejected",
-      matchScore: 48,
-      email: "vikram.rao@mail.com",
-      phone: "+91 96200 44556",
-      notes: "Experience does not meet senior requirement threshold.",
-    },
-    {
-      id: "APP-006",
-      candidateName: "Ananya Deshmukh",
-      appliedRole: "Associate React Frontend Developer",
-      jobId: "JOB-105",
-      experience: "2.5 Years",
-      location: "Pune, MH",
-      appliedDate: "6 days ago",
-      resumeFileName: "Ananya_Deshmukh_Frontend.pdf",
-      skills: ["React.js", "Redux", "REST APIs", "Jest"],
-      status: "Reviewing",
-      matchScore: 91,
-      email: "ananya.d@gmail.com",
-      phone: "+91 98450 99887",
-      notes: "Under recruiter review.",
-    },
-    {
-      id: "APP-007",
-      candidateName: "Karthik Sundaram",
-      appliedRole: "Product Marketing Manager (B2B SaaS)",
-      jobId: "JOB-104",
-      experience: "3 Years",
-      location: "Mumbai, MH",
-      appliedDate: "1 week ago",
-      resumeFileName: "Karthik_Marketing_Lead.pdf",
-      skills: ["B2B SaaS", "Growth Marketing", "HubSpot", "SEO"],
-      status: "Rejected",
-      matchScore: 54,
-      email: "karthik.s@domain.in",
-      phone: "+91 98330 22110",
-      notes: "Candidate requested higher remote CTC out of budget.",
-    },
-  ]);
+  // Applicants List (Real data only, default empty)
+  const [applicants, setApplicants] = useState<RecruiterApplicant[]>([]);
 
-  // Purchased Resumes Database (Kitne Resume Kharide Hai)
-  const [purchasedResumes] = useState<PurchasedResume[]>([
-    {
-      id: "RES-801",
-      candidateName: "Rahul Sharma",
-      title: "Frontend Developer (React.js, Next.js)",
-      experience: "2+ Years",
-      location: "Noida, UP",
-      purchasedDate: "Today",
-      fileSize: "1.2 MB",
-      downloadUrl: "/Rahul_Sharma_Resume.pdf",
-      email: "rahul.sharma@gmail.com",
-      phone: "+91 98765 43210",
-    },
-    {
-      id: "RES-802",
-      candidateName: "Tanvi Kapoor",
-      title: "Senior Product Designer",
-      experience: "4.5 Years",
-      location: "Gurugram, HR",
-      purchasedDate: "2 days ago",
-      fileSize: "2.4 MB",
-      downloadUrl: "#",
-      email: "tanvi.design@gmail.com",
-      phone: "+91 98101 55667",
-    },
-    {
-      id: "RES-803",
-      candidateName: "Arjun Nambiar",
-      title: "Golang & Distributed Systems Engineer",
-      experience: "5 Years",
-      location: "Bengaluru, KA",
-      purchasedDate: "5 days ago",
-      fileSize: "1.1 MB",
-      downloadUrl: "#",
-      email: "arjun.n@techcloud.io",
-      phone: "+91 99450 77889",
-    },
-    {
-      id: "RES-804",
-      candidateName: "Neha Chawla",
-      title: "AI / Machine Learning Engineer",
-      experience: "3 Years",
-      location: "Hyderabad, TS",
-      purchasedDate: "1 week ago",
-      fileSize: "1.8 MB",
-      downloadUrl: "#",
-      email: "neha.ai@mlresearch.com",
-      phone: "+91 98880 33445",
-    },
-  ]);
+  // Purchased Resumes (Real data only, default empty)
+  const [purchasedResumes, setPurchasedResumes] = useState<PurchasedResume[]>([]);
 
-  // Load user data from localStorage
+  // Load user data from localStorage & database session
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // 1. Purge legacy global un-scoped items that leaked across companies
+      localStorage.removeItem("company_profile_data");
+      localStorage.removeItem("company_active_plan");
+      localStorage.removeItem("company_posted_jobs");
+      localStorage.removeItem("company_applicants_data");
+      localStorage.removeItem("company_purchased_resumes");
+      localStorage.removeItem("company_permissions_active");
+
+      const applyUserData = (u: any) => {
+        if (!u) return;
+        const uid = u._id || u.id || u.userId || u.email;
+        setCompanyName(u.companyName || u.name || "");
+        setContactEmail(u.workEmail || u.email || "");
+        setIndustry(u.industry || "");
+        setHeadquarters(u.location || "");
+        setContactPhone(u.phone || "");
+        setGstNumber(u.gstNumber || "");
+        setCompanySize(u.companySize || "");
+        setAboutCompany(u.bio || "");
+        setCompanyStatus(u.status || "Pending");
+
+        // Subscription plan strictly from real user database record
+        const planName = u.plan || "";
+        if (planName) {
+          if (planName.toLowerCase().includes("enterprise")) {
+            setCurrentPlan("Enterprise Scaled");
+            setActivePlanCard("enterprise");
+            setPlanValidity("Valid for 1 Year");
+          } else if (planName.toLowerCase().includes("pro")) {
+            setCurrentPlan("Professional Growth");
+            setActivePlanCard("pro");
+            setPlanValidity("Valid for 1 Year");
+          } else if (
+            planName.toLowerCase().includes("basic") ||
+            planName.toLowerCase().includes("starter")
+          ) {
+            setCurrentPlan("Starter Recruiter");
+            setActivePlanCard("starter");
+            setPlanValidity("Valid for 1 Year");
+          }
+        } else {
+          setCurrentPlan("No Active Plan");
+          setActivePlanCard(null);
+          setPlanValidity("No Active Plan");
+          setTotalResumesPurchased(0);
+          setResumesUsed(0);
+        }
+
+        // Custom branding (only if this specific company user has saved it)
+        if (uid) {
+          const userProfileStr = localStorage.getItem(`company_profile_data_${uid}`);
+          if (userProfileStr) {
+            try {
+              const parsed = JSON.parse(userProfileStr);
+              if (parsed.tagline) setTagline(parsed.tagline);
+              if (parsed.website) setWebsite(parsed.website);
+              if (parsed.profileImage) setProfileImage(parsed.profileImage);
+              if (parsed.bannerImage) setBannerImage(parsed.bannerImage);
+              if (parsed.aboutCompany) setAboutCompany(parsed.aboutCompany);
+            } catch (e) {
+              console.error(e);
+            }
+          } else {
+            setTagline("");
+            setWebsite("");
+            setProfileImage(null);
+            setBannerImage(null);
+          }
+
+          const savedJobs = localStorage.getItem(`company_posted_jobs_${uid}`);
+          if (savedJobs) {
+            try {
+              const parsedJobs = JSON.parse(savedJobs);
+              if (Array.isArray(parsedJobs)) setJobs(parsedJobs);
+            } catch (e) {}
+          } else {
+            setJobs([]);
+          }
+
+          const savedApplicants = localStorage.getItem(`company_applicants_data_${uid}`);
+          if (savedApplicants) {
+            try {
+              const parsedApplicants = JSON.parse(savedApplicants);
+              if (Array.isArray(parsedApplicants)) setApplicants(parsedApplicants);
+            } catch (e) {}
+          } else {
+            setApplicants([]);
+          }
+
+          const savedPurchasedResumes = localStorage.getItem(`company_purchased_resumes_${uid}`);
+          if (savedPurchasedResumes) {
+            try {
+              const parsedResumes = JSON.parse(savedPurchasedResumes);
+              if (Array.isArray(parsedResumes)) setPurchasedResumes(parsedResumes);
+            } catch (e) {}
+          } else {
+            setPurchasedResumes([]);
+          }
+        }
+      };
+
       const user = getStoredUser();
       if (user) {
-        if (user.companyName) setCompanyName(user.companyName);
-        else if (user.name) setCompanyName(user.name + " Corp");
-        if (user.email) setContactEmail(user.email);
-        if (user.industry) setIndustry(user.industry);
-        if (user.location) setHeadquarters(user.location);
-        if (user.phone) setContactPhone(user.phone);
-        if (user.gstNumber) setGstNumber(user.gstNumber);
+        applyUserData(user);
       }
-      const savedCompanyProfile = localStorage.getItem("company_profile_data");
-      if (savedCompanyProfile) {
-        try {
-          const parsed = JSON.parse(savedCompanyProfile);
-          if (parsed.companyName) setCompanyName(parsed.companyName);
-          if (parsed.industry) setIndustry(parsed.industry);
-          if (parsed.headquarters) setHeadquarters(parsed.headquarters);
-          if (parsed.website) setWebsite(parsed.website);
-          if (parsed.aboutCompany) setAboutCompany(parsed.aboutCompany);
-          if (parsed.contactPhone) setContactPhone(parsed.contactPhone);
-          if (parsed.gstNumber) setGstNumber(parsed.gstNumber);
-          if (parsed.profileImage) setProfileImage(parsed.profileImage);
-          if (parsed.bannerImage) setBannerImage(parsed.bannerImage);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-
-      const savedJobs = localStorage.getItem("company_posted_jobs");
-      if (savedJobs) {
-        try {
-          const parsedJobs = JSON.parse(savedJobs);
-          if (Array.isArray(parsedJobs) && parsedJobs.length > 0) {
-            setJobs(parsedJobs);
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      fetchCurrentUser().then((fresh) => {
+        if (fresh) applyUserData(fresh);
+      });
     }
   }, []);
 
@@ -568,10 +479,14 @@ export default function CompanyDashboardPage() {
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setProfileImage(base64);
-        try {
-          const prev = JSON.parse(localStorage.getItem("company_profile_data") || "{}");
-          localStorage.setItem("company_profile_data", JSON.stringify({ ...prev, profileImage: base64 }));
-        } catch (err) {}
+        const user = getStoredUser();
+        const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+        if (uid) {
+          try {
+            const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
+            localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify({ ...prev, profileImage: base64 }));
+          } catch (err) {}
+        }
         showToast("Company profile image updated successfully!");
         setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
       };
@@ -590,10 +505,14 @@ export default function CompanyDashboardPage() {
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setBannerImage(base64);
-        try {
-          const prev = JSON.parse(localStorage.getItem("company_profile_data") || "{}");
-          localStorage.setItem("company_profile_data", JSON.stringify({ ...prev, bannerImage: base64 }));
-        } catch (err) {}
+        const user = getStoredUser();
+        const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+        if (uid) {
+          try {
+            const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
+            localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify({ ...prev, bannerImage: base64 }));
+          } catch (err) {}
+        }
         showToast("Company cover banner updated successfully!");
         setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
       };
@@ -602,21 +521,27 @@ export default function CompanyDashboardPage() {
   };
 
   const handleRemoveImage = (type: "profile" | "banner") => {
+    const user = getStoredUser();
+    const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
     if (type === "profile") {
       setProfileImage(null);
-      try {
-        const prev = JSON.parse(localStorage.getItem("company_profile_data") || "{}");
-        delete prev.profileImage;
-        localStorage.setItem("company_profile_data", JSON.stringify(prev));
-      } catch (err) {}
+      if (uid) {
+        try {
+          const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
+          delete prev.profileImage;
+          localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify(prev));
+        } catch (err) {}
+      }
       showToast("Profile image removed. Reverted to default.");
     } else {
       setBannerImage(null);
-      try {
-        const prev = JSON.parse(localStorage.getItem("company_profile_data") || "{}");
-        delete prev.bannerImage;
-        localStorage.setItem("company_profile_data", JSON.stringify(prev));
-      } catch (err) {}
+      if (uid) {
+        try {
+          const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
+          delete prev.bannerImage;
+          localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify(prev));
+        } catch (err) {}
+      }
       showToast("Cover banner removed. Reverted to default gradient.");
     }
     setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
@@ -729,7 +654,9 @@ export default function CompanyDashboardPage() {
           return j;
         });
         try {
-          localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+          const user = getStoredUser();
+          const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+          if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
         } catch (err) {}
         return updated;
       });
@@ -759,7 +686,9 @@ export default function CompanyDashboardPage() {
       setJobs((prev) => {
         const updated = [newJob, ...prev];
         try {
-          localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+          const user = getStoredUser();
+          const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+          if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
         } catch (err) {}
         return updated;
       });
@@ -802,9 +731,12 @@ export default function CompanyDashboardPage() {
     setGstNumber(cGst);
     setAboutCompany(cAbout);
 
-    if (typeof window !== "undefined") {
+    const user = getStoredUser();
+    const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+
+    if (uid && typeof window !== "undefined") {
       localStorage.setItem(
-        "company_profile_data",
+        `company_profile_data_${uid}`,
         JSON.stringify({
           companyName: cName,
           tagline: cTagline,
@@ -821,6 +753,19 @@ export default function CompanyDashboardPage() {
         })
       );
     }
+
+    // Persist real changes to MongoDB backend
+    updateUserProfile({
+      companyName: cName,
+      location: cHq,
+      phone: cPhone,
+      gstNumber: cGst,
+      bio: cAbout,
+      industry: cIndustry,
+      companySize: cSize,
+      workEmail: cEmail,
+    }).catch((err) => console.warn("Backend profile sync error:", err));
+
     showToast("Company profile updated successfully!");
   };
 
@@ -912,18 +857,22 @@ export default function CompanyDashboardPage() {
             Navigation
           </div>
 
-          <button
-            onClick={() => handleTabSwitch("dashboard")}
-            className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-              activeTab === "dashboard"
-                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === "dashboard" ? "text-[#7C3AED]" : "text-slate-500"}`} />
-            <span className="flex-1 text-left">Dashboard</span>
-          </button>
+          {/* Dashboard - Visible only if permitted */}
+          {permissions.dashboard && (
+            <button
+              onClick={() => handleTabSwitch("dashboard")}
+              className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
+                activeTab === "dashboard"
+                  ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === "dashboard" ? "text-[#7C3AED]" : "text-slate-500"}`} />
+              <span className="flex-1 text-left">Dashboard</span>
+            </button>
+          )}
 
+          {/* Company Details / Profile - ALWAYS VISIBLE by default */}
           <button
             onClick={() => handleTabSwitch("profile")}
             className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
@@ -936,57 +885,67 @@ export default function CompanyDashboardPage() {
             <span className="flex-1 text-left">Company Profile</span>
           </button>
 
-          <button
-            onClick={() => handleTabSwitch("jobs")}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-              activeTab === "jobs"
-                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <div className="flex items-center gap-3.5">
-              <Briefcase className={`w-4 h-4 shrink-0 ${activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500"}`} />
-              <span>Job Postings</span>
-            </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
-              {totalJobsCount}
-            </span>
-          </button>
+          {/* Job Postings - Visible only if permitted */}
+          {permissions.jobs && (
+            <button
+              onClick={() => handleTabSwitch("jobs")}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
+                activeTab === "jobs"
+                  ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-3.5">
+                <Briefcase className={`w-4 h-4 shrink-0 ${activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500"}`} />
+                <span>Job Postings</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
+                {totalJobsCount}
+              </span>
+            </button>
+          )}
 
-          <button
-            onClick={() => handleTabSwitch("applicants")}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-              activeTab === "applicants"
-                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <div className="flex items-center gap-3.5">
-              <Users className={`w-4 h-4 shrink-0 ${activeTab === "applicants" ? "text-[#7C3AED]" : "text-slate-500"}`} />
-              <span>Applications</span>
-            </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
-              {totalApplicantsCount}
-            </span>
-          </button>
+          {/* Applications - Visible only if permitted */}
+          {permissions.applicants && (
+            <button
+              onClick={() => handleTabSwitch("applicants")}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
+                activeTab === "applicants"
+                  ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-3.5">
+                <Users className={`w-4 h-4 shrink-0 ${activeTab === "applicants" ? "text-[#7C3AED]" : "text-slate-500"}`} />
+                <span>Applications</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
+                {totalApplicantsCount}
+              </span>
+            </button>
+          )}
 
-          <button
-            onClick={() => handleTabSwitch("resumes")}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-              activeTab === "resumes"
-                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <div className="flex items-center gap-3.5">
-              <FolderDown className={`w-4 h-4 shrink-0 ${activeTab === "resumes" ? "text-[#7C3AED]" : "text-slate-500"}`} />
-              <span>Resumes Purchased</span>
-            </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
-              {remainingCredits} Left
-            </span>
-          </button>
+          {/* Resumes Purchased - Visible only if permitted */}
+          {permissions.resumes && (
+            <button
+              onClick={() => handleTabSwitch("resumes")}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
+                activeTab === "resumes"
+                  ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-3.5">
+                <FolderDown className={`w-4 h-4 shrink-0 ${activeTab === "resumes" ? "text-[#7C3AED]" : "text-slate-500"}`} />
+                <span>Resumes Purchased</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                {remainingCredits} Left
+              </span>
+            </button>
+          )}
 
+          {/* Our Subscription - ALWAYS VISIBLE by default */}
           <button
             onClick={() => handleTabSwitch("subscription")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
@@ -999,22 +958,31 @@ export default function CompanyDashboardPage() {
               <CreditCard className={`w-4 h-4 shrink-0 ${activeTab === "subscription" ? "text-[#7C3AED]" : "text-slate-500"}`} />
               <span>Our Subscription</span>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-              PRO
-            </span>
+            {currentPlan && currentPlan !== "No Active Plan" ? (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                {currentPlan.split(" ")[0]}
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                NONE
+              </span>
+            )}
           </button>
 
-          <button
-            onClick={() => handleTabSwitch("settings")}
-            className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-              activeTab === "settings"
-                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <Settings className={`w-4 h-4 shrink-0 ${activeTab === "settings" ? "text-[#7C3AED]" : "text-slate-500"}`} />
-            <span className="flex-1 text-left">Settings</span>
-          </button>
+          {/* Settings - Visible only if permitted */}
+          {permissions.settings && (
+            <button
+              onClick={() => handleTabSwitch("settings")}
+              className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
+                activeTab === "settings"
+                  ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <Settings className={`w-4 h-4 shrink-0 ${activeTab === "settings" ? "text-[#7C3AED]" : "text-slate-500"}`} />
+              <span className="flex-1 text-left">Settings</span>
+            </button>
+          )}
 
           {/* Resume Balance Mini Card in Sidebar */}
           <div className="pt-4">
@@ -1028,7 +996,13 @@ export default function CompanyDashboardPage() {
               <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                 <div
                   className="bg-emerald-500 h-full rounded-full transition-all"
-                  style={{ width: `${(remainingCredits / totalResumesPurchased) * 100}%` }}
+                  style={{
+                    width: `${
+                      totalResumesPurchased > 0
+                        ? Math.min(100, Math.max(0, (remainingCredits / totalResumesPurchased) * 100))
+                        : 0
+                    }%`,
+                  }}
                 />
               </div>
               <button
@@ -1475,10 +1449,21 @@ export default function CompanyDashboardPage() {
                     This public information is displayed to candidates on job postings and company pages.
                   </p>
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
-                  <ShieldCheck className="w-4 h-4" />
-                  Verified Employer
-                </span>
+                {companyStatus === "Approved" ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
+                    <ShieldCheck className="w-4 h-4" />
+                    Verified Employer
+                  </span>
+                ) : companyStatus === "Pending" ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5 self-start sm:self-auto">
+                    <Clock className="w-4 h-4 text-amber-500" />
+                    Pending Verification
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 self-start sm:self-auto">
+                    Verification Rejected
+                  </span>
+                )}
               </div>
 
               <form onSubmit={handleSaveCompanyProfile} className="space-y-6">
@@ -1512,11 +1497,22 @@ export default function CompanyDashboardPage() {
 
                     {/* Top Right Header Controls */}
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-6 flex items-center gap-2 z-10">
-                      {/* Verified Employer Pill (from Image 1) */}
-                      <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/15 text-white text-[11px] sm:text-xs font-semibold shadow-sm">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="hidden xs:inline">Verified Employer</span>
-                      </span>
+                      {companyStatus === "Approved" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/15 text-white text-[11px] sm:text-xs font-semibold shadow-sm">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="hidden xs:inline">Verified Employer</span>
+                        </span>
+                      ) : companyStatus === "Rejected" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-rose-950/70 backdrop-blur-md border border-rose-500/30 text-rose-200 text-[11px] sm:text-xs font-semibold shadow-sm">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                          <span className="hidden xs:inline">Verification Rejected</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-amber-950/70 backdrop-blur-md border border-amber-500/30 text-amber-200 text-[11px] sm:text-xs font-semibold shadow-sm">
+                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="hidden xs:inline">Pending Verification</span>
+                        </span>
+                      )}
 
                       {/* Cover Options Action Button */}
                       <button
@@ -1609,49 +1605,66 @@ export default function CompanyDashboardPage() {
                       </div>
                     </div>
 
-                    {/* Company Details (Title, badges, tagline, meta strip from Image 1) */}
+                    {/* Company Details (Title, badges, tagline, meta strip) */}
                     <div className="space-y-1.5 pt-1">
                       <div className="flex flex-wrap items-center gap-2.5">
                         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                          {companyName}
+                          {companyName || "My Company"}
                         </h1>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#7C3AED] fill-[#EDE9FE]" />
-                          <span>Verified</span>
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
-                          {industry}
-                        </span>
+                        {companyStatus === "Approved" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#7C3AED] fill-[#EDE9FE]" />
+                            <span>Verified</span>
+                          </span>
+                        ) : companyStatus === "Rejected" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Rejected</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Pending Review</span>
+                          </span>
+                        )}
+                        {industry && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
+                            {industry}
+                          </span>
+                        )}
                       </div>
 
                       {/* Tagline */}
-                      <p className="text-xs sm:text-sm text-slate-600 font-normal max-w-3xl leading-relaxed">
-                        {tagline}
-                      </p>
+                      {tagline && (
+                        <p className="text-xs sm:text-sm text-slate-600 font-normal max-w-3xl leading-relaxed">
+                          {tagline}
+                        </p>
+                      )}
 
                       {/* Meta details strip with dot separators */}
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 pt-1">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{headquarters}</span>
-                        </span>
-                        <span className="text-slate-300">•</span>
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{companySize}</span>
-                        </span>
-                        <span className="text-slate-300">•</span>
-                        <span>Private • Enterprise</span>
-                        <span className="text-slate-300">•</span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Founded 2018</span>
-                        </span>
-                        <span className="text-slate-300">•</span>
-                        <span className="flex items-center gap-1 font-semibold text-[#7C3AED] bg-[#EDE9FE] px-2 py-0.5 rounded-md border border-[#DDD6FE]">
-                          <FileText className="w-3 h-3 text-[#7C3AED]" />
-                          <span>GST: {gstNumber}</span>
-                        </span>
+                        {headquarters && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{headquarters}</span>
+                          </span>
+                        )}
+                        {headquarters && companySize && <span className="text-slate-300">•</span>}
+                        {companySize && (
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{companySize}</span>
+                          </span>
+                        )}
+                        {gstNumber && (
+                          <>
+                            {(headquarters || companySize) && <span className="text-slate-300">•</span>}
+                            <span className="flex items-center gap-1 font-semibold text-[#7C3AED] bg-[#EDE9FE] px-2 py-0.5 rounded-md border border-[#DDD6FE]">
+                              <FileText className="w-3 h-3 text-[#7C3AED]" />
+                              <span>GST: {gstNumber}</span>
+                            </span>
+                          </>
+                        )}
                         {contactPhone && (
                           <>
                             <span className="text-slate-300">•</span>
@@ -1856,7 +1869,18 @@ export default function CompanyDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {jobs.map((job) => (
+                      {jobs.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            <Briefcase className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                            <p className="font-semibold text-slate-600">No job openings created yet</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              Click &quot;Post a New Job&quot; above to create your first opening.
+                            </p>
+                          </td>
+                        </tr>
+                      ) : (
+                        jobs.map((job) => (
                         <tr key={job.id} className="hover:bg-slate-50/60 transition">
                           <td className="py-4 px-4 sm:px-6 font-bold text-slate-900 whitespace-nowrap">
                             <div className="flex items-center gap-2">
@@ -1930,7 +1954,9 @@ export default function CompanyDashboardPage() {
                                         : j
                                     );
                                     try {
-                                      localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+                                      const user = getStoredUser();
+                                      const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+                                      if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
                                     } catch (err) {}
                                     return updated;
                                   });
@@ -1945,7 +1971,9 @@ export default function CompanyDashboardPage() {
                                   setJobs((prev) => {
                                     const updated = prev.filter((j) => j.id !== job.id);
                                     try {
-                                      localStorage.setItem("company_posted_jobs", JSON.stringify(updated));
+                                      const user = getStoredUser();
+                                      const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+                                      if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
                                     } catch (err) {}
                                     return updated;
                                   });
@@ -1959,8 +1987,9 @@ export default function CompanyDashboardPage() {
                             </div>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
+                      ))
+                    )}
+                  </tbody>
                   </table>
                 </div>
               </div>
@@ -2199,7 +2228,16 @@ export default function CompanyDashboardPage() {
                 </h3>
 
                 <div className="space-y-3">
-                  {purchasedResumes.map((res) => (
+                  {purchasedResumes.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400">
+                      <FolderDown className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                      <p className="font-semibold text-slate-600">No resumes purchased yet</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Unlock candidate resumes from the talent pool using your available credits.
+                      </p>
+                    </div>
+                  ) : (
+                    purchasedResumes.map((res) => (
                     <div
                       key={res.id}
                       className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-slate-100/70 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
@@ -2235,8 +2273,9 @@ export default function CompanyDashboardPage() {
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  ))
+                )}
+              </div>
               </div>
             </div>
           )}
@@ -2258,63 +2297,79 @@ export default function CompanyDashboardPage() {
               </div>
 
               {/* Current Active Plan Overview Card */}
-              <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#EDE9FE]/70 via-purple-50/50 to-white border border-[#DDD6FE] shadow-xs hover:shadow-xl hover:shadow-violet-500/10 hover:border-[#7C3AED]/50 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#7C3AED] block mb-1">
-                    Current Active Tier
-                  </span>
-                  <h3 className="text-2xl font-black text-slate-900">{currentPlan}</h3>
-                  <p className="text-xs text-slate-500 mt-1">{planValidity}</p>
+              {currentPlan !== "No Active Plan" ? (
+                <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#EDE9FE]/70 via-purple-50/50 to-white border border-[#DDD6FE] shadow-xs hover:shadow-xl hover:shadow-violet-500/10 hover:border-[#7C3AED]/50 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#7C3AED] block mb-1">
+                      Current Active Tier
+                    </span>
+                    <h3 className="text-2xl font-black text-slate-900">{currentPlan}</h3>
+                    <p className="text-xs text-slate-500 mt-1">{planValidity}</p>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 pt-4 border-t border-slate-200/80 text-xs">
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold">Job Posts</span>
-                      <p className="font-bold text-slate-900">Unlimited</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold">
-                        Resume Credits
-                      </span>
-                      <p className="font-bold text-emerald-600">{totalResumesPurchased} / Month</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold">Team Seats</span>
-                      <p className="font-bold text-slate-900">5 Recruiters</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold">Support</span>
-                      <p className="font-bold text-purple-600">24/7 Dedicated</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4 pt-4 border-t border-slate-200/80 text-xs">
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase font-bold">Job Posts</span>
+                        <p className="font-bold text-slate-900">Unlimited</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase font-bold">
+                          Resume Credits
+                        </span>
+                        <p className="font-bold text-emerald-600">{totalResumesPurchased} / Month</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase font-bold">Team Seats</span>
+                        <p className="font-bold text-slate-900">5 Recruiters</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase font-bold">Support</span>
+                        <p className="font-bold text-purple-600">24/7 Dedicated</p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <button
-                  onClick={() => setIsUpgradePlanModalOpen(true)}
-                  className="w-full md:w-auto text-center px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-md transition hover:scale-105 cursor-pointer shrink-0"
-                >
-                  Upgrade to Enterprise
-                </button>
-              </div>
+                  <button
+                    onClick={() => setIsUpgradePlanModalOpen(true)}
+                    className="w-full md:w-auto text-center px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-md transition hover:scale-105 cursor-pointer shrink-0"
+                  >
+                    Change / Upgrade Plan
+                  </button>
+                </div>
+              ) : (
+                <div className="p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-slate-50 border border-dashed border-slate-200 text-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-5 h-5 text-slate-400" />
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900">No Active Subscription Plan</h3>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Click any of the tiers below to select and activate your recruitment package.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Subscription Tier Comparison */}
-              <div
-                onMouseLeave={() => setActivePlanCard("pro")}
-                className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch pt-4"
-              >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch pt-4">
                 {/* Tier 1: Starter */}
                 <div
-                  onClick={() => setActivePlanCard("starter")}
-                  onMouseEnter={() => setActivePlanCard("starter")}
-                  onTouchStart={() => setActivePlanCard("starter")}
+                  onClick={() => handleActivatePlan("starter", "Starter Recruiter", 15)}
                   className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.99] ${
                     activePlanCard === "starter"
-                      ? "border-2 border-[#7C3AED] shadow-2xl shadow-violet-500/20 -translate-y-2.5 scale-[1.01] ring-4 ring-[#EDE9FE]/70"
-                      : "border border-slate-200/90 hover:border-[#7C3AED]/70 shadow-xs hover:shadow-2xl hover:shadow-violet-500/15 hover:-translate-y-2.5 hover:scale-[1.01]"
+                      ? "border-2 border-blue-500 shadow-2xl shadow-blue-500/20 -translate-y-2.5 scale-[1.01] ring-4 ring-blue-100"
+                      : "border border-slate-200/90 hover:border-blue-500/70 shadow-xs hover:shadow-2xl hover:shadow-blue-500/15 hover:-translate-y-2.5 hover:scale-[1.01]"
                   }`}
                 >
+                  {/* Active Badge */}
+                  {activePlanCard === "starter" && (
+                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-black bg-blue-600 text-white uppercase tracking-wider shadow-md whitespace-nowrap z-20">
+                      Active Plan
+                    </span>
+                  )}
+
                   {/* Subtle Ambient Hover Glow */}
                   <div
-                    className={`absolute inset-0 bg-gradient-to-b from-[#EDE9FE]/60 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
+                    className={`absolute inset-0 bg-gradient-to-b from-blue-50/60 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
                       activePlanCard === "starter" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                     }`}
                   />
@@ -2322,7 +2377,7 @@ export default function CompanyDashboardPage() {
                   <div className="relative z-10">
                     <h4
                       className={`text-base font-black transition-colors duration-200 ${
-                        activePlanCard === "starter" ? "text-[#7C3AED]" : "text-slate-900 group-hover:text-[#7C3AED]"
+                        activePlanCard === "starter" ? "text-blue-600" : "text-slate-900 group-hover:text-blue-600"
                       }`}
                     >
                       Starter Recruiter
@@ -2330,7 +2385,7 @@ export default function CompanyDashboardPage() {
                     <p className="text-xs text-slate-500 mt-1">For small startups hiring occasionally</p>
                     <p
                       className={`text-2xl font-black mt-4 transition-colors duration-200 ${
-                        activePlanCard === "starter" ? "text-[#7C3AED]" : "text-slate-900 group-hover:text-[#7C3AED]"
+                        activePlanCard === "starter" ? "text-blue-600" : "text-slate-900 group-hover:text-blue-600"
                       }`}
                     >
                       ₹4,999 <span className="text-xs text-slate-500 font-normal">/ month</span>
@@ -2338,56 +2393,60 @@ export default function CompanyDashboardPage() {
 
                     <ul className="space-y-3 text-xs text-slate-600 mt-6">
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span>Up to 5 Active Job Posts</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span>15 Resume Downloads / mo</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
-                        <span>Standard Candidate Matching</span>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        <span>Job Postings & Candidate Access</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span>1 Recruiter Seat</span>
                       </li>
                     </ul>
                   </div>
 
                   <div className="mt-8 pt-2 relative z-10">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        showToast("You are already on a higher plan (Pro Growth)!");
-                      }}
-                      className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-2xs ${
-                        activePlanCard === "starter"
-                          ? "bg-[#EDE9FE] text-[#7C3AED]"
-                          : "bg-slate-100 hover:bg-slate-200 group-hover:bg-[#EDE9FE] group-hover:text-[#7C3AED] text-slate-600"
-                      }`}
-                    >
-                      Downgrade
-                    </button>
+                    {activePlanCard === "starter" ? (
+                      <div className="w-full py-2.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200 flex items-center justify-center gap-1.5 shadow-2xs">
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>Active Plan</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleActivatePlan("starter", "Starter Recruiter", 15);
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all duration-200 cursor-pointer shadow-md shadow-blue-200 active:scale-95"
+                      >
+                        Activate Plan
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Tier 2: Pro Growth (Current) */}
+                {/* Tier 2: Pro Growth */}
                 <div
-                  onClick={() => setActivePlanCard("pro")}
-                  onMouseEnter={() => setActivePlanCard("pro")}
-                  onTouchStart={() => setActivePlanCard("pro")}
+                  onClick={() => handleActivatePlan("pro", "Professional Growth", 50)}
                   className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#EDE9FE]/50 via-white to-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-visible active:scale-[0.99] ${
                     activePlanCard === "pro"
                       ? "border-2 border-[#7C3AED] shadow-2xl shadow-violet-500/30 -translate-y-3.5 scale-[1.02] ring-4 ring-[#EDE9FE]"
-                      : "border-2 border-[#7C3AED] shadow-lg shadow-violet-500/10 -translate-y-1 hover:-translate-y-3.5 hover:scale-[1.02] hover:shadow-2xl hover:shadow-violet-500/30 hover:ring-4 hover:ring-[#EDE9FE]"
+                      : "border-2 border-slate-200/90 hover:border-[#7C3AED] shadow-sm hover:shadow-2xl hover:shadow-violet-500/20 hover:-translate-y-3.5 hover:scale-[1.02] hover:ring-4 hover:ring-[#EDE9FE]"
                   }`}
                 >
                   {/* Badge */}
-                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-black bg-[#7C3AED] group-hover:bg-[#6D28D9] group-hover:scale-105 text-white uppercase tracking-wider shadow-md transition-all duration-200 whitespace-nowrap z-20">
-                    Current Plan
-                  </span>
+                  {activePlanCard === "pro" && (
+                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-black bg-[#7C3AED] text-white uppercase tracking-wider shadow-md whitespace-nowrap z-20">
+                      Active Plan
+                    </span>
+                  )}
 
                   {/* Ambient Shimmer */}
                   <div
@@ -2407,52 +2466,65 @@ export default function CompanyDashboardPage() {
 
                     <ul className="space-y-3 text-xs text-slate-700 mt-6">
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        <span className="font-bold">Full Dashboard & Analytics</span>
+                      </li>
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span className="font-bold">Unlimited Job Postings</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span className="font-bold">50 Resume Downloads / mo</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
-                        <span>Direct Candidate Contact Info</span>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        <span>AI Applicant Matching & Scoring</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
-                        <span>AI Applicant Matching &amp; Scoring</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span>5 Recruiter Seats</span>
                       </li>
                     </ul>
                   </div>
 
                   <div className="mt-8 pt-2 relative z-10">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        showToast("Professional Growth is your active plan!");
-                      }}
-                      className="w-full py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] group-hover:shadow-lg group-hover:shadow-violet-500/30 text-white text-xs font-bold transition-all duration-200 cursor-default shadow-xs"
-                    >
-                      Active Plan
-                    </button>
+                    {activePlanCard === "pro" ? (
+                      <div className="w-full py-2.5 rounded-xl bg-violet-50 text-[#7C3AED] font-bold text-xs border border-violet-200 flex items-center justify-center gap-1.5 shadow-2xs">
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>Active Plan</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleActivatePlan("pro", "Professional Growth", 50);
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold transition-all duration-200 cursor-pointer shadow-md shadow-violet-200 active:scale-95"
+                      >
+                        Activate Plan
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 {/* Tier 3: Enterprise */}
                 <div
-                  onClick={() => setActivePlanCard("enterprise")}
-                  onMouseEnter={() => setActivePlanCard("enterprise")}
-                  onTouchStart={() => setActivePlanCard("enterprise")}
+                  onClick={() => handleActivatePlan("enterprise", "Enterprise Scaled", 250)}
                   className={`touch-card group relative p-6 sm:p-7 rounded-2xl sm:rounded-3xl bg-white transition-all duration-300 ease-out cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.99] ${
                     activePlanCard === "enterprise"
                       ? "border-2 border-amber-400 shadow-2xl shadow-amber-500/25 -translate-y-2.5 scale-[1.01] ring-4 ring-amber-100/70"
                       : "border border-slate-200/90 hover:border-amber-400 shadow-xs hover:shadow-2xl hover:shadow-amber-500/20 hover:-translate-y-2.5 hover:scale-[1.01] hover:ring-4 hover:ring-amber-50"
                   }`}
                 >
+                  {/* Badge */}
+                  {activePlanCard === "enterprise" && (
+                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-black bg-amber-500 text-white uppercase tracking-wider shadow-md whitespace-nowrap z-20">
+                      Active Plan
+                    </span>
+                  )}
+
                   {/* Subtle Ambient Hover Glow */}
                   <div
                     className={`absolute inset-0 bg-gradient-to-b from-amber-50/70 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${
@@ -2479,38 +2551,46 @@ export default function CompanyDashboardPage() {
 
                     <ul className="space-y-3 text-xs text-slate-600 mt-6">
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+                        <span className="font-bold">Full Suite + Company Settings</span>
+                      </li>
+                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span>Unlimited Job Postings</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span>250 Resume Downloads / mo</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span>Dedicated Account Manager</span>
                       </li>
                       <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
-                        <span>Custom ATS &amp; HRMS Webhooks</span>
-                      </li>
-                      <li className="flex items-center gap-2.5 transition-transform duration-200 group-hover:translate-x-1">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5] transition-transform duration-200 group-hover:scale-110" />
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
                         <span>Unlimited Recruiter Seats</span>
                       </li>
                     </ul>
                   </div>
 
                   <div className="mt-8 pt-2 relative z-10">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsUpgradePlanModalOpen(true);
-                      }}
-                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs group-hover:shadow-lg group-hover:shadow-amber-500/30 group-hover:scale-[1.01] transition-all duration-200 cursor-pointer shadow-xs"
-                    >
-                      Upgrade to Enterprise
-                    </button>
+                    {activePlanCard === "enterprise" ? (
+                      <div className="w-full py-2.5 rounded-xl bg-amber-50 text-amber-800 font-bold text-xs border border-amber-200 flex items-center justify-center gap-1.5 shadow-2xs">
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>Active Plan</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleActivatePlan("enterprise", "Enterprise Scaled", 250);
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-white font-bold text-xs shadow-md shadow-amber-200 transition-all duration-200 cursor-pointer active:scale-95"
+                      >
+                        Activate Plan
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2576,54 +2656,82 @@ export default function CompanyDashboardPage() {
 
         {/* MOBILE BOTTOM NAVIGATION BAR (Fixed at bottom on phones/small screens) */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 py-1.5 flex items-center justify-around shadow-lg">
+          {permissions.dashboard && (
+            <button
+              onClick={() => handleTabSwitch("dashboard")}
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer ${
+                activeTab === "dashboard" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+              <span>Dashboard</span>
+            </button>
+          )}
+
           <button
-            onClick={() => handleTabSwitch("dashboard")}
+            onClick={() => handleTabSwitch("profile")}
             className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer ${
-              activeTab === "dashboard" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+              activeTab === "profile" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            <LayoutDashboard className="w-5 h-5" />
-            <span>Dashboard</span>
+            <Building2 className="w-5 h-5" />
+            <span>Profile</span>
           </button>
 
-          <button
-            onClick={() => handleTabSwitch("jobs")}
-            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer relative ${
-              activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <Briefcase className="w-5 h-5" />
-            <span>Jobs</span>
-            {totalJobsCount > 0 && (
-              <span className="absolute top-0 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#EDE9FE] text-[#7C3AED]">
-                {totalJobsCount}
-              </span>
-            )}
-          </button>
+          {permissions.jobs && (
+            <button
+              onClick={() => handleTabSwitch("jobs")}
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer relative ${
+                activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <Briefcase className="w-5 h-5" />
+              <span>Jobs</span>
+              {totalJobsCount > 0 && (
+                <span className="absolute top-0 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#EDE9FE] text-[#7C3AED]">
+                  {totalJobsCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {permissions.applicants && (
+            <button
+              onClick={() => handleTabSwitch("applicants")}
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer relative ${
+                activeTab === "applicants" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span>Applicants</span>
+              {totalApplicantsCount > 0 && (
+                <span className="absolute top-0 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#EDE9FE] text-[#7C3AED]">
+                  {totalApplicantsCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {permissions.resumes && (
+            <button
+              onClick={() => handleTabSwitch("resumes")}
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer ${
+                activeTab === "resumes" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <FolderDown className="w-5 h-5" />
+              <span>Resumes</span>
+            </button>
+          )}
 
           <button
-            onClick={() => handleTabSwitch("applicants")}
-            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer relative ${
-              activeTab === "applicants" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <Users className="w-5 h-5" />
-            <span>Applicants</span>
-            {totalApplicantsCount > 0 && (
-              <span className="absolute top-0 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#EDE9FE] text-[#7C3AED]">
-                {totalApplicantsCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => handleTabSwitch("resumes")}
+            onClick={() => handleTabSwitch("subscription")}
             className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer ${
-              activeTab === "resumes" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+              activeTab === "subscription" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            <FolderDown className="w-5 h-5" />
-            <span>Resumes</span>
+            <CreditCard className="w-5 h-5" />
+            <span>Plans</span>
           </button>
 
           <button
@@ -3115,15 +3223,10 @@ export default function CompanyDashboardPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setCurrentPlan("Enterprise Scaled");
-                    setTotalResumesPurchased((prev) => prev + 250);
-                    setIsUpgradePlanModalOpen(false);
-                    showToast("Upgraded to Enterprise Scaled Plan successfully!");
-                  }}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-white font-bold shadow-md"
+                  onClick={() => handleActivatePlan("enterprise", "Enterprise Scaled", 250)}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-white font-bold shadow-md cursor-pointer transition active:scale-95"
                 >
-                  Confirm Upgrade
+                  Activate Enterprise
                 </button>
               </div>
             </div>

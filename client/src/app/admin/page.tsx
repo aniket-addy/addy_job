@@ -31,6 +31,7 @@ import JobsModerator, { JobPosting } from "@/components/admin/JobsModerator";
 import CreatePlanModal from "@/components/admin/CreatePlanModal";
 import MobileBottomNav from "@/components/admin/MobileBottomNav";
 import PlansPricingManager, { PlanItem } from "@/components/admin/PlansPricingManager";
+import PermissionsSettingsManager from "@/components/admin/PermissionsSettingsManager";
 import {
   getStoredUser,
   fetchAdminOverview,
@@ -90,20 +91,20 @@ export default function SuperAdminPage() {
         setOverviewStats(overview);
       }
 
-      if (companies && companies.length > 0) {
+      if (Array.isArray(companies)) {
         setAllCompanies(companies);
         setPendingCompanies(companies.filter((c: any) => c.status === "Pending"));
       }
 
-      if (jobsData && jobsData.length > 0) {
+      if (Array.isArray(jobsData)) {
         setJobs(jobsData);
       }
 
-      if (appsData && appsData.length > 0) {
+      if (Array.isArray(appsData)) {
         setApplications(appsData);
       }
 
-      if (plansData && plansData.length > 0) {
+      if (Array.isArray(plansData)) {
         setPlans(plansData);
       }
     } catch (err) {
@@ -125,246 +126,11 @@ export default function SuperAdminPage() {
 
   const [createPlanModalOpen, setCreatePlanModalOpen] = useState(false);
 
-  // Initial Companies state
-  const [pendingCompanies, setPendingCompanies] = useState<PendingCompany[]>([
-    {
-      id: "c1",
-      name: "BrightPath Technologies",
-      plan: "Pro Plan",
-      submittedOn: "Apr 24, 2025 10:24 AM",
-      status: "Pending",
-      logoBg: "bg-blue-600",
-      logoLetter: "BP",
-    },
-    {
-      id: "c2",
-      name: "Skyline Solutions",
-      plan: "Premium Plan",
-      submittedOn: "Apr 24, 2025 09:12 AM",
-      status: "Pending",
-      logoBg: "bg-indigo-600",
-      logoLetter: "SS",
-    },
-    {
-      id: "c3",
-      name: "GreenField Innovations",
-      plan: "Basic Plan",
-      submittedOn: "Apr 23, 2025 08:45 PM",
-      status: "Pending",
-      logoBg: "bg-emerald-600",
-      logoLetter: "GF",
-    },
-    {
-      id: "c4",
-      name: "NovaTech Pvt Ltd",
-      plan: "Pro Plan",
-      submittedOn: "Apr 23, 2025 03:20 PM",
-      status: "Pending",
-      logoBg: "bg-violet-600",
-      logoLetter: "NT",
-    },
-  ]);
-
-  // Full companies directory
-  const [allCompanies, setAllCompanies] = useState<CompanyRecord[]>([
-    {
-      id: "c1",
-      name: "BrightPath Technologies",
-      email: "hr@brightpath.io",
-      location: "Bengaluru, India",
-      activeJobs: 14,
-      plan: "Pro Plan",
-      status: "Pending",
-      submittedOn: "Apr 24, 2025",
-      logoBg: "bg-blue-600",
-      logoLetter: "BP",
-    },
-    {
-      id: "c2",
-      name: "Skyline Solutions",
-      email: "contact@skyline.co",
-      location: "Hyderabad, India",
-      activeJobs: 28,
-      plan: "Premium Plan",
-      status: "Pending",
-      submittedOn: "Apr 24, 2025",
-      logoBg: "bg-indigo-600",
-      logoLetter: "SS",
-    },
-    {
-      id: "c3",
-      name: "GreenField Innovations",
-      email: "careers@greenfield.in",
-      location: "Pune, India",
-      activeJobs: 6,
-      plan: "Basic Plan",
-      status: "Pending",
-      submittedOn: "Apr 23, 2025",
-      logoBg: "bg-emerald-600",
-      logoLetter: "GF",
-    },
-    {
-      id: "c4",
-      name: "NovaTech Pvt Ltd",
-      email: "jobs@novatech.com",
-      location: "Noida, India",
-      activeJobs: 19,
-      plan: "Pro Plan",
-      status: "Pending",
-      submittedOn: "Apr 23, 2025",
-      logoBg: "bg-violet-600",
-      logoLetter: "NT",
-    },
-    {
-      id: "c5",
-      name: "Google Inc.",
-      email: "recruitment@google.com",
-      location: "Mountain View, USA & Remote",
-      activeJobs: 142,
-      plan: "Enterprise",
-      status: "Approved",
-      submittedOn: "Jan 12, 2025",
-      logoBg: "bg-amber-500",
-      logoLetter: "G",
-    },
-    {
-      id: "c6",
-      name: "Microsoft",
-      email: "talent@microsoft.com",
-      location: "Redmond, USA & India",
-      activeJobs: 98,
-      plan: "Enterprise",
-      status: "Approved",
-      submittedOn: "Feb 04, 2025",
-      logoBg: "bg-blue-500",
-      logoLetter: "M",
-    },
-    {
-      id: "c7",
-      name: "BuildBit Inc.",
-      email: "admin@buildbit.net",
-      location: "Mumbai, India",
-      activeJobs: 0,
-      plan: "Basic Plan",
-      status: "Rejected",
-      submittedOn: "Apr 22, 2025",
-      logoBg: "bg-rose-600",
-      logoLetter: "BB",
-    },
-  ]);
-
-  // Candidates & Applications
-  const [applications, setApplications] = useState<ApplicationItem[]>([
-    {
-      id: "a1",
-      candidateName: "Rahul Sharma",
-      avatarLetter: "RS",
-      avatarBg: "bg-blue-600",
-      position: "Frontend Developer",
-      company: "NovaTech",
-      appliedOn: "Apr 24, 2025",
-      status: "New",
-    },
-    {
-      id: "a2",
-      candidateName: "Priya Singh",
-      avatarLetter: "PS",
-      avatarBg: "bg-pink-600",
-      position: "UI/UX Designer",
-      company: "BrightPath",
-      appliedOn: "Apr 24, 2025",
-      status: "Shortlisted",
-    },
-    {
-      id: "a3",
-      candidateName: "Amit Verma",
-      avatarLetter: "AV",
-      avatarBg: "bg-amber-600",
-      position: "Backend Developer",
-      company: "GreenField",
-      appliedOn: "Apr 23, 2025",
-      status: "Reviewed",
-    },
-    {
-      id: "a4",
-      candidateName: "Sneha Patel",
-      avatarLetter: "SP",
-      avatarBg: "bg-teal-600",
-      position: "Full Stack Developer",
-      company: "Skyline",
-      appliedOn: "Apr 23, 2025",
-      status: "New",
-    },
-    {
-      id: "a5",
-      candidateName: "Vikram Malhotra",
-      avatarLetter: "VM",
-      avatarBg: "bg-indigo-600",
-      position: "DevOps Engineer",
-      company: "BrightPath",
-      appliedOn: "Apr 22, 2025",
-      status: "Hired",
-    },
-  ]);
-
-  // Job Postings
-  const [jobs, setJobs] = useState<JobPosting[]>([
-    {
-      id: "j1",
-      title: "Senior Full Stack Engineer",
-      company: "BrightPath Technologies",
-      type: "Full-Time • Remote",
-      location: "Bengaluru, KA",
-      salary: "₹ 18 - 25 LPA",
-      status: "Active",
-      postedOn: "Apr 24, 2025",
-      applicantsCount: 64,
-    },
-    {
-      id: "j2",
-      title: "Lead UI/UX Designer",
-      company: "Skyline Solutions",
-      type: "Full-Time",
-      location: "Hyderabad, TS",
-      salary: "₹ 14 - 20 LPA",
-      status: "Active",
-      postedOn: "Apr 23, 2025",
-      applicantsCount: 42,
-    },
-    {
-      id: "j3",
-      title: "Backend Go / Node Developer",
-      company: "NovaTech Pvt Ltd",
-      type: "Full-Time",
-      location: "Noida, UP",
-      salary: "₹ 15 - 22 LPA",
-      status: "Pending",
-      postedOn: "Apr 23, 2025",
-      applicantsCount: 19,
-    },
-    {
-      id: "j4",
-      title: "Product Marketing Manager",
-      company: "GreenField Innovations",
-      type: "Contract",
-      location: "Pune, MH",
-      salary: "₹ 10 - 15 LPA",
-      status: "Active",
-      postedOn: "Apr 20, 2025",
-      applicantsCount: 31,
-    },
-    {
-      id: "j5",
-      title: "Junior React Native Developer",
-      company: "BrightPath Technologies",
-      type: "Internship",
-      location: "Bengaluru, KA",
-      salary: "₹ 35,000 / mo",
-      status: "Expired",
-      postedOn: "Mar 10, 2025",
-      applicantsCount: 118,
-    },
-  ]);
+  // Real Database Data States (default empty arrays, no mock/dummy records)
+  const [pendingCompanies, setPendingCompanies] = useState<PendingCompany[]>([]);
+  const [allCompanies, setAllCompanies] = useState<CompanyRecord[]>([]);
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
 
   const showToast = (text: string, type: "success" | "error" | "info" = "success") => {
     setToastMessage({ text, type });
@@ -612,10 +378,19 @@ export default function SuperAdminPage() {
                 {/* 2. Platform Growth Overview & Recent Activity */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                   <div className="lg:col-span-2">
-                    <GrowthChart />
+                    <GrowthChart
+                      totalCompanies={overviewStats?.totalCompanies ?? 0}
+                      totalJobs={overviewStats?.totalJobs ?? 0}
+                      totalApplications={overviewStats?.totalApplications ?? 0}
+                    />
                   </div>
                   <div className="lg:col-span-1">
-                    <RecentActivity onSelectTab={setActiveTab} />
+                    <RecentActivity
+                      onSelectTab={setActiveTab}
+                      companies={allCompanies}
+                      applications={applications}
+                      jobs={jobs}
+                    />
                   </div>
                 </div>
 
@@ -646,8 +421,22 @@ export default function SuperAdminPage() {
 
                   {/* Right One-Third: Active Subscriptions & Quick Stats */}
                   <div className="lg:col-span-1 space-y-6">
-                    <ActiveSubscriptions onSelectTab={setActiveTab} />
-                    <QuickStats pendingCompanies={pendingCount} />
+                    <ActiveSubscriptions
+                      onSelectTab={setActiveTab}
+                      plans={plans}
+                      allCompanies={allCompanies}
+                    />
+                    <QuickStats
+                      pendingCompanies={pendingCount}
+                      activeJobs={
+                        overviewStats?.activeJobs ??
+                        jobs.filter((j) => j.status === "Active").length
+                      }
+                      totalApplications={
+                        overviewStats?.totalApplications ?? applications.length
+                      }
+                      revenue={overviewStats?.totalRevenue ?? "₹ 0"}
+                    />
                   </div>
                 </div>
               </>
@@ -657,8 +446,15 @@ export default function SuperAdminPage() {
             {activeTab === "companies" && (
               <CompaniesManager
                 companies={allCompanies}
+                jobs={jobs}
+                applications={applications}
                 onApprove={handleApproveCompany}
                 onReject={handleRejectCompany}
+                onUpdateCompany={(updated) => {
+                  setAllCompanies((prev) =>
+                    prev.map((c) => (c.id === updated.id ? updated : c))
+                  );
+                }}
               />
             )}
 
@@ -689,8 +485,15 @@ export default function SuperAdminPage() {
               />
             )}
 
+            {/* Super Admin Settings: Permissions & Auto-Approval */}
+            {activeTab === "settings" && (
+              <PermissionsSettingsManager
+                onGoToCompanies={() => setActiveTab("companies")}
+              />
+            )}
+
             {/* Payments & Reports View */}
-            {(activeTab === "payments" || activeTab === "reports" || activeTab === "settings") && (
+            {(activeTab === "payments" || activeTab === "reports") && (
               <div className="bg-white rounded-2xl p-8 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] text-center space-y-3">
                 <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
                   <Sparkles className="w-6 h-6" />

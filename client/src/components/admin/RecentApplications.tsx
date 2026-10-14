@@ -12,6 +12,8 @@ export interface ApplicationItem {
   company: string;
   appliedOn: string;
   status: "New" | "Shortlisted" | "Reviewed" | "Hired" | "Rejected";
+  candidateEmail?: string;
+  candidatePhone?: string;
 }
 
 interface RecentApplicationsProps {
@@ -66,53 +68,62 @@ export default function RecentApplications({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50 text-xs">
-            {applications.map((app) => (
-              <tr
-                key={app.id}
-                onClick={() => onSelectApplication?.(app)}
-                className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
-              >
-                {/* Candidate */}
-                <td className="py-3 px-3 whitespace-nowrap">
-                  <div className="flex items-center gap-2.5 whitespace-nowrap">
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] text-white shrink-0 ${app.avatarBg}`}
-                    >
-                      {app.avatarLetter}
-                    </div>
-                    <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors whitespace-nowrap">
-                      {app.candidateName}
-                    </span>
-                  </div>
-                </td>
-
-                {/* Position */}
-                <td className="py-3 px-3 text-slate-700 font-medium whitespace-nowrap">
-                  {app.position}
-                </td>
-
-                {/* Company */}
-                <td className="py-3 px-3 text-slate-500 font-medium whitespace-nowrap">
-                  {app.company}
-                </td>
-
-                {/* Applied On */}
-                <td className="py-3 px-3 text-slate-400 text-[11px] whitespace-nowrap">
-                  {app.appliedOn}
-                </td>
-
-                {/* Status */}
-                <td className="py-3 px-3 whitespace-nowrap">
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${getStatusBadge(
-                      app.status
-                    )}`}
-                  >
-                    {app.status}
-                  </span>
+            {applications.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-slate-400">
+                  <User className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  No candidate applications received yet.
                 </td>
               </tr>
-            ))}
+            ) : (
+              applications.map((app) => (
+                <tr
+                  key={app.id}
+                  onClick={() => onSelectApplication?.(app)}
+                  className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                >
+                  {/* Candidate */}
+                  <td className="py-3 px-3 whitespace-nowrap">
+                    <div className="flex items-center gap-2.5 whitespace-nowrap">
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] text-white shrink-0 ${app.avatarBg}`}
+                      >
+                        {app.avatarLetter}
+                      </div>
+                      <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors whitespace-nowrap">
+                        {app.candidateName}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Position */}
+                  <td className="py-3 px-3 text-slate-700 font-medium whitespace-nowrap">
+                    {app.position}
+                  </td>
+
+                  {/* Company */}
+                  <td className="py-3 px-3 text-slate-500 font-medium whitespace-nowrap">
+                    {app.company}
+                  </td>
+
+                  {/* Applied On */}
+                  <td className="py-3 px-3 text-slate-400 text-[11px] whitespace-nowrap">
+                    {app.appliedOn}
+                  </td>
+
+                  {/* Status */}
+                  <td className="py-3 px-3 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${getStatusBadge(
+                        app.status
+                      )}`}
+                    >
+                      {app.status}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

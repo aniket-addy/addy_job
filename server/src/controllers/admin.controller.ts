@@ -4,6 +4,7 @@ import { User } from '../models/user.model.js';
 import { Job } from '../models/job.model.js';
 import { Application } from '../models/application.model.js';
 import { Plan } from '../models/plan.model.js';
+import { Settings } from '../models/settings.model.js';
 import { ensureDBConnection } from '../config/db.js';
 
 // Helper to generate initials & color
@@ -34,266 +35,13 @@ const getColorForName = (name: string): string => {
   return bgColors[index];
 };
 
-// Seed initial dataset if database collections are empty
+// No-op: seed function removed. Super Admin shows only real DB data.
 export const seedInitialAdminData = async () => {
-  try {
-    await ensureDBConnection();
-
-    // 1. Check & seed companies
-    const companiesCount = await User.countDocuments({ role: 'company' });
-    if (companiesCount === 0) {
-      const demoCompanies = [
-        {
-          userId: 'co01',
-          customId: 'co01',
-          email: 'hr@brightpath.io',
-          password: 'Password@123',
-          role: 'company' as const,
-          companyName: 'BrightPath Technologies',
-          name: 'BrightPath Technologies',
-          workEmail: 'hr@brightpath.io',
-          location: 'Bengaluru, India',
-          industry: 'Software & Technology',
-          status: 'Pending' as const,
-          phone: '+91 98765 43210',
-          gstNumber: '29ABCDE1234F1Z5',
-        },
-        {
-          userId: 'co02',
-          customId: 'co02',
-          email: 'contact@skyline.co',
-          password: 'Password@123',
-          role: 'company' as const,
-          companyName: 'Skyline Solutions',
-          name: 'Skyline Solutions',
-          workEmail: 'contact@skyline.co',
-          location: 'Hyderabad, India',
-          industry: 'Cloud Infrastructure',
-          status: 'Pending' as const,
-          phone: '+91 98765 43211',
-          gstNumber: '36ABCDE1234F1Z6',
-        },
-        {
-          userId: 'co03',
-          customId: 'co03',
-          email: 'careers@greenfield.in',
-          password: 'Password@123',
-          role: 'company' as const,
-          companyName: 'GreenField Innovations',
-          name: 'GreenField Innovations',
-          workEmail: 'careers@greenfield.in',
-          location: 'Pune, India',
-          industry: 'Fintech & AI',
-          status: 'Pending' as const,
-          phone: '+91 98765 43212',
-          gstNumber: '27ABCDE1234F1Z7',
-        },
-        {
-          userId: 'co04',
-          customId: 'co04',
-          email: 'jobs@novatech.com',
-          password: 'Password@123',
-          role: 'company' as const,
-          companyName: 'NovaTech Pvt Ltd',
-          name: 'NovaTech Pvt Ltd',
-          workEmail: 'jobs@novatech.com',
-          location: 'Noida, India',
-          industry: 'E-Commerce',
-          status: 'Pending' as const,
-          phone: '+91 98765 43213',
-          gstNumber: '09ABCDE1234F1Z8',
-        },
-        {
-          userId: 'co05',
-          customId: 'co05',
-          email: 'recruitment@google.com',
-          password: 'Password@123',
-          role: 'company' as const,
-          companyName: 'Google Inc.',
-          name: 'Google Inc.',
-          workEmail: 'recruitment@google.com',
-          location: 'Mountain View, USA & Remote',
-          industry: 'Internet & Tech',
-          status: 'Approved' as const,
-          phone: '+1 650 253 0000',
-        },
-        {
-          userId: 'co06',
-          customId: 'co06',
-          email: 'talent@microsoft.com',
-          password: 'Password@123',
-          role: 'company' as const,
-          companyName: 'Microsoft',
-          name: 'Microsoft',
-          workEmail: 'talent@microsoft.com',
-          location: 'Redmond, USA & India',
-          industry: 'Cloud & Enterprise',
-          status: 'Approved' as const,
-          phone: '+1 425 882 8080',
-        },
-      ];
-
-      for (const comp of demoCompanies) {
-        await User.create(comp);
-      }
-    }
-
-    // 2. Check & seed jobs
-    const jobsCount = await Job.countDocuments();
-    if (jobsCount === 0) {
-      const demoJobs = [
-        {
-          title: 'Senior Full Stack Engineer',
-          company: 'BrightPath Technologies',
-          type: 'Full-Time • Remote',
-          location: 'Bengaluru, KA',
-          salary: '₹ 18 - 25 LPA',
-          status: 'Active' as const,
-          postedOn: 'Apr 24, 2025',
-          applicantsCount: 64,
-          department: 'Engineering',
-        },
-        {
-          title: 'Lead UI/UX Designer',
-          company: 'Skyline Solutions',
-          type: 'Full-Time',
-          location: 'Hyderabad, TS',
-          salary: '₹ 14 - 20 LPA',
-          status: 'Active' as const,
-          postedOn: 'Apr 23, 2025',
-          applicantsCount: 42,
-          department: 'Design',
-        },
-        {
-          title: 'Backend Go / Node Developer',
-          company: 'NovaTech Pvt Ltd',
-          type: 'Full-Time',
-          location: 'Noida, UP',
-          salary: '₹ 15 - 22 LPA',
-          status: 'Pending' as const,
-          postedOn: 'Apr 23, 2025',
-          applicantsCount: 19,
-          department: 'Engineering',
-        },
-        {
-          title: 'Product Marketing Manager',
-          company: 'GreenField Innovations',
-          type: 'Contract',
-          location: 'Pune, MH',
-          salary: '₹ 10 - 15 LPA',
-          status: 'Active' as const,
-          postedOn: 'Apr 20, 2025',
-          applicantsCount: 31,
-          department: 'Marketing',
-        },
-        {
-          title: 'Junior React Native Developer',
-          company: 'BrightPath Technologies',
-          type: 'Internship',
-          location: 'Bengaluru, KA',
-          salary: '₹ 35,000 / mo',
-          status: 'Expired' as const,
-          postedOn: 'Mar 10, 2025',
-          applicantsCount: 118,
-          department: 'Engineering',
-        },
-      ];
-      await Job.insertMany(demoJobs);
-    }
-
-    // 3. Check & seed applications
-    const appsCount = await Application.countDocuments();
-    if (appsCount === 0) {
-      const demoApplications = [
-        {
-          candidateName: 'Rahul Sharma',
-          candidateEmail: 'rahul.s@example.com',
-          avatarLetter: 'RS',
-          avatarBg: 'bg-blue-600',
-          position: 'Frontend Developer',
-          company: 'NovaTech Pvt Ltd',
-          appliedOn: 'Apr 24, 2025',
-          status: 'New' as const,
-        },
-        {
-          candidateName: 'Priya Singh',
-          candidateEmail: 'priya.singh@example.com',
-          avatarLetter: 'PS',
-          avatarBg: 'bg-pink-600',
-          position: 'UI/UX Designer',
-          company: 'BrightPath Technologies',
-          appliedOn: 'Apr 24, 2025',
-          status: 'Shortlisted' as const,
-        },
-        {
-          candidateName: 'Amit Verma',
-          candidateEmail: 'amit.verma@example.com',
-          avatarLetter: 'AV',
-          avatarBg: 'bg-amber-600',
-          position: 'Backend Developer',
-          company: 'GreenField Innovations',
-          appliedOn: 'Apr 23, 2025',
-          status: 'Reviewed' as const,
-        },
-        {
-          candidateName: 'Sneha Patel',
-          candidateEmail: 'sneha.patel@example.com',
-          avatarLetter: 'SP',
-          avatarBg: 'bg-teal-600',
-          position: 'Full Stack Developer',
-          company: 'Skyline Solutions',
-          appliedOn: 'Apr 23, 2025',
-          status: 'New' as const,
-        },
-        {
-          candidateName: 'Vikram Malhotra',
-          candidateEmail: 'vikram.m@example.com',
-          avatarLetter: 'VM',
-          avatarBg: 'bg-indigo-600',
-          position: 'DevOps Engineer',
-          company: 'BrightPath Technologies',
-          appliedOn: 'Apr 22, 2025',
-          status: 'Hired' as const,
-        },
-      ];
-      await Application.insertMany(demoApplications);
-    }
-
-    // 4. Check & seed subscription plans
-    const plansCount = await Plan.countDocuments();
-    if (plansCount === 0) {
-      const demoPlans = [
-        {
-          name: 'Basic Plan',
-          price: '₹ 4,999 / mo',
-          billingCycle: 'monthly',
-          features: ['5 Job Postings', 'Standard Listing', 'Basic Candidate Search'],
-          credits: 20,
-          status: 'Active' as const,
-        },
-        {
-          name: 'Pro Plan',
-          price: '₹ 12,999 / mo',
-          billingCycle: 'monthly',
-          features: ['25 Job Postings', 'Featured Badge', 'Advanced Filtering', '250 Resume Views'],
-          credits: 250,
-          status: 'Active' as const,
-        },
-        {
-          name: 'Enterprise Plan',
-          price: '₹ 34,999 / mo',
-          billingCycle: 'monthly',
-          features: ['Unlimited Jobs', 'Dedicated Account Manager', 'API Access', 'Custom Branding'],
-          credits: 1000,
-          status: 'Active' as const,
-        },
-      ];
-      await Plan.insertMany(demoPlans);
-    }
-  } catch (err) {
-    console.warn('Super Admin seed note:', err);
-  }
+  // Nothing to seed — all data is real from database.
+  return;
 };
+
+
 
 // @desc    Get dashboard overview metrics & statistics
 // @route   GET /api/admin/overview
@@ -326,8 +74,8 @@ export const getAdminOverview = async (req: Request, res: Response) => {
       Plan.find({ status: 'Active' }),
     ]);
 
-    // Estimated Platform Revenue
-    const revenueEst = approvedCompanies * 12999 + 45230;
+    // Real Platform Revenue (₹ 0 until payment integration is configured)
+    const revenueEst = 0;
 
     res.json({
       success: true,
@@ -398,6 +146,14 @@ export const getAdminCompanies = async (req: Request, res: Response) => {
         industry: u.industry || '',
         companySize: u.companySize || '',
         website: (u as any).website || '',
+        permissions: u.permissions || {
+          dashboard: false,
+          jobs: false,
+          applicants: false,
+          resumes: false,
+          settings: false,
+          autoApproveFromSubscription: true,
+        },
       };
     });
 
@@ -425,8 +181,9 @@ export const updateCompanyStatus = async (req: Request, res: Response) => {
     if (mongoose.isValidObjectId(id)) {
       company = await User.findByIdAndUpdate(id, { status }, { new: true });
     } else {
+      const mappedCoId = id.replace(/^c(\d+)$/i, 'co0$1');
       company = await User.findOneAndUpdate(
-        { $or: [{ userId: id }, { customId: id }, { _id: id }] },
+        { $or: [{ userId: id }, { customId: id }, { userId: mappedCoId }, { customId: mappedCoId }] },
         { status },
         { new: true }
       );
@@ -743,6 +500,251 @@ export const deleteAdminPlan = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('deleteAdminPlan error:', error);
     res.status(500).json({ success: false, message: 'Failed to delete plan' });
+  }
+};
+
+// Global permissions settings store
+let globalPermissionsSettings = {
+  defaultPermissions: {
+    profile: true,
+    subscription: true,
+    dashboard: false,
+    jobs: false,
+    applicants: false,
+    resumes: false,
+    settings: false,
+  },
+  autoApprovalEnabled: true,
+  planRules: {
+    'Basic Plan': {
+      dashboard: false,
+      jobs: true,
+      applicants: true,
+      resumes: false,
+      settings: false,
+    },
+    'Pro Plan': {
+      dashboard: true,
+      jobs: true,
+      applicants: true,
+      resumes: true,
+      settings: false,
+    },
+    'Enterprise': {
+      dashboard: true,
+      jobs: true,
+      applicants: true,
+      resumes: true,
+      settings: true,
+    },
+  },
+};
+
+// Helper to find matching plan rule for a plan string
+export const findMatchingPlanRule = (planName?: string, planRules: Record<string, any> = globalPermissionsSettings.planRules) => {
+  if (!planName) return null;
+  const p = planName.trim().toLowerCase();
+  for (const [key, rule] of Object.entries(planRules)) {
+    const k = key.trim().toLowerCase();
+    if (p === k || p.includes(k) || k.includes(p)) {
+      return rule;
+    }
+  }
+  if (p.includes('starter') || p.includes('basic')) return planRules['Basic Plan'] || null;
+  if (p.includes('growth') || p.includes('pro')) return planRules['Pro Plan'] || null;
+  if (p.includes('enterprise')) return planRules['Enterprise'] || null;
+  return null;
+};
+
+// @desc    Update company permissions manually (works with or without active subscription)
+// @route   PATCH /api/admin/companies/:id/permissions
+export const updateCompanyPermissions = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    await seedInitialAdminData();
+    const id = String(req.params.id);
+    const { permissions, email, name, companyName, plan } = req.body;
+
+    let company = null;
+    if (mongoose.isValidObjectId(id)) {
+      company = await User.findById(id);
+    }
+
+    if (!company) {
+      // Find by userId or customId (including c1 -> co01 mapping)
+      const mappedCoId = id.replace(/^c(\d+)$/i, 'co0$1');
+      company = await User.findOne({
+        $or: [
+          { userId: id },
+          { customId: id },
+          { userId: mappedCoId },
+          { customId: mappedCoId },
+        ],
+      });
+    }
+
+    // Try finding by email
+    if (!company && (email || req.query.email)) {
+      const searchEmail = String(email || req.query.email).trim().toLowerCase();
+      company = await User.findOne({
+        $or: [
+          { email: searchEmail },
+          { workEmail: searchEmail },
+        ],
+      });
+    }
+
+    // Try finding by company name
+    if (!company && (name || companyName || req.query.name)) {
+      const searchName = String(name || companyName || req.query.name).trim();
+      company = await User.findOne({
+        $or: [
+          { companyName: new RegExp(`^${searchName}$`, 'i') },
+          { name: new RegExp(`^${searchName}$`, 'i') },
+        ],
+      });
+    }
+
+    // If company not in database yet (e.g. demo mock), upsert it directly
+    if (!company) {
+      const compName = name || companyName || `Company ${id}`;
+      const compEmail = (email || `${id.toLowerCase()}@example.com`).toLowerCase();
+      company = await User.create({
+        userId: id,
+        customId: id,
+        email: compEmail,
+        workEmail: compEmail,
+        password: 'Password@123',
+        role: 'company',
+        companyName: compName,
+        name: compName,
+        location: 'India',
+        status: 'Approved',
+        plan: plan || '',
+        permissions: {
+          dashboard: false,
+          jobs: false,
+          applicants: false,
+          resumes: false,
+          settings: false,
+          autoApproveFromSubscription: true,
+          ...permissions,
+        },
+      });
+    } else {
+      if (plan && typeof plan === 'string') {
+        company.plan = plan;
+      }
+      company.permissions = {
+        dashboard: false,
+        jobs: false,
+        applicants: false,
+        resumes: false,
+        settings: false,
+        autoApproveFromSubscription: true,
+        ...(company.permissions || {}),
+        ...permissions,
+      };
+      await company.save();
+    }
+
+    res.json({
+      success: true,
+      message: `Permissions updated successfully for ${company.companyName || company.name}`,
+      permissions: company.permissions,
+      plan: company.plan,
+      company: {
+        id: company._id.toString(),
+        userId: company.userId || company.customId,
+        name: company.companyName || company.name,
+        plan: company.plan,
+      },
+    });
+  } catch (error: any) {
+    console.error('updateCompanyPermissions error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to update company permissions' });
+  }
+};
+
+// @desc    Get admin permissions settings & plan auto-approval rules
+// @route   GET /api/admin/permissions-settings
+export const getAdminPermissionsSettings = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const doc = await Settings.findOne({ key: 'global_permissions' });
+    if (doc && doc.value) {
+      globalPermissionsSettings = {
+        ...globalPermissionsSettings,
+        ...doc.value,
+      };
+    }
+    res.json({ success: true, settings: globalPermissionsSettings });
+  } catch (error: any) {
+    console.error('getAdminPermissionsSettings error:', error);
+    res.json({ success: true, settings: globalPermissionsSettings });
+  }
+};
+
+// @desc    Update admin permissions settings & plan auto-approval rules
+// @route   PUT /api/admin/permissions-settings
+export const updateAdminPermissionsSettings = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { settings } = req.body;
+    let updatedCompaniesCount = 0;
+
+    if (settings) {
+      globalPermissionsSettings = {
+        ...globalPermissionsSettings,
+        ...settings,
+      };
+
+      // Persist to MongoDB
+      await Settings.findOneAndUpdate(
+        { key: 'global_permissions' },
+        { key: 'global_permissions', value: globalPermissionsSettings },
+        { upsert: true, new: true }
+      );
+
+      // PROPAGATE: Update all company accounts whose subscriptions match the modified plan rules
+      const planRules = globalPermissionsSettings.planRules || {};
+      const companies = await User.find({ role: 'company' });
+
+      for (const comp of companies) {
+        // Skip if company manually opted out of subscription auto-approval
+        if (comp.permissions?.autoApproveFromSubscription === false) {
+          continue;
+        }
+
+        const compPlan = comp.plan || '';
+        const matchedRule = findMatchingPlanRule(compPlan, planRules);
+
+        if (matchedRule) {
+          comp.permissions = {
+            dashboard: false,
+            jobs: false,
+            applicants: false,
+            resumes: false,
+            settings: false,
+            ...(comp.permissions || {}),
+            ...matchedRule,
+            autoApproveFromSubscription: true,
+          };
+          await comp.save();
+          updatedCompaniesCount++;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Global permissions updated and applied to ${updatedCompaniesCount} company subscriptions`,
+      settings: globalPermissionsSettings,
+      updatedCompaniesCount,
+    });
+  } catch (error: any) {
+    console.error('updateAdminPermissionsSettings error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update permissions settings' });
   }
 };
 

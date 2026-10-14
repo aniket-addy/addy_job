@@ -63,6 +63,12 @@ export const clearAuthSession = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('career_token');
     localStorage.removeItem('career_user');
+    localStorage.removeItem('company_profile_data');
+    localStorage.removeItem('company_active_plan');
+    localStorage.removeItem('company_posted_jobs');
+    localStorage.removeItem('company_applicants_data');
+    localStorage.removeItem('company_purchased_resumes');
+    localStorage.removeItem('company_permissions_active');
     sessionStorage.clear();
 
     // Expire cookies
@@ -465,6 +471,240 @@ export async function deleteAdminPlan(
     console.error('deleteAdminPlan error:', error);
     return { success: false, message: 'Failed to delete plan' };
   }
+}
+
+// ==========================================
+// COMPANY PERMISSIONS & AUTO-APPROVAL SYSTEM
+// ==========================================
+
+export interface CompanyPermissions {
+  dashboard: boolean;
+  jobs: boolean;
+  applicants: boolean;
+  resumes: boolean;
+  settings: boolean;
+  autoApproveFromSubscription?: boolean;
+}
+
+export const DEFAULT_COMPANY_PERMISSIONS: CompanyPermissions = {
+  dashboard: false,
+  jobs: false,
+  applicants: false,
+  resumes: false,
+  settings: false,
+  autoApproveFromSubscription: true,
+};
+
+// Plan auto-approval standard rules
+export const PLAN_AUTO_PERMISSIONS: Record<string, Partial<CompanyPermissions>> = {
+  'Basic Plan': {
+    dashboard: false,
+    jobs: true,
+    applicants: true,
+    resumes: false,
+    settings: false,
+  },
+  'Pro Plan': {
+    dashboard: true,
+    jobs: true,
+    applicants: true,
+    resumes: true,
+    settings: false,
+  },
+  'Enterprise': {
+    dashboard: true,
+    jobs: true,
+    applicants: true,
+    resumes: true,
+    settings: true,
+  },
+};
+
+export async function updateCompanyPermissions(
+  id: string,
+  permissions: Partial<CompanyPermissions>,
+  extra?: { name?: string; email?: string; plan?: string }
+): Promise<{ success: boolean; message: string; permissions?: CompanyPermissions; company?: any; plan?: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/companies/${id}/permissions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        permissions,
+        name: extra?.name,
+        email: extra?.email,
+        plan: extra?.plan,
+      }),
+    });
+    const json = await res.json();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`company_permissions_${id}`, JSON.stringify(permissions));
+      if (extra?.email) {
+        localStorage.setItem(`company_permissions_${extra.email.toLowerCase()}`, JSON.stringify(permissions));
+      }
+      if (json.company?.id) {
+        localStorage.setItem(`company_permissions_${json.company.id}`, JSON.stringify(permissions));
+      }
+      if (extra?.plan) {
+        localStorage.setItem('company_active_plan', extra.plan);
+        const storedUser = getStoredUser();
+        if (storedUser) {
+          localStorage.setItem('career_user', JSON.stringify({ ...storedUser, plan: extra.plan, permissions }));
+        }
+      }
+      window.dispatchEvent(new Event('company_permissions_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+    return json;
+  } catch (error: any) {
+    console.error('updateCompanyPermissions error:', error);
+    return { success: false, message: 'Failed to update company permissions' };
+  }
+}
+
+export async function fetchAdminPermissionsSettings(): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/permissions-settings`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.settings || null;
+  } catch (error) {
+    console.error('fetchAdminPermissionsSettings error:', error);
+    return null;
+  }
+}
+
+export async function updateAdminPermissionsSettings(settings: any): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/permissions-settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings }),
+    });
+    return await res.json();
+  } catch (error: any) {
+    console.error('updateAdminPermissionsSettings error:', error);
+    return { success: false, message: 'Failed to update permissions settings' };
+  }
+}
+
+// Helper to get matching plan rule safely
+export function getMatchingPlanRule(planName?: string): Partial<CompanyPermissions> | undefined {
+  if (!planName) return undefined;
+  const p = planName.trim().toLowerCase();
+
+  // 1. Direct key match or substring match from PLAN_AUTO_PERMISSIONS
+  for (const [key, rule] of Object.entries(PLAN_AUTO_PERMISSIONS)) {
+    const k = key.trim().toLowerCase();
+    if (p === k || p.includes(k) || k.includes(p)) {
+      return rule;
+    }
+  }
+
+  // 2. Fallbacks based on standard tiers
+  if (p.includes('starter') || p.includes('basic')) return PLAN_AUTO_PERMISSIONS['Basic Plan'];
+  if (p.includes('growth') || p.includes('pro')) return PLAN_AUTO_PERMISSIONS['Pro Plan'];
+  if (p.includes('enterprise')) return PLAN_AUTO_PERMISSIONS['Enterprise'];
+  return undefined;
+}
+
+// Sync global permission settings from server or localStorage
+export async function syncGlobalPermissionsRules(): Promise<Record<string, Partial<CompanyPermissions>>> {
+  // First sync from localStorage if available
+  if (typeof window !== 'undefined') {
+    const cachedSettings = localStorage.getItem('addyjob_permissions_settings');
+    if (cachedSettings) {
+      try {
+        const parsed = JSON.parse(cachedSettings);
+        if (parsed.planRules) {
+          Object.keys(parsed.planRules).forEach((k) => {
+            PLAN_AUTO_PERMISSIONS[k] = parsed.planRules[k];
+          });
+        }
+      } catch (e) {}
+    }
+  }
+
+  // Then fetch authoritative settings from backend
+  try {
+    const remote = await fetchAdminPermissionsSettings();
+    if (remote?.planRules) {
+      Object.keys(remote.planRules).forEach((k) => {
+        PLAN_AUTO_PERMISSIONS[k] = remote.planRules[k];
+      });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('addyjob_permissions_settings', JSON.stringify(remote));
+        window.dispatchEvent(new Event('company_permissions_updated'));
+      }
+    }
+  } catch (e) {
+    console.warn('syncGlobalPermissionsRules failed:', e);
+  }
+  return PLAN_AUTO_PERMISSIONS;
+}
+
+export function getEffectiveCompanyPermissions(company?: {
+  id?: string;
+  plan?: string;
+  permissions?: Partial<CompanyPermissions>;
+} | null): CompanyPermissions {
+  // Base default: all feature tabs disabled (only profile & subscription are always accessible)
+  let result: CompanyPermissions = { ...DEFAULT_COMPANY_PERMISSIONS };
+
+  if (typeof window !== 'undefined') {
+    // Ensure PLAN_AUTO_PERMISSIONS incorporates any saved settings from localStorage
+    const cachedSettings = localStorage.getItem('addyjob_permissions_settings');
+    if (cachedSettings) {
+      try {
+        const parsed = JSON.parse(cachedSettings);
+        if (parsed.planRules) {
+          Object.keys(parsed.planRules).forEach((k) => {
+            PLAN_AUTO_PERMISSIONS[k] = parsed.planRules[k];
+          });
+        }
+      } catch (e) {}
+    }
+
+    // 1. Check if there are local overrides for this company
+    const localKey = company?.id ? `company_permissions_${company.id}` : 'company_permissions_active';
+    const cached = localStorage.getItem(localKey);
+    let cachedPerms: Partial<CompanyPermissions> | null = null;
+    if (cached) {
+      try {
+        cachedPerms = JSON.parse(cached);
+      } catch (e) {}
+    }
+
+    const currentPermissions = {
+      ...(company?.permissions || {}),
+      ...(cachedPerms || {}),
+    };
+
+    const autoApprove = currentPermissions.autoApproveFromSubscription !== false;
+    const activePlan = company?.plan || localStorage.getItem('company_active_plan') || undefined;
+
+    // 2. If auto-approval is enabled, apply plan permissions
+    if (autoApprove && activePlan) {
+      const planRule = getMatchingPlanRule(activePlan);
+      if (planRule) {
+        result = { ...result, ...planRule };
+      }
+    }
+
+    // 3. Apply manual overrides
+    result = {
+      ...result,
+      ...currentPermissions,
+      autoApproveFromSubscription: autoApprove,
+    };
+    return result;
+  }
+
+  // Fallback for SSR
+  if (company?.permissions) {
+    result = { ...result, ...company.permissions };
+  }
+  return result;
 }
 
 

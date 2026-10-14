@@ -4,6 +4,9 @@ import {
   getAdminCompanies,
   updateCompanyStatus,
   deleteCompany,
+  updateCompanyPermissions,
+  getAdminPermissionsSettings,
+  updateAdminPermissionsSettings,
   getAdminJobs,
   updateJobStatus,
   deleteJob,
@@ -23,7 +26,12 @@ router.get('/overview', getAdminOverview);
 // Companies management
 router.get('/companies', getAdminCompanies);
 router.patch('/companies/:id/status', updateCompanyStatus);
+router.patch('/companies/:id/permissions', updateCompanyPermissions);
 router.delete('/companies/:id', deleteCompany);
+
+// Permissions & Auto-approval Settings
+router.get('/permissions-settings', getAdminPermissionsSettings);
+router.put('/permissions-settings', updateAdminPermissionsSettings);
 
 // Jobs moderation
 router.get('/jobs', getAdminJobs);

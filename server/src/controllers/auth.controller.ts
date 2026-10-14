@@ -9,6 +9,7 @@ import {
   saveAuthToFile,
   saveProfileToFile,
 } from '../utils/databaseStorage.js';
+import { findMatchingPlanRule } from './admin.controller.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'addy_job_jwt_secret_super_secure_key_2025';
 
@@ -67,6 +68,15 @@ const formatUser = (user: IUser) => {
     phone: user.phone || '',
     gstNumber: user.gstNumber || '',
     status: user.status || 'Pending',
+    plan: user.plan || '',
+    permissions: user.permissions || {
+      dashboard: false,
+      jobs: false,
+      applicants: false,
+      resumes: false,
+      settings: false,
+      autoApproveFromSubscription: true,
+    },
     createdAt: user.createdAt,
   };
 };
@@ -143,9 +153,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     // Generate sequential user ID in format: us01, us02, us03...
     const customUserId = await getNextCustomUserId();
 
-    // Create user object based on role
-    const candidateName = fullName || name || (role === 'job_seeker' ? 'Candidate User' : '');
-    const finalCompanyName = companyName || (role === 'company' ? 'Company Partner' : '');
+    // Create user object based on role (clean data only, no default placeholder strings)
+    const candidateName = fullName || name || '';
+    const finalCompanyName = companyName || '';
 
     const newUser = new User({
       userId: customUserId,
@@ -213,7 +223,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         gradingSystem,
         gradeScore,
         skills: Array.isArray(skills) ? skills : typeof skills === 'string' && skills.length > 0 ? skills.split(',').map((s: string) => s.trim()) : [],
-        targetRole: targetRole || 'Frontend Developer',
+        targetRole: targetRole || '',
         preferredLocation,
         expectedSalary,
         companyName: finalCompanyName,
@@ -381,6 +391,24 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // If company user, auto-sync permissions from subscription plan if auto-approval enabled
+    if (user.role === 'company' && user.permissions?.autoApproveFromSubscription !== false && user.plan) {
+      const matchedRule = findMatchingPlanRule(user.plan);
+      if (matchedRule) {
+        user.permissions = {
+          dashboard: false,
+          jobs: false,
+          applicants: false,
+          resumes: false,
+          settings: false,
+          ...(user.permissions || {}),
+          ...matchedRule,
+          autoApproveFromSubscription: true,
+        };
+        await user.save();
+      }
+    }
+
     const token = generateToken(user);
 
     res.status(200).json({
@@ -493,10 +521,21 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       workStatus,
       resumeName,
       resumeDate,
+      // Company profile fields
+      companyName,
+      workEmail,
+      industry,
+      companySize,
+      gstNumber,
     } = req.body;
 
     if (name !== undefined) user.name = name;
     if (fullName !== undefined) user.name = fullName;
+    if (companyName !== undefined) user.companyName = companyName;
+    if (workEmail !== undefined) user.workEmail = workEmail;
+    if (industry !== undefined) user.industry = industry;
+    if (companySize !== undefined) user.companySize = companySize;
+    if (gstNumber !== undefined) user.gstNumber = gstNumber;
     if (headline !== undefined) user.headline = headline;
     if (targetRole !== undefined) user.targetRole = targetRole;
     if (experience !== undefined) user.experience = experience;

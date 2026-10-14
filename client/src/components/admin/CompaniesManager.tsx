@@ -16,7 +16,14 @@ import {
   FileText,
   Shield,
   ExternalLink,
+  KeyRound,
 } from "lucide-react";
+
+import CompanySubAdminView from "./CompanySubAdminView";
+import CompanyPermissionsModal from "./CompanyPermissionsModal";
+import { JobPosting } from "./JobsModerator";
+import { ApplicationItem } from "./RecentApplications";
+import { CompanyPermissions } from "@/lib/api";
 
 export interface CompanyRecord {
   id: string;
@@ -35,22 +42,30 @@ export interface CompanyRecord {
   website?: string;
   userId?: string;
   activeJobs?: number;
+  permissions?: CompanyPermissions;
 }
 
 interface CompaniesManagerProps {
   companies: CompanyRecord[];
+  jobs?: JobPosting[];
+  applications?: ApplicationItem[];
   onApprove: (id: string, name: string) => void;
   onReject: (id: string, name: string) => void;
+  onUpdateCompany?: (updatedCompany: CompanyRecord) => void;
 }
 
 export default function CompaniesManager({
   companies,
+  jobs = [],
+  applications = [],
   onApprove,
   onReject,
+  onUpdateCompany,
 }: CompaniesManagerProps) {
   const [filter, setFilter] = useState<"ALL" | "Pending" | "Approved" | "Rejected">("ALL");
   const [search, setSearch] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<CompanyRecord | null>(null);
+  const [permissionsModalCompany, setPermissionsModalCompany] = useState<CompanyRecord | null>(null);
 
   const filteredCompanies = companies.filter((c) => {
     const matchesFilter = filter === "ALL" || c.status === filter;
@@ -62,6 +77,42 @@ export default function CompaniesManager({
   });
 
   const pendingCount = companies.filter((c) => c.status === "Pending").length;
+
+  // Render Sub-Super Admin Company Portal if a company is selected
+  if (selectedCompany) {
+    return (
+      <>
+        <CompanySubAdminView
+          company={selectedCompany}
+          allJobs={jobs}
+          allApplications={applications}
+          onBack={() => setSelectedCompany(null)}
+          onApprove={onApprove}
+          onReject={onReject}
+          onOpenPermissions={() => setPermissionsModalCompany(selectedCompany)}
+        />
+        {permissionsModalCompany && (
+          <CompanyPermissionsModal
+            isOpen={Boolean(permissionsModalCompany)}
+            company={permissionsModalCompany}
+            onClose={() => setPermissionsModalCompany(null)}
+            onPermissionsUpdated={(newPermissions) => {
+              const updated = {
+                ...permissionsModalCompany,
+                permissions: newPermissions,
+              };
+              if (selectedCompany && selectedCompany.id === permissionsModalCompany.id) {
+                setSelectedCompany(updated);
+              }
+              if (onUpdateCompany) {
+                onUpdateCompany(updated);
+              }
+            }}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -183,16 +234,27 @@ export default function CompaniesManager({
                       </span>
                     </td>
 
-                    {/* View Details Action Button */}
+                    {/* View Details & Manual Permissions Action Buttons */}
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedCompany(c)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7C3AED] bg-[#EDE9FE] hover:bg-[#DDD6FE] active:scale-95 rounded-xl transition cursor-pointer shadow-xs"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>View Details</span>
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCompany(c)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7C3AED] bg-[#EDE9FE] hover:bg-[#DDD6FE] active:scale-95 rounded-xl transition cursor-pointer shadow-xs"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View Details</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPermissionsModalCompany(c)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 active:scale-95 rounded-xl transition cursor-pointer shadow-xs"
+                          title="Manage company permissions manually"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>Permissions</span>
+                        </button>
+                      </div>
                     </td>
 
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
@@ -241,215 +303,20 @@ export default function CompaniesManager({
         </div>
       </div>
 
-      {/* VIEW COMPANY DETAILS MODAL */}
-      {selectedCompany && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative max-h-[92vh] overflow-y-auto">
-            {/* Close Button */}
-            <button
-              onClick={() => setSelectedCompany(null)}
-              className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Header / Brand */}
-            <div className="flex items-start gap-4 mb-6 pb-5 border-b border-slate-100 pr-10">
-              <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shrink-0 shadow-md ${selectedCompany.logoBg}`}
-              >
-                {selectedCompany.logoLetter}
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                    {selectedCompany.name}
-                  </h3>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                      selectedCompany.status === "Approved"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : selectedCompany.status === "Pending"
-                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                        : "bg-rose-50 text-rose-700 border-rose-200"
-                    }`}
-                  >
-                    {selectedCompany.status}
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-violet-50 text-[#7C3AED] border border-violet-200">
-                    {selectedCompany.plan}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 flex items-center gap-2">
-                  <span>Account ID: {selectedCompany.userId || selectedCompany.id}</span>
-                  <span>•</span>
-                  <span>Registered: {selectedCompany.submittedOn}</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Company Information Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-6">
-              {/* Work Email */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
-                  <Mail className="w-3.5 h-3.5 text-slate-500" />
-                  Work Email
-                </span>
-                <p className="text-xs sm:text-sm font-semibold text-slate-900 break-all">
-                  {selectedCompany.email}
-                </p>
-              </div>
-
-              {/* Phone / Contact */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
-                  <Phone className="w-3.5 h-3.5 text-slate-500" />
-                  Contact Number
-                </span>
-                <p className="text-xs sm:text-sm font-semibold text-slate-900">
-                  {selectedCompany.phone || "+91 98765 43210"}
-                </p>
-              </div>
-
-              {/* Location */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
-                  <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                  Headquarters / Location
-                </span>
-                <p className="text-xs sm:text-sm font-semibold text-slate-900">
-                  {selectedCompany.location}
-                </p>
-              </div>
-
-              {/* Website */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
-                  <Globe className="w-3.5 h-3.5 text-slate-500" />
-                  Company Website
-                </span>
-                <p className="text-xs sm:text-sm font-semibold text-blue-600 truncate">
-                  {selectedCompany.website ? (
-                    <a
-                      href={selectedCompany.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline flex items-center gap-1"
-                    >
-                      <span>{selectedCompany.website}</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  ) : (
-                    `https://${selectedCompany.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`
-                  )}
-                </p>
-              </div>
-
-              {/* Industry */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
-                  <Briefcase className="w-3.5 h-3.5 text-slate-500" />
-                  Industry Sector
-                </span>
-                <p className="text-xs sm:text-sm font-semibold text-slate-900">
-                  {selectedCompany.industry || "Software & Technology Solutions"}
-                </p>
-              </div>
-
-              {/* Company Size */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
-                  <Users className="w-3.5 h-3.5 text-slate-500" />
-                  Company Size / Employees
-                </span>
-                <p className="text-xs sm:text-sm font-semibold text-slate-900">
-                  {selectedCompany.companySize || "51-200 employees"}
-                </p>
-              </div>
-
-              {/* GST Number */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
-                  <FileText className="w-3.5 h-3.5 text-slate-500" />
-                  GSTIN / Corporate Tax ID
-                </span>
-                <p className="text-xs sm:text-sm font-semibold text-slate-900 font-mono">
-                  {selectedCompany.gstNumber || "29ABCDE1234F1Z5"}
-                </p>
-              </div>
-
-              {/* Subscription Tier */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
-                  <Shield className="w-3.5 h-3.5 text-slate-500" />
-                  Recruiter Plan
-                </span>
-                <p className="text-xs sm:text-sm font-bold text-[#7C3AED]">
-                  {selectedCompany.plan}
-                </p>
-              </div>
-            </div>
-
-            {/* Actions in Modal */}
-            <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs text-slate-400">
-                Manage verification and platform access rights for this recruiter account.
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedCompany.status === "Pending" ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        onReject(selectedCompany.id, selectedCompany.name);
-                        setSelectedCompany(null);
-                      }}
-                      className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition cursor-pointer"
-                    >
-                      Reject Registration
-                    </button>
-                    <button
-                      onClick={() => {
-                        onApprove(selectedCompany.id, selectedCompany.name);
-                        setSelectedCompany(null);
-                      }}
-                      className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Check className="w-4 h-4 stroke-[3]" />
-                      <span>Approve Company</span>
-                    </button>
-                  </>
-                ) : selectedCompany.status === "Approved" ? (
-                  <button
-                    onClick={() => {
-                      onReject(selectedCompany.id, selectedCompany.name);
-                      setSelectedCompany(null);
-                    }}
-                    className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition cursor-pointer"
-                  >
-                    Revoke Access
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      onApprove(selectedCompany.id, selectedCompany.name);
-                      setSelectedCompany(null);
-                    }}
-                    className="px-4 py-2 text-xs font-bold text-emerald-600 hover:bg-emerald-50 border border-emerald-200 rounded-xl transition cursor-pointer"
-                  >
-                    Re-approve Access
-                  </button>
-                )}
-                <button
-                  onClick={() => setSelectedCompany(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {permissionsModalCompany && (
+        <CompanyPermissionsModal
+          isOpen={Boolean(permissionsModalCompany)}
+          company={permissionsModalCompany}
+          onClose={() => setPermissionsModalCompany(null)}
+          onPermissionsUpdated={(newPermissions) => {
+            if (onUpdateCompany) {
+              onUpdateCompany({
+                ...permissionsModalCompany,
+                permissions: newPermissions,
+              });
+            }
+          }}
+        />
       )}
     </div>
   );
