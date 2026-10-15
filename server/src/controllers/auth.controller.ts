@@ -622,6 +622,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       try {
         await Application.findOneAndUpdate(
           {
+            company: 'Candidate Profile Upload',
             $or: [
               { candidateId: user._id },
               { candidateEmail: user.email },

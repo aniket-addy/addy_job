@@ -347,6 +347,7 @@ export const deleteJob = async (req: Request, res: Response) => {
 };
 
 // @desc    Apply to a job
+// @desc    Apply to a job
 // @route   POST /api/jobs/:id/apply
 export const applyToJob = async (req: Request, res: Response) => {
   try {
@@ -356,6 +357,7 @@ export const applyToJob = async (req: Request, res: Response) => {
       candidateName,
       candidateEmail,
       candidatePhone,
+      candidateId,
       resumeUrl,
       experience,
       skills,
@@ -373,10 +375,14 @@ export const applyToJob = async (req: Request, res: Response) => {
       candidateName: candidateName || 'Candidate',
       candidateEmail: candidateEmail || '',
       candidatePhone: candidatePhone || '',
+      candidateId: candidateId || undefined,
+      companyId: job.companyId || undefined,
       position: job.title,
       company: job.company,
-      appliedOn: 'Today',
+      appliedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }),
       status: 'New',
+      resumeViewed: false,
+      recruiterAction: '',
       jobId: job._id.toString(),
       resumeUrl: resumeUrl || '',
       experience: experience || '',
@@ -403,22 +409,55 @@ export const applyToJob = async (req: Request, res: Response) => {
 export const getCandidateApplications = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
-    const { email, candidateId } = req.query;
+    const { email, candidateId, phone, jobIds } = req.query;
 
-    if (!email && !candidateId) {
+    if (!email && !candidateId && !phone && !jobIds) {
       res.json({ success: true, count: 0, applications: [] });
       return;
     }
 
-    const query: any = {};
+    const orConditions: any[] = [];
     if (email) {
-      query.candidateEmail = new RegExp(`^${String(email).trim()}$`, 'i');
-    } else if (candidateId) {
-      query.candidateId = candidateId;
+      const emailList = String(email)
+        .split(',')
+        .map((e) => e.trim())
+        .filter(Boolean);
+      if (emailList.length === 1) {
+        orConditions.push({ candidateEmail: new RegExp(`^${emailList[0]}$`, 'i') });
+      } else if (emailList.length > 1) {
+        orConditions.push({
+          candidateEmail: {
+            $in: emailList.map((e) => new RegExp(`^${e}$`, 'i')),
+          },
+        });
+      }
+    }
+    if (candidateId) {
+      orConditions.push({ candidateId: candidateId });
+    }
+    if (phone) {
+      const phoneList = String(phone)
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (phoneList.length > 0) {
+        orConditions.push({ candidatePhone: { $in: phoneList } });
+      }
     }
 
+    if (orConditions.length === 0) {
+      res.json({ success: true, count: 0, applications: [] });
+      return;
+    }
+
+    const query: any = {
+      $or: orConditions,
+      // Exclude profile upload placeholder entries that don't have a real job application
+      $nor: [{ company: 'Candidate Profile Upload', jobId: { $exists: false } }],
+    };
+
     const { Application } = await import('../models/application.model.js');
-    const apps = await Application.find(query).sort({ createdAt: -1 });
+    const apps = await Application.find(query).populate('jobId').sort({ createdAt: -1 });
 
     res.json({
       success: true,
@@ -428,6 +467,130 @@ export const getCandidateApplications = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('getCandidateApplications error:', error);
     res.status(500).json({ success: false, message: 'Failed to get applications', error: error.message });
+  }
+};
+
+// @desc    Get company's received applications
+// @route   GET /api/jobs/applied/company
+export const getCompanyApplications = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { companyId, companyName } = req.query;
+
+    const orConditions: any[] = [];
+    if (companyId) {
+      orConditions.push({ companyId: companyId });
+    }
+    if (companyName) {
+      orConditions.push({ company: new RegExp(`^${String(companyName).trim()}$`, 'i') });
+    }
+
+    if (orConditions.length === 0) {
+      res.json({ success: true, count: 0, applications: [] });
+      return;
+    }
+
+    const { Application } = await import('../models/application.model.js');
+    const apps = await Application.find({ $or: orConditions }).populate('jobId').sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: apps.length,
+      applications: apps,
+    });
+  } catch (error: any) {
+    console.error('getCompanyApplications error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get company applications', error: error.message });
+  }
+};
+
+// @desc    Update job application status (hire, reject, shortlist, interview)
+// @route   PATCH /api/jobs/applications/:id/status
+export const updateJobApplicationStatus = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { id } = req.params;
+    const { status, recruiterAction } = req.body;
+
+    const validStatuses = ['New', 'Shortlisted', 'Reviewed', 'Reviewing', 'Hired', 'Rejected', 'Interview'];
+    if (status && !validStatuses.includes(status)) {
+      res.status(400).json({ success: false, message: 'Invalid status' });
+      return;
+    }
+
+    const updateFields: any = {};
+    if (status) {
+      updateFields.status = status;
+    }
+
+    // Determine recruiter action & resumeViewed
+    if (['Shortlisted', 'Interview', 'Hired', 'Rejected'].includes(status)) {
+      updateFields.recruiterAction = recruiterAction || status;
+      updateFields.recruiterActionAt = new Date();
+      updateFields.resumeViewed = true;
+      if (!updateFields.resumeViewedAt) {
+        updateFields.resumeViewedAt = new Date();
+      }
+    } else if (['Reviewed', 'Reviewing'].includes(status)) {
+      updateFields.resumeViewed = true;
+      updateFields.resumeViewedAt = new Date();
+    }
+
+    if (req.body.resumeViewed !== undefined) {
+      updateFields.resumeViewed = Boolean(req.body.resumeViewed);
+      if (updateFields.resumeViewed && !updateFields.resumeViewedAt) {
+        updateFields.resumeViewedAt = new Date();
+      }
+    }
+
+    const { Application } = await import('../models/application.model.js');
+    const updated = await Application.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
+
+    if (!updated) {
+      res.status(404).json({ success: false, message: 'Application not found' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: `Application updated to ${status}`,
+      application: updated,
+    });
+  } catch (error: any) {
+    console.error('updateJobApplicationStatus error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update application status', error: error.message });
+  }
+};
+
+// @desc    Mark candidate resume as viewed by recruiter
+// @route   PATCH /api/jobs/applications/:id/view-resume
+export const markResumeViewed = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { id } = req.params;
+
+    const { Application } = await import('../models/application.model.js');
+    const app = await Application.findById(id);
+    if (!app) {
+      res.status(404).json({ success: false, message: 'Application not found' });
+      return;
+    }
+
+    app.resumeViewed = true;
+    app.resumeViewedAt = new Date();
+    if (app.status === 'New') {
+      app.status = 'Reviewed';
+    }
+    await app.save();
+
+    res.json({
+      success: true,
+      message: 'Resume marked as viewed',
+      application: app,
+    });
+  } catch (error: any) {
+    console.error('markResumeViewed error:', error);
+    res.status(500).json({ success: false, message: 'Failed to mark resume viewed', error: error.message });
   }
 };
 

@@ -7,6 +7,9 @@ import {
   deleteJob,
   applyToJob,
   getCandidateApplications,
+  getCompanyApplications,
+  updateJobApplicationStatus,
+  markResumeViewed,
 } from '../controllers/job.controller.js';
 import { updateJobStatus } from '../controllers/admin.controller.js';
 
@@ -14,6 +17,9 @@ const router = Router();
 
 router.get('/', getJobs);
 router.get('/applied/candidate', getCandidateApplications);
+router.get('/applied/company', getCompanyApplications);
+router.patch('/applications/:id/status', updateJobApplicationStatus);
+router.patch('/applications/:id/view-resume', markResumeViewed);
 router.get('/:id', getJobById);
 router.post('/', createJob);
 router.post('/:id/apply', applyToJob);

@@ -67,6 +67,9 @@ import {
   updateCompanyJob,
   updateCompanyJobStatus,
   deleteCompanyJob,
+  fetchCompanyApplicationsFromDB,
+  updateApplicationStatusAPI,
+  markResumeViewedAPI,
 } from "@/lib/api";
 
 // Types
@@ -100,6 +103,7 @@ interface RecruiterApplicant {
   location: string;
   appliedDate: string;
   resumeFileName: string;
+  resumeUrl?: string;
   skills: string[];
   status: "Applied" | "Reviewing" | "Shortlisted" | "Interview" | "Hired" | "Rejected";
   matchScore: number;
@@ -673,14 +677,51 @@ export default function CompanyDashboardPage() {
             });
 
           const savedApplicants = localStorage.getItem(`company_applicants_data_${uid}`);
+          let localAppList: RecruiterApplicant[] = [];
           if (savedApplicants) {
             try {
               const parsedApplicants = JSON.parse(savedApplicants);
-              if (Array.isArray(parsedApplicants)) setApplicants(parsedApplicants);
+              if (Array.isArray(parsedApplicants)) localAppList = parsedApplicants;
             } catch (e) {}
-          } else {
-            setApplicants([]);
           }
+
+          // Fetch applications from database for this company
+          fetchCompanyApplicationsFromDB(uid, u.companyName || u.name)
+            .then((dbApps) => {
+              if (Array.isArray(dbApps) && dbApps.length > 0) {
+                const formatted: RecruiterApplicant[] = dbApps.map((a: any) => ({
+                  id: a._id || a.id,
+                  candidateName: a.candidateName,
+                  appliedRole: (typeof a.jobId === "object" ? a.jobId?.title : "") || a.position || "Applicant",
+                  jobId: (typeof a.jobId === "object" ? a.jobId?._id : a.jobId) || "",
+                  experience: a.experience || "Fresher",
+                  location: (typeof a.jobId === "object" ? a.jobId?.location : "") || "Remote",
+                  appliedDate: a.appliedOn || (a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "Recent"),
+                  resumeFileName: a.fileName || "Resume.pdf",
+                  skills: Array.isArray(a.skills) && a.skills.length > 0 ? a.skills : ["General"],
+                  status: (["Shortlisted", "Interview", "Hired", "Rejected"].includes(a.status) ? a.status : a.resumeViewed ? "Reviewing" : "Applied") as any,
+                  matchScore: 88,
+                  email: a.candidateEmail || "candidate@example.com",
+                  phone: a.candidatePhone || "+91 9876543210",
+                  notes: a.recruiterAction ? `Status: ${a.recruiterAction}` : undefined,
+                  resumeUrl: a.resumeUrl || a.pdfData || "",
+                }));
+
+                const map = new Map<string, RecruiterApplicant>();
+                formatted.forEach((fa) => map.set(fa.id, fa));
+                localAppList.forEach((la) => {
+                  if (!map.has(la.id)) {
+                    map.set(la.id, la);
+                  }
+                });
+                setApplicants(Array.from(map.values()));
+              } else {
+                setApplicants(localAppList);
+              }
+            })
+            .catch(() => {
+              setApplicants(localAppList);
+            });
 
           let currentVault: PurchasedResume[] = [];
           if (Array.isArray(u.purchasedResumes) && u.purchasedResumes.length > 0) {
@@ -966,6 +1007,24 @@ export default function CompanyDashboardPage() {
     showToast(
       `${applicant?.candidateName || "Candidate"} has been marked as ${newStatus}!`
     );
+
+    // Persist real recruiter action to MongoDB backend!
+    updateApplicationStatusAPI(applicantId, newStatus, newStatus).catch((err) => {
+      console.warn("Backend status update error:", err);
+    });
+  };
+
+  // View candidate resume and update status
+  const handleViewResume = (app: RecruiterApplicant) => {
+    setSelectedApplicant(app);
+    if (app.id) {
+      markResumeViewedAPI(app.id).catch((err) => console.warn("Backend resume view error:", err));
+      setApplicants((prev) =>
+        prev.map((a) =>
+          a.id === app.id ? { ...a, status: a.status === "Applied" ? "Reviewing" : a.status } : a
+        )
+      );
+    }
   };
 
   // Modal Handlers: Open New Job / Edit Existing Job
@@ -1794,7 +1853,7 @@ export default function CompanyDashboardPage() {
                             )}
 
                             <button
-                              onClick={() => setSelectedApplicant(app)}
+                              onClick={() => handleViewResume(app)}
                               className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition cursor-pointer shadow-2xs"
                               title="View Full Profile & Resume"
                             >
@@ -2600,7 +2659,7 @@ export default function CompanyDashboardPage() {
                         {/* Right Action Buttons */}
                         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pl-4 whitespace-nowrap">
                           <button
-                            onClick={() => setSelectedApplicant(app)}
+                            onClick={() => handleViewResume(app)}
                             className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
                           >
                             <FileText className="w-3.5 h-3.5 text-[#7C3AED]" />
@@ -3762,13 +3821,20 @@ export default function CompanyDashboardPage() {
                   </span>
                 </div>
                 <button
-                  onClick={() =>
-                    showToast(`Downloading CV for ${selectedApplicant.candidateName}...`)
-                  }
+                  onClick={() => {
+                    if (selectedApplicant.id) {
+                      markResumeViewedAPI(selectedApplicant.id).catch(() => {});
+                    }
+                    if (selectedApplicant.resumeUrl) {
+                      window.open(selectedApplicant.resumeUrl, "_blank");
+                    } else {
+                      showToast(`Viewing resume for ${selectedApplicant.candidateName}`);
+                    }
+                  }}
                   className="px-3 py-1.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download</span>
+                  <span>Download / View</span>
                 </button>
               </div>
 

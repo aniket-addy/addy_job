@@ -169,12 +169,14 @@ function JobDetailPageContent() {
       statusStep: 1,
       recruiterStatus: "Recruiter active today",
       totalApplicants: (job.applicantsCount || 0) + 1,
-      viewedCount: 1,
-      rating: 4.8,
-      reviewsCount: "120 Reviews",
+      viewedCount: 0,
+      rating: job.rating || 4.8,
+      reviewsCount: job.reviewsCount || "120 Reviews",
       candidateName: fullName || storedUser?.name || "Candidate",
       candidateEmail: email || storedUser?.email || "",
       candidatePhone: phone || storedUser?.phone || "",
+      candidateId: storedUser?.id || storedUser?.userId || "",
+      resumeUrl: storedUser?.resumeUrl || "",
     };
 
     saveLocalAppliedJob(uid, appData);
@@ -182,7 +184,21 @@ function JobDetailPageContent() {
       candidateName: appData.candidateName,
       candidateEmail: appData.candidateEmail,
       candidatePhone: appData.candidatePhone,
-    }).catch((err) => console.warn("Backend submit error:", err));
+      candidateId: storedUser?.id || storedUser?.userId || undefined,
+      resumeUrl: storedUser?.resumeUrl || "",
+      experience: storedUser?.experience || "",
+      skills: storedUser?.skills || [],
+    })
+      .then((res) => {
+        if (res?.application?._id) {
+          saveLocalAppliedJob(uid, {
+            ...appData,
+            id: String(res.application._id),
+            _id: String(res.application._id),
+          });
+        }
+      })
+      .catch((err) => console.warn("Backend submit error:", err));
 
     setApplicationSubmitted(true);
     setTimeout(() => {

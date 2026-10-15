@@ -844,12 +844,23 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!['New', 'Shortlisted', 'Reviewed', 'Hired', 'Rejected'].includes(status)) {
+    if (!['New', 'Shortlisted', 'Reviewed', 'Reviewing', 'Hired', 'Rejected', 'Interview'].includes(status)) {
       res.status(400).json({ success: false, message: 'Invalid application status' });
       return;
     }
 
-    const app = await Application.findByIdAndUpdate(id, { status }, { new: true });
+    const updateFields: any = { status };
+    if (['Shortlisted', 'Interview', 'Hired', 'Rejected'].includes(status)) {
+      updateFields.recruiterAction = status;
+      updateFields.recruiterActionAt = new Date();
+      updateFields.resumeViewed = true;
+      updateFields.resumeViewedAt = new Date();
+    } else if (['Reviewed', 'Reviewing'].includes(status)) {
+      updateFields.resumeViewed = true;
+      updateFields.resumeViewedAt = new Date();
+    }
+
+    const app = await Application.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
     if (!app) {
       res.status(404).json({ success: false, message: 'Application not found' });
       return;
@@ -862,6 +873,8 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
         id: app._id.toString(),
         candidateName: app.candidateName,
         status: app.status,
+        recruiterAction: app.recruiterAction,
+        resumeViewed: app.resumeViewed,
       },
     });
   } catch (error: any) {

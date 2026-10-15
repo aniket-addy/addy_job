@@ -985,10 +985,31 @@ export async function submitJobApplication(jobId: string, payload: any): Promise
   }
 }
 
-export async function fetchCandidateApplicationsFromDB(email?: string): Promise<any[]> {
+export async function fetchCandidateApplicationsFromDB(
+  email?: string | string[],
+  candidateId?: string,
+  phone?: string | string[],
+  jobIds?: string | string[]
+): Promise<any[]> {
   try {
-    if (!email) return [];
-    const res = await fetch(`${API_BASE_URL}/jobs/applied/candidate?email=${encodeURIComponent(email)}`, {
+    const params = new URLSearchParams();
+    if (email) {
+      const emailStr = Array.isArray(email) ? email.filter(Boolean).join(',') : email;
+      if (emailStr) params.append('email', emailStr);
+    }
+    if (candidateId) params.append('candidateId', candidateId);
+    if (phone) {
+      const phoneStr = Array.isArray(phone) ? phone.filter(Boolean).join(',') : phone;
+      if (phoneStr) params.append('phone', phoneStr);
+    }
+    if (jobIds) {
+      const jobIdsStr = Array.isArray(jobIds) ? jobIds.filter(Boolean).join(',') : jobIds;
+      if (jobIdsStr) params.append('jobIds', jobIdsStr);
+    }
+
+    if ([...params.keys()].length === 0) return [];
+
+    const res = await fetch(`${API_BASE_URL}/jobs/applied/candidate?${params.toString()}`, {
       cache: 'no-store',
     });
     if (!res.ok) return [];
@@ -997,6 +1018,76 @@ export async function fetchCandidateApplicationsFromDB(email?: string): Promise<
   } catch (err) {
     console.error('fetchCandidateApplications error:', err);
     return [];
+  }
+}
+
+export async function fetchCompanyApplicationsFromDB(companyId?: string, companyName?: string): Promise<any[]> {
+  try {
+    if (!companyId && !companyName) return [];
+    const params = new URLSearchParams();
+    if (companyId) params.append('companyId', companyId);
+    if (companyName) params.append('companyName', companyName);
+
+    const res = await fetch(`${API_BASE_URL}/jobs/applied/company?${params.toString()}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.applications || [];
+  } catch (err) {
+    console.error('fetchCompanyApplications error:', err);
+    return [];
+  }
+}
+
+export function notifyApplicationSync() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('applied_jobs_change'));
+    try {
+      localStorage.setItem('addyjob_sync_event', Date.now().toString());
+    } catch {}
+    try {
+      const bc = new BroadcastChannel('addyjob_channel');
+      bc.postMessage({ type: 'applied_jobs_change', timestamp: Date.now() });
+      bc.close();
+    } catch {}
+  }
+}
+
+export async function updateApplicationStatusAPI(
+  id: string,
+  status: string,
+  recruiterAction?: string
+): Promise<{ success: boolean; message?: string; application?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/applications/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, recruiterAction }),
+    });
+    const data = await res.json();
+    notifyApplicationSync();
+    return data;
+  } catch (err: any) {
+    console.error('updateApplicationStatusAPI error:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+export async function markResumeViewedAPI(
+  id: string
+): Promise<{ success: boolean; message?: string; application?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/applications/${id}/view-resume`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    notifyApplicationSync();
+    return data;
+  } catch (err: any) {
+    console.error('markResumeViewedAPI error:', err);
+    return { success: false, message: err.message };
   }
 }
 
