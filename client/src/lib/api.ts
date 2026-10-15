@@ -544,6 +544,39 @@ export async function fetchAdminApplications(): Promise<any[]> {
   }
 }
 
+export async function fetchJobApplicants(jobId: string): Promise<any[]> {
+  try {
+    let res = await fetch(`${API_BASE_URL}/jobs/${jobId}/applicants`);
+    if (!res.ok) {
+      res = await fetch(`${API_BASE_URL}/admin/jobs/${jobId}/applicants`);
+    }
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.applicants || [];
+  } catch (error) {
+    console.error('fetchJobApplicants error:', error);
+    return [];
+  }
+}
+
+export async function fetchCompanyApplications(params: {
+  company?: string;
+  companyId?: string;
+}): Promise<any[]> {
+  try {
+    const q = new URLSearchParams();
+    if (params.company) q.append('company', params.company);
+    if (params.companyId) q.append('companyId', params.companyId);
+    const res = await fetch(`${API_BASE_URL}/jobs/applied/company?${q.toString()}`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.applications || [];
+  } catch (error) {
+    console.error('fetchCompanyApplications error:', error);
+    return [];
+  }
+}
+
 export async function updateAdminApplicationStatus(
   id: string,
   status: string

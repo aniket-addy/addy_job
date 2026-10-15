@@ -28,6 +28,7 @@ interface JobDetailModalProps {
   onClose: () => void;
   onToggleStatus: (id: string, newStatus: JobPosting["status"]) => void;
   onDeleteJob: (id: string) => void;
+  onOpenApplicants?: (job: JobPosting) => void;
 }
 
 export default function JobDetailModal({
@@ -36,6 +37,7 @@ export default function JobDetailModal({
   onClose,
   onToggleStatus,
   onDeleteJob,
+  onOpenApplicants,
 }: JobDetailModalProps) {
   if (!isOpen || !job) return null;
 
@@ -144,13 +146,29 @@ export default function JobDetailModal({
               </p>
             </div>
 
-            <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-100">
-              <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
-                <UserCheck className="w-3 h-3 text-indigo-500" />
-                Applicants
-              </span>
-              <p className="text-sm font-bold text-indigo-600 mt-1">
-                {job.applicantsCount || 0} Candidates
+            <div
+              onClick={() => onOpenApplicants && onOpenApplicants(job)}
+              className={`p-3 rounded-2xl border transition-all ${
+                onOpenApplicants
+                  ? "bg-slate-50/80 hover:bg-blue-50/90 border-slate-100 hover:border-blue-200 cursor-pointer group"
+                  : "bg-slate-50/80 border-slate-100"
+              }`}
+              title={onOpenApplicants ? "Click to view applied candidates" : undefined}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-slate-400 group-hover:text-blue-600 uppercase font-semibold flex items-center gap-1 transition-colors">
+                  <UserCheck className="w-3 h-3 text-indigo-500 group-hover:text-blue-600" />
+                  Applicants
+                </span>
+                {onOpenApplicants && (
+                  <ExternalLink className="w-2.5 h-2.5 text-blue-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+                )}
+              </div>
+              <p className="text-sm font-bold text-indigo-600 group-hover:text-blue-700 mt-1 flex items-center justify-between">
+                <span>{job.applicantsCount || 0} Candidates</span>
+                {onOpenApplicants && (
+                  <span className="text-[10px] text-blue-600 font-semibold underline">View</span>
+                )}
               </p>
             </div>
           </div>

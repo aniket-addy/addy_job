@@ -357,6 +357,8 @@ export const applyToJob = async (req: Request, res: Response) => {
       candidateEmail,
       candidatePhone,
       resumeUrl,
+      pdfData,
+      fileName,
       experience,
       skills,
     } = req.body;
@@ -368,6 +370,39 @@ export const applyToJob = async (req: Request, res: Response) => {
     }
 
     const { Application } = await import('../models/application.model.js');
+    const { User } = await import('../models/user.model.js');
+
+    let finalResumeUrl = resumeUrl || pdfData || '';
+    let finalPdfData = pdfData || resumeUrl || '';
+    let finalFileName = fileName || '';
+    let finalExperience = experience || '';
+    let finalSkills = Array.isArray(skills) ? skills : [];
+    let domain = '';
+
+    if (candidateEmail) {
+      const u = await User.findOne({
+        email: new RegExp(`^${candidateEmail.trim()}$`, 'i'),
+        role: 'job_seeker',
+      });
+      if (u) {
+        if (!finalResumeUrl && u.resumeUrl) {
+          finalResumeUrl = u.resumeUrl;
+          finalPdfData = u.resumeUrl;
+        }
+        if (!finalFileName && u.resumeName) {
+          finalFileName = u.resumeName;
+        }
+        if (!finalExperience && u.experience) {
+          finalExperience = u.experience;
+        }
+        if (finalSkills.length === 0 && u.skills && u.skills.length > 0) {
+          finalSkills = u.skills;
+        }
+        if (u.specialization || u.targetRole) {
+          domain = u.specialization || u.targetRole || '';
+        }
+      }
+    }
 
     const appRecord = await Application.create({
       candidateName: candidateName || 'Candidate',
@@ -378,9 +413,12 @@ export const applyToJob = async (req: Request, res: Response) => {
       appliedOn: 'Today',
       status: 'New',
       jobId: job._id.toString(),
-      resumeUrl: resumeUrl || '',
-      experience: experience || '',
-      skills: Array.isArray(skills) ? skills : [],
+      resumeUrl: finalResumeUrl,
+      pdfData: finalPdfData,
+      fileName: finalFileName,
+      domain: domain || job.title,
+      experience: finalExperience || job.experience || '1-3 years',
+      skills: finalSkills.length > 0 ? finalSkills : (job.skills || job.tags || []),
       avatarLetter: (candidateName ? candidateName.slice(0, 2) : 'CD').toUpperCase(),
       avatarBg: 'bg-blue-600',
     });
@@ -428,6 +466,84 @@ export const getCandidateApplications = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('getCandidateApplications error:', error);
     res.status(500).json({ success: false, message: 'Failed to get applications', error: error.message });
+  }
+};
+
+// @desc    Get company's received applications
+// @route   GET /api/jobs/applied/company
+export const getCompanyApplications = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { company, companyId } = req.query;
+
+    const { Application } = await import('../models/application.model.js');
+    const { Job } = await import('../models/job.model.js');
+    const { User } = await import('../models/user.model.js');
+
+    const orConditions: any[] = [];
+    if (company) {
+      orConditions.push({ company: new RegExp(`^${String(company).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+    }
+    if (companyId) {
+      const companyJobs = await Job.find({ companyId: String(companyId) });
+      const jobIds = companyJobs.map((j) => j._id);
+      if (jobIds.length > 0) {
+        orConditions.push({ jobId: { $in: jobIds } });
+        orConditions.push({ jobId: { $in: jobIds.map((id) => id.toString()) } });
+      }
+    }
+
+    if (orConditions.length === 0) {
+      res.json({ success: true, count: 0, applications: [] });
+      return;
+    }
+
+    const apps = await Application.find({ $or: orConditions }).sort({ createdAt: -1 });
+
+    const emails = apps.map((a: any) => a.candidateEmail).filter(Boolean);
+    const users = await User.find({ email: { $in: emails }, role: 'job_seeker' });
+    const userMap = new Map(users.map((u) => [u.email.toLowerCase().trim(), u]));
+
+    const formatted = apps.map((a: any) => {
+      const u = a.candidateEmail ? userMap.get(a.candidateEmail.toLowerCase().trim()) : null;
+      const cName = a.candidateName || (u ? u.name : 'Candidate');
+      return {
+        id: a._id.toString(),
+        candidateName: cName,
+        appliedRole: a.position,
+        position: a.position,
+        company: a.company,
+        jobId: a.jobId ? a.jobId.toString() : '',
+        experience: a.experience || (u ? u.experience : '1-3 years'),
+        location: a.location || (u ? u.location : 'Remote'),
+        appliedDate: a.appliedOn || 'Recently',
+        appliedOn: a.appliedOn || 'Recently',
+        resumeFileName: a.fileName || (u ? u.resumeName : 'Resume.pdf'),
+        fileName: a.fileName || (u ? u.resumeName : 'Resume.pdf'),
+        resumeUrl: a.resumeUrl || (u ? u.resumeUrl : '') || '',
+        pdfData: a.pdfData || a.resumeUrl || (u ? u.resumeUrl : '') || '',
+        domain: a.domain || (u ? (u.specialization || u.targetRole) : '') || '',
+        skills: (a.skills && a.skills.length > 0) ? a.skills : (u && u.skills ? u.skills : ['Communication', 'Problem Solving']),
+        status: a.status || 'Applied',
+        matchScore: 92,
+        email: a.candidateEmail || (u ? u.email : ''),
+        candidateEmail: a.candidateEmail || (u ? u.email : ''),
+        phone: a.candidatePhone || (u ? u.phone : ''),
+        candidatePhone: a.candidatePhone || (u ? u.phone : ''),
+        notes: a.notes || '',
+        education: (u ? (u.education || u.highestQualification || u.course) : '') || '',
+        university: (u ? u.university : '') || '',
+        passingYear: (u ? u.passingYear : '') || '',
+        headline: (u ? u.headline : '') || '',
+        bio: (u ? u.bio : '') || '',
+        languages: (u ? u.languages : '') || '',
+      };
+    });
+
+    res.json({ success: true, count: formatted.length, applications: formatted });
+  } catch (error: any) {
+    console.error('getCompanyApplications error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get company applications' });
   }
 };
 

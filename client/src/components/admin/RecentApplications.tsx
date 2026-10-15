@@ -20,6 +20,18 @@ export interface ApplicationItem {
   pdfData?: string;
   fileName?: string;
   resumeUrl?: string;
+  jobId?: string;
+  education?: string;
+  highestQualification?: string;
+  university?: string;
+  course?: string;
+  specialization?: string;
+  passingYear?: string;
+  headline?: string;
+  bio?: string;
+  languages?: string;
+  location?: string;
+  workStatus?: string;
 }
 
 interface RecentApplicationsProps {

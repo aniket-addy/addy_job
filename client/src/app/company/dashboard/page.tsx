@@ -67,7 +67,13 @@ import {
   updateCompanyJob,
   updateCompanyJobStatus,
   deleteCompanyJob,
+  fetchJobApplicants,
+  fetchCompanyApplications,
+  updateAdminApplicationStatus,
 } from "@/lib/api";
+import CompanyJobApplicantsModal, {
+  CompanyCandidateApplicant,
+} from "@/components/company/CompanyJobApplicantsModal";
 
 // Types
 interface PostedJob {
@@ -106,6 +112,15 @@ interface RecruiterApplicant {
   email: string;
   phone: string;
   notes?: string;
+  resumeUrl?: string;
+  pdfData?: string;
+  domain?: string;
+  education?: string;
+  university?: string;
+  passingYear?: string;
+  headline?: string;
+  bio?: string;
+  languages?: string;
 }
 
 interface PurchasedResume {
@@ -545,6 +560,106 @@ export default function CompanyDashboardPage() {
   const [isUpgradePlanModalOpen, setIsUpgradePlanModalOpen] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState<RecruiterApplicant | null>(null);
 
+  // Job Applicants Modal states for Company Admin
+  const [selectedApplicantsJob, setSelectedApplicantsJob] = useState<PostedJob | null>(null);
+  const [isJobApplicantsModalOpen, setIsJobApplicantsModalOpen] = useState(false);
+  const [jobApplicantsList, setJobApplicantsList] = useState<CompanyCandidateApplicant[]>([]);
+  const [isLoadingJobApplicants, setIsLoadingJobApplicants] = useState(false);
+
+  const handleOpenJobApplicants = async (job: PostedJob) => {
+    setSelectedApplicantsJob(job);
+    setIsJobApplicantsModalOpen(true);
+    setIsLoadingJobApplicants(true);
+
+    // Initial match from preloaded company applicants
+    const localMatched = applicants
+      .filter(
+        (a) =>
+          (a.jobId && String(a.jobId) === String(job.id)) ||
+          (a.appliedRole && a.appliedRole.toLowerCase().trim() === job.title.toLowerCase().trim())
+      )
+      .map((a) => ({
+        id: a.id,
+        candidateName: a.candidateName,
+        appliedRole: a.appliedRole,
+        position: a.appliedRole,
+        jobId: a.jobId,
+        experience: a.experience,
+        location: a.location,
+        appliedDate: a.appliedDate,
+        resumeFileName: a.resumeFileName,
+        resumeUrl: a.resumeUrl || a.pdfData || "",
+        pdfData: a.pdfData || a.resumeUrl || "",
+        skills: a.skills,
+        status: a.status,
+        matchScore: a.matchScore,
+        email: a.email,
+        phone: a.phone,
+        notes: a.notes,
+        domain: a.domain || job.title,
+        education: a.education,
+        university: a.university,
+        passingYear: a.passingYear,
+        headline: a.headline,
+        bio: a.bio,
+        languages: a.languages,
+      }));
+    setJobApplicantsList(localMatched);
+
+    try {
+      const liveData = await fetchJobApplicants(job.id);
+      if (Array.isArray(liveData) && liveData.length > 0) {
+        const normalized = liveData.map((d: any) => ({
+          id: d.id,
+          candidateName: d.candidateName,
+          appliedRole: d.position || job.title,
+          position: d.position || job.title,
+          jobId: d.jobId || job.id,
+          experience: d.experience || "1-3 years",
+          location: d.location || "Remote",
+          appliedDate: d.appliedOn || "Today",
+          resumeFileName: d.fileName || `${d.candidateName}_Resume.pdf`,
+          resumeUrl: d.resumeUrl || d.pdfData || "",
+          pdfData: d.pdfData || d.resumeUrl || "",
+          skills: d.skills || [],
+          status: d.status || "Applied",
+          matchScore: 92,
+          email: d.candidateEmail || d.email || "",
+          phone: d.candidatePhone || d.phone || "",
+          avatarLetter: d.avatarLetter,
+          avatarBg: d.avatarBg,
+          domain: d.domain || job.title,
+          education: d.education,
+          university: d.university,
+          passingYear: d.passingYear,
+          headline: d.headline,
+          bio: d.bio,
+          languages: d.languages,
+        }));
+        setJobApplicantsList(normalized);
+      }
+    } catch (err) {
+      console.error("Error fetching live job applicants:", err);
+    } finally {
+      setIsLoadingJobApplicants(false);
+    }
+  };
+
+  const handleUpdateApplicantStatus = async (appId: string, newStatus: string) => {
+    setJobApplicantsList((prev) =>
+      prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a))
+    );
+    setApplicants((prev) =>
+      prev.map((a) => (a.id === appId ? { ...a, status: newStatus as any } : a))
+    );
+    setToastMessage(`Candidate status updated to "${newStatus}"`);
+    try {
+      await updateAdminApplicationStatus(appId, newStatus);
+    } catch (e) {
+      console.warn("Backend status update error:", e);
+    }
+  };
+
   // Form states for Post / Edit Job (matching /jobs/1 details)
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [jobTitle, setJobTitle] = useState("");
@@ -681,6 +796,20 @@ export default function CompanyDashboardPage() {
           } else {
             setApplicants([]);
           }
+
+          // Fetch live company applications from MongoDB database
+          fetchCompanyApplications({ company: compName, companyId: uid })
+            .then((dbApps) => {
+              if (Array.isArray(dbApps) && dbApps.length > 0) {
+                setApplicants(dbApps);
+                try {
+                  localStorage.setItem(`company_applicants_data_${uid}`, JSON.stringify(dbApps));
+                } catch (e) {}
+              }
+            })
+            .catch((err) => {
+              console.warn("Backend company applications fetch error:", err);
+            });
 
           let currentVault: PurchasedResume[] = [];
           if (Array.isArray(u.purchasedResumes) && u.purchasedResumes.length > 0) {
@@ -1846,9 +1975,15 @@ export default function CompanyDashboardPage() {
                             {job.location} • {job.salary}
                           </p>
                           <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/60 text-[11px]">
-                            <span className="text-[#7C3AED] font-bold">
-                              {job.applicantsCount} Applicants
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenJobApplicants(job)}
+                              className="text-[#7C3AED] hover:text-[#6D28D9] font-bold hover:underline cursor-pointer flex items-center gap-1 transition-colors"
+                              title={`View applicants for "${job.title}"`}
+                            >
+                              <span>{job.applicantsCount || 0} Applicants</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                            </button>
                             <span className="text-slate-400">{job.postedOn}</span>
                           </div>
                         </div>
@@ -2367,13 +2502,17 @@ export default function CompanyDashboardPage() {
                             </div>
                           </td>
                           <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
-                            <span
+                            <button
+                              type="button"
+                              onClick={() => handleOpenJobApplicants(job)}
                               style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
-                              className="px-3 py-1 rounded-full text-[11px] font-extrabold border shadow-2xs inline-flex items-center gap-1.5 whitespace-nowrap"
+                              className="group px-3 py-1.5 rounded-full text-[11px] font-extrabold border shadow-2xs hover:shadow-xs hover:bg-[#DDD6FE] transition-all inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer active:scale-95"
+                              title={`Click to view candidates who applied for "${job.title}"`}
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#7C3AED]" />
-                              <span>{job.applicantsCount} Candidates</span>
-                            </span>
+                              <Users className="w-3.5 h-3.5 text-[#7C3AED] group-hover:scale-110 transition-transform" />
+                              <span>{job.applicantsCount || 0} Candidates</span>
+                              <ExternalLink className="w-2.5 h-2.5 text-[#7C3AED] opacity-70 group-hover:opacity-100 transition-opacity ml-0.5" />
+                            </button>
                           </td>
                           <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
                             <span
@@ -4067,6 +4206,25 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Company Job Applicants Modal */}
+      <CompanyJobApplicantsModal
+        job={selectedApplicantsJob}
+        isOpen={isJobApplicantsModalOpen}
+        onClose={() => {
+          setIsJobApplicantsModalOpen(false);
+          setSelectedApplicantsJob(null);
+        }}
+        applicants={jobApplicantsList}
+        isLoading={isLoadingJobApplicants}
+        onUpdateStatus={handleUpdateApplicantStatus}
+        onNavigateToApplications={() => {
+          setActiveTab("applicants");
+          if (selectedApplicantsJob) {
+            setSearchQuery(selectedApplicantsJob.title);
+          }
+        }}
+      />
     </div>
   );
 }

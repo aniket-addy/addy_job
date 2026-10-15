@@ -12,8 +12,13 @@ import {
   Eye,
   Trash2,
   ShieldAlert,
+  Users,
+  ExternalLink,
 } from "lucide-react";
 import JobDetailModal from "./JobDetailModal";
+import JobApplicantsModal from "./JobApplicantsModal";
+import { ApplicationItem } from "./RecentApplications";
+import { fetchJobApplicants } from "@/lib/api";
 
 export interface JobPosting {
   id: string;
@@ -41,23 +46,63 @@ export interface JobPosting {
 
 interface JobsModeratorProps {
   jobs: JobPosting[];
+  applications?: ApplicationItem[];
   onToggleStatus: (id: string, newStatus: JobPosting["status"]) => void;
   onDeleteJob: (id: string) => void;
+  onUpdateApplicationStatus?: (id: string, newStatus: ApplicationItem["status"]) => void;
+  onNavigateToApplications?: () => void;
 }
 
 export default function JobsModerator({
   jobs,
+  applications = [],
   onToggleStatus,
   onDeleteJob,
+  onUpdateApplicationStatus,
+  onNavigateToApplications,
 }: JobsModeratorProps) {
   const [filter, setFilter] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+  // Applicants modal state
+  const [selectedApplicantsJob, setSelectedApplicantsJob] = useState<JobPosting | null>(null);
+  const [isApplicantsModalOpen, setIsApplicantsModalOpen] = useState(false);
+  const [jobApplicants, setJobApplicants] = useState<ApplicationItem[]>([]);
+  const [isLoadingApplicants, setIsLoadingApplicants] = useState(false);
+
   const handleViewJob = (job: JobPosting) => {
     setSelectedJob(job);
     setIsDetailModalOpen(true);
+  };
+
+  const handleOpenApplicants = async (job: JobPosting) => {
+    setSelectedApplicantsJob(job);
+    setIsApplicantsModalOpen(true);
+    setIsLoadingApplicants(true);
+
+    // Initial match from preloaded applications
+    const initialMatched = (applications || []).filter(
+      (app) =>
+        (app.jobId && String(app.jobId) === String(job.id)) ||
+        (app.position?.toLowerCase().trim() === job.title?.toLowerCase().trim() &&
+          app.company?.toLowerCase().trim() === job.company?.toLowerCase().trim())
+    );
+    setJobApplicants(initialMatched);
+
+    try {
+      const liveApplicants = await fetchJobApplicants(job.id);
+      if (Array.isArray(liveApplicants) && liveApplicants.length > 0) {
+        setJobApplicants(liveApplicants);
+      } else if (initialMatched.length === 0 && Array.isArray(liveApplicants)) {
+        setJobApplicants(liveApplicants);
+      }
+    } catch (err) {
+      console.error("Failed to load applicants for job:", err);
+    } finally {
+      setIsLoadingApplicants(false);
+    }
   };
 
   const filteredJobs = jobs.filter((j) => {
@@ -175,9 +220,20 @@ export default function JobsModerator({
                     </td>
 
                     <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold whitespace-nowrap">
-                        {j.applicantsCount} applied
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenApplicants(j)}
+                        className={`group inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 whitespace-nowrap ${
+                          (j.applicantsCount ?? 0) > 0
+                            ? "bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 border-blue-200/80 hover:border-blue-300"
+                            : "bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200/70"
+                        }`}
+                        title={`Click to view candidates who applied for "${j.title}"`}
+                      >
+                        <Users className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+                        <span>{j.applicantsCount ?? 0} applied</span>
+                        <ExternalLink className="w-2.5 h-2.5 text-blue-500 opacity-60 group-hover:opacity-100 transition-opacity ml-0.5" />
+                      </button>
                     </td>
 
                     <td className="py-3.5 px-4 whitespace-nowrap">
@@ -264,6 +320,20 @@ export default function JobsModerator({
           setSelectedJob((prev) => (prev && prev.id === id ? { ...prev, status: newStatus } : prev));
         }}
         onDeleteJob={onDeleteJob}
+        onOpenApplicants={handleOpenApplicants}
+      />
+
+      {/* Job Applicants Modal */}
+      <JobApplicantsModal
+        job={selectedApplicantsJob}
+        isOpen={isApplicantsModalOpen}
+        onClose={() => {
+          setIsApplicantsModalOpen(false);
+          setSelectedApplicantsJob(null);
+        }}
+        applicants={jobApplicants}
+        isLoading={isLoadingApplicants}
+        onNavigateToApplications={onNavigateToApplications}
       />
     </div>
   );

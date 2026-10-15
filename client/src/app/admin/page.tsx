@@ -526,8 +526,11 @@ export default function SuperAdminPage() {
             {activeTab === "jobs" && (
               <JobsModerator
                 jobs={jobs}
+                applications={applications}
                 onToggleStatus={handleToggleJobStatus}
                 onDeleteJob={handleDeleteJob}
+                onUpdateApplicationStatus={handleUpdateApplicationStatus}
+                onNavigateToApplications={() => setActiveTab("applications")}
               />
             )}
 

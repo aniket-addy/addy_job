@@ -528,6 +528,88 @@ export const deleteJob = async (req: Request, res: Response) => {
   }
 };
 
+// @desc    Get applicants for a specific job posting
+// @route   GET /api/admin/jobs/:id/applicants
+export const getJobApplicants = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const id = String(req.params.id);
+
+    let job: any = null;
+    if (mongoose.isValidObjectId(id)) {
+      job = await Job.findById(id);
+    } else {
+      job = await Job.findOne({ $or: [{ customId: id }, { title: id }] });
+    }
+
+    const orConditions: any[] = [];
+    if (mongoose.isValidObjectId(id)) {
+      orConditions.push({ jobId: new mongoose.Types.ObjectId(id) });
+      orConditions.push({ jobId: id });
+    }
+    if (job) {
+      if (job._id) {
+        orConditions.push({ jobId: job._id });
+        orConditions.push({ jobId: job._id.toString() });
+      }
+      if (job.title && job.company) {
+        orConditions.push({
+          position: new RegExp(`^${job.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+          company: new RegExp(`^${job.company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        });
+      }
+    }
+
+    const apps = await Application.find(orConditions.length > 0 ? { $or: orConditions } : { jobId: id }).sort({ createdAt: -1 });
+
+    // Fetch user details for candidate enrichment if registered user
+    const emails = apps.map((a: any) => a.candidateEmail).filter(Boolean);
+    const users = await User.find({ email: { $in: emails }, role: 'job_seeker' });
+    const userMap = new Map(users.map((u) => [u.email.toLowerCase().trim(), u]));
+
+    const formatted = apps.map((a: any) => {
+      const u = a.candidateEmail ? userMap.get(a.candidateEmail.toLowerCase().trim()) : null;
+      const cName = a.candidateName || (u ? u.name : 'Candidate');
+      return {
+        id: a._id.toString(),
+        candidateName: cName,
+        candidateEmail: a.candidateEmail || (u ? u.email : ''),
+        candidatePhone: a.candidatePhone || (u ? u.phone : ''),
+        avatarLetter: a.avatarLetter || getInitials(cName),
+        avatarBg: a.avatarBg || getColorForName(cName),
+        position: a.position || (job ? job.title : 'Job Applicant'),
+        company: a.company || (job ? job.company : ''),
+        appliedOn: a.appliedOn || (a.createdAt ? new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'),
+        status: a.status || 'New',
+        resumeUrl: a.resumeUrl || (u ? u.resumeUrl : '') || '',
+        domain: a.domain || (u ? u.specialization || u.targetRole : '') || '',
+        experience: a.experience || (u ? u.experience : '') || '',
+        skills: (a.skills && a.skills.length > 0) ? a.skills : (u && u.skills ? u.skills : (job && job.skills ? job.skills : [])),
+        pdfData: a.pdfData || a.resumeUrl || (u ? u.resumeUrl : '') || '',
+        fileName: a.fileName || (u ? u.resumeName : '') || '',
+        jobId: a.jobId ? a.jobId.toString() : (job ? job._id.toString() : id),
+        education: (u ? (u.education || u.highestQualification || u.course) : '') || '',
+        university: (u ? u.university : '') || '',
+        passingYear: (u ? u.passingYear : '') || '',
+        headline: (u ? u.headline : '') || '',
+        bio: (u ? u.bio : '') || '',
+        languages: (u ? u.languages : '') || '',
+        location: (u ? (u.preferredLocation || u.location) : '') || '',
+      };
+    });
+
+    res.json({
+      success: true,
+      job: job ? { id: job._id.toString(), title: job.title, company: job.company, applicantsCount: formatted.length } : null,
+      count: formatted.length,
+      applicants: formatted,
+    });
+  } catch (error: any) {
+    console.error('getJobApplicants error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve job applicants' });
+  }
+};
+
 // @desc    Get all applications
 // @route   GET /api/admin/applications
 export const getAdminApplications = async (req: Request, res: Response) => {
@@ -567,6 +649,7 @@ export const getAdminApplications = async (req: Request, res: Response) => {
           skills: u.skills || [],
           pdfData: u.resumeUrl || '',
           fileName: u.resumeName || '',
+          jobId: '',
         };
       });
 
@@ -588,6 +671,7 @@ export const getAdminApplications = async (req: Request, res: Response) => {
         skills: a.skills || [],
         pdfData: a.pdfData || '',
         fileName: a.fileName || '',
+        jobId: a.jobId ? a.jobId.toString() : '',
       })),
       ...profileResumes,
     ];
@@ -844,7 +928,7 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!['New', 'Shortlisted', 'Reviewed', 'Hired', 'Rejected'].includes(status)) {
+    if (!['New', 'Applied', 'Shortlisted', 'Reviewed', 'Reviewing', 'Interview', 'Hired', 'Rejected'].includes(status)) {
       res.status(400).json({ success: false, message: 'Invalid application status' });
       return;
     }

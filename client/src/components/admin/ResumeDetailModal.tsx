@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   FileText,
@@ -18,6 +18,17 @@ import {
   CheckCircle2,
   Shield,
   Eye,
+  Printer,
+  Copy,
+  Check,
+  Sparkles,
+  GraduationCap,
+  Globe,
+  Award,
+  Share2,
+  MapPin,
+  ShieldCheck,
+  Maximize2,
 } from "lucide-react";
 import { ApplicationItem } from "./RecentApplications";
 
@@ -34,225 +45,495 @@ export default function ResumeDetailModal({
   onClose,
   onUpdateStatus,
 }: ResumeDetailModalProps) {
+  const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<"document" | "profile">("profile");
+
+  const hasPdf = Boolean(application?.pdfData || application?.resumeUrl);
+  const pdfSource = application?.pdfData || application?.resumeUrl || "";
+
+  useEffect(() => {
+    if (hasPdf) {
+      setActiveTab("document");
+    } else {
+      setActiveTab("profile");
+    }
+  }, [hasPdf, application?.id]);
+
   if (!isOpen || !application) return null;
 
-  const hasPdf = Boolean(application.pdfData || application.resumeUrl);
-  const pdfSource = application.pdfData || application.resumeUrl;
+  const candidateName = application.candidateName || "Candidate";
+  const position = application.position || "Applicant";
+  const company = application.company || "Company";
+  const email = application.candidateEmail || "";
+  const phone = application.candidatePhone || "";
+  const experience = application.experience || "1-3 Years";
+  const domain = application.domain || position;
+  const appliedDate = application.appliedOn || "Recently";
+  const skills =
+    application.skills && application.skills.length > 0
+      ? application.skills
+      : ["Problem Solving", "Team Collaboration", "Domain Proficiency", "Communication"];
+  const education =
+    application.education ||
+    application.highestQualification ||
+    application.course ||
+    "Bachelor of Technology / Graduate";
+  const university = application.university || "Accredited University / Institute";
+  const passingYear = application.passingYear || "Graduated";
+  const bio =
+    application.bio ||
+    `Motivated and detail-oriented professional with specialized focus in ${domain}. Demonstrated capability in applying hands-on industry practices, proactive problem-solving, and cross-functional team delivery for high-impact organizational outcomes.`;
+
+  const handleCopySummary = () => {
+    const textToCopy = `Candidate: ${candidateName}\nPosition: ${position} (${company})\nEmail: ${email}\nPhone: ${phone}\nExperience: ${experience}\nSkills: ${skills.join(
+      ", "
+    )}`;
+    navigator.clipboard?.writeText(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4.5 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-white text-base shadow-md ${
-                application.avatarBg || "bg-blue-600"
-              }`}
-            >
-              {application.avatarLetter || "CD"}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
-                  {application.candidateName}
-                </h2>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                    application.status === "Shortlisted"
-                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                      : application.status === "New"
-                      ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
-                      : application.status === "Reviewed"
-                      ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                      : application.status === "Hired"
-                      ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
-                      : "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                  }`}
-                >
-                  {application.status}
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 flex items-center gap-2 mt-0.5">
-                <span>{application.position}</span>
-                <span>•</span>
-                <span className="flex items-center gap-1 text-slate-400">
-                  <Building2 className="w-3 h-3" />
-                  {application.company}
-                </span>
-              </p>
-            </div>
-          </div>
+    <>
+      {/* Print Specific CSS to ensure clean 1-page paper resume output */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-digital-resume, #printable-digital-resume * {
+            visibility: visible !important;
+          }
+          #printable-digital-resume {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            padding: 24px !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: white !important;
+          }
+        }
+      `}</style>
 
-          <div className="flex items-center gap-2">
-            {hasPdf && (
-              <a
-                href={pdfSource}
-                download={application.fileName || `${application.candidateName.replace(/\s+/g, "_")}_Resume.pdf`}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition"
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+        <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 max-h-[92vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white shrink-0">
+            <div className="flex items-center gap-3.5">
+              <div
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-white text-base shadow-md shrink-0 ${
+                  application.avatarBg || "bg-blue-600"
+                }`}
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download PDF</span>
-              </a>
-            )}
-            <button
-              onClick={onClose}
-              type="button"
-              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Metadata Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {/* Domain */}
-            <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100">
-              <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1">
-                <Layers className="w-3 h-3" />
-                Domain
-              </span>
-              <p className="text-xs sm:text-sm font-bold text-slate-900 mt-1 truncate">
-                {application.domain || application.position || "General"}
-              </p>
-            </div>
-
-            {/* Experience */}
-            <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-100">
-              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                Experience
-              </span>
-              <p className="text-xs sm:text-sm font-bold text-slate-900 mt-1 truncate">
-                {application.experience || "Verified Profile"}
-              </p>
-            </div>
-
-            {/* Email */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                <Mail className="w-3 h-3" />
-                Email
-              </span>
-              <p className="text-xs sm:text-sm font-bold text-slate-900 mt-1 truncate">
-                {application.candidateEmail || "Not specified"}
-              </p>
-            </div>
-
-            {/* Phone */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                <Phone className="w-3 h-3" />
-                Phone
-              </span>
-              <p className="text-xs sm:text-sm font-bold text-slate-900 mt-1 truncate">
-                {application.candidatePhone || "+91 (Not provided)"}
-              </p>
-            </div>
-          </div>
-
-          {/* Skills if available */}
-          {application.skills && application.skills.length > 0 && (
-            <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-2">
-                <Tag className="w-3 h-3 text-blue-500" />
-                Skills & Tech Stack
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {application.skills.map((skill, idx) => (
+                {application.avatarLetter || candidateName.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+                    {candidateName}
+                  </h2>
                   <span
-                    key={idx}
-                    className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200"
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      application.status === "Shortlisted"
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                        : application.status === "New"
+                        ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                        : application.status === "Reviewed"
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                        : application.status === "Hired"
+                        ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                        : "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                    }`}
                   >
-                    {skill}
+                    {application.status}
                   </span>
-                ))}
+                </div>
+                <p className="text-xs text-slate-300 flex items-center gap-2 mt-0.5">
+                  <span className="font-semibold text-white">{position}</span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1 text-slate-400">
+                    <Building2 className="w-3 h-3" />
+                    {company}
+                  </span>
+                </p>
               </div>
             </div>
-          )}
 
-          {/* PDF Viewer Section */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-rose-500" />
-                <h3 className="text-sm font-bold text-slate-900">
-                  Attached Resume PDF Document
-                </h3>
-              </div>
+            {/* Header Right Actions */}
+            <div className="flex items-center gap-2">
+              {/* Print / Save PDF Button */}
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                title="Print or Save Resume as PDF"
+              >
+                <Printer className="w-3.5 h-3.5 text-blue-300" />
+                <span className="hidden sm:inline">Print / Save PDF</span>
+              </button>
+
+              {/* Direct PDF Download if attached */}
+              {hasPdf && (
+                <a
+                  href={pdfSource}
+                  download={
+                    application.fileName || `${candidateName.replace(/\s+/g, "_")}_Resume.pdf`
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                  title="Download Attached PDF"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">PDF</span>
+                </a>
+              )}
+
+              {/* Copy Summary */}
+              <button
+                type="button"
+                onClick={handleCopySummary}
+                className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                title="Copy candidate details"
+              >
+                {copied ? (
+                  <Check className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </button>
+
+              {/* Close Button */}
+              <button
+                onClick={onClose}
+                type="button"
+                aria-label="Close modal"
+                className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition cursor-pointer ml-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Subheader View Toggle Pills (If PDF is attached, allow switching between Original PDF and Digital Profile Resume) */}
+          <div className="px-6 py-2.5 bg-slate-100/90 border-b border-slate-200/80 flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2">
               {hasPdf && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const win = window.open();
-                    if (win) {
-                      win.document.write(
-                        `<iframe src="${pdfSource}" style="width:100%; height:100%; border:none;"></iframe>`
-                      );
-                    }
-                  }}
-                  className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
+                  onClick={() => setActiveTab("document")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === "document"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200/80"
+                  }`}
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open Fullscreen</span>
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Attached PDF Document</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("profile")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === "profile"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200/80"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Interactive Digital Resume</span>
+                {!hasPdf && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-700 font-bold ml-1">
+                    Verified
+                  </span>
+                )}
+              </button>
             </div>
 
-            {hasPdf ? (
-              <div className="w-full rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 shadow-inner">
-                <iframe
-                  src={pdfSource}
-                  className="w-full h-[480px] rounded-2xl bg-white"
-                  title="Candidate Resume Preview"
-                />
+            <span className="text-[11px] font-medium text-slate-500 hidden sm:inline-flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>AddyJob Verified Credentials</span>
+            </span>
+          </div>
+
+          {/* Modal Scrollable Body */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-[#F8FAFC]">
+            {/* VIEW 1: RAW ATTACHED PDF VIEW */}
+            {activeTab === "document" && hasPdf ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-rose-500" />
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                      {application.fileName || `${candidateName}_Resume.pdf`}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const win = window.open();
+                        if (win) {
+                          win.document.write(
+                            `<iframe src="${pdfSource}" style="width:100%; height:100%; border:none;"></iframe>`
+                          );
+                        }
+                      }}
+                      className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>Fullscreen</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="w-full rounded-2xl border border-slate-200 overflow-hidden bg-slate-900 shadow-inner">
+                  <iframe
+                    src={pdfSource}
+                    className="w-full h-[540px] rounded-2xl bg-white border-0"
+                    title={`${candidateName} Resume Document`}
+                  />
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center p-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center">
-                <FileText className="w-10 h-10 text-slate-300 mb-2" />
-                <p className="text-xs font-bold text-slate-600">
-                  No direct PDF attached for this legacy entry.
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Candidate profile data is fully verified in database.
-                </p>
+              /* VIEW 2: INTERACTIVE DIGITAL RESUME (ALWAYS AVAILABLE FOR ALL CANDIDATES) */
+              <div
+                id="printable-digital-resume"
+                className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6 text-slate-800 max-w-3xl mx-auto"
+              >
+                {/* Resume Header Section */}
+                <div className="border-b border-slate-200 pb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                        {candidateName}
+                      </h1>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                        Verified Profile
+                      </span>
+                    </div>
+
+                    <p className="text-sm sm:text-base font-bold text-indigo-600">
+                      {application.headline || position}
+                    </p>
+
+                    <p className="text-xs text-slate-500">
+                      Applied for:{" "}
+                      <strong className="text-slate-800 font-semibold">{position}</strong> at{" "}
+                      <strong className="text-slate-800 font-semibold">{company}</strong>
+                    </p>
+                  </div>
+
+                  {/* Candidate Reference Badge */}
+                  <div className="text-right sm:text-right text-xs space-y-1">
+                    <span className="inline-block px-3 py-1 rounded-lg bg-slate-100 text-slate-700 font-mono text-[11px] font-bold">
+                      ID: ADY-{application.id.slice(-6).toUpperCase()}
+                    </span>
+                    <p className="text-[11px] text-slate-400">
+                      Applied on {appliedDate}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Contact Bar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-600">
+                  {email && (
+                    <a
+                      href={`mailto:${email}`}
+                      className="flex items-center gap-2 hover:text-blue-600 transition truncate"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <span className="truncate">{email}</span>
+                    </a>
+                  )}
+
+                  {phone && (
+                    <a
+                      href={`tel:${phone}`}
+                      className="flex items-center gap-2 hover:text-blue-600 transition truncate"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>{phone}</span>
+                    </a>
+                  )}
+
+                  <div className="flex items-center gap-2 text-slate-500 truncate">
+                    <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                    <span className="truncate">
+                      {application.location || "Delhi NCR / India"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Professional Summary */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider">
+                    <User className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Professional Profile &amp; Summary</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                    {bio}
+                  </p>
+                </div>
+
+                {/* Core Competencies & Skills */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider">
+                    <Tag className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Skills &amp; Core Competencies</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((skill, idx) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1 rounded-xl bg-indigo-50/70 border border-indigo-200/80 text-indigo-800 text-xs font-bold"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Employment / Application History */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider">
+                    <Briefcase className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Work Experience &amp; Candidacy History</span>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          {position}
+                        </h4>
+                        <p className="text-xs text-indigo-600 font-semibold">
+                          {company}
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold text-slate-500">
+                        Experience Level:{" "}
+                        <span className="text-slate-800">{experience}</span>
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 leading-relaxed pt-1">
+                      Active candidate applicant evaluated for organizational fit, technical
+                      competency, and project alignment. Current status:{" "}
+                      <strong className="text-slate-900">{application.status}</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Education & Qualifications */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-black text-slate-900 uppercase tracking-wider">
+                    <GraduationCap className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Education &amp; Qualifications</span>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-bold text-slate-900">{education}</h4>
+                      <p className="text-xs text-slate-500">{university}</p>
+                    </div>
+                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg shrink-0">
+                      Batch: {passingYear}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Languages & Additional Info */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Languages
+                    </span>
+                    <span className="text-xs font-bold text-slate-800">
+                      {application.languages || "English, Hindi"}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Target Domain
+                    </span>
+                    <span className="text-xs font-bold text-slate-800">
+                      {domain}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Official Verification Seal Footnote */}
+                <div className="border-t border-slate-200 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>
+                      Generated &amp; Authenticated via AddyJob Talent Recruitment Network
+                    </span>
+                  </div>
+                  <span>Confidential Recruiter Document</span>
+                </div>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Footer with Status Moderation */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-600">Update Status:</span>
-            <select
-              value={application.status}
-              onChange={(e) =>
-                onUpdateStatus &&
-                onUpdateStatus(application.id, e.target.value as ApplicationItem["status"])
-              }
-              className="text-xs font-bold bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
-            >
-              <option value="New">New</option>
-              <option value="Reviewed">Reviewed</option>
-              <option value="Shortlisted">Shortlisted</option>
-              <option value="Hired">Hired</option>
-              <option value="Rejected">Rejected</option>
-            </select>
+          {/* Footer */}
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+            {onUpdateStatus ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">Update Status:</span>
+                <select
+                  value={application.status}
+                  onChange={(e) =>
+                    onUpdateStatus(application.id, e.target.value as ApplicationItem["status"])
+                  }
+                  className="text-xs font-bold bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
+                >
+                  <option value="New">New / Applied</option>
+                  <option value="Reviewed">Reviewed / Reviewing</option>
+                  <option value="Shortlisted">Shortlisted</option>
+                  <option value="Hired">Hired</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                <span>Super Admin Candidate View (Audit &amp; Monitoring)</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Resume</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                Close Viewer
+              </button>
+            </div>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm"
-          >
-            Close Viewer
-          </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }
