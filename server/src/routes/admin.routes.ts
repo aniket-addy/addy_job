@@ -8,6 +8,7 @@ import {
   getAdminPermissionsSettings,
   updateAdminPermissionsSettings,
   getAdminJobs,
+  getJobApplicants,
   createJob,
   updateJob,
   updateJobStatus,
@@ -45,6 +46,7 @@ router.put('/permissions-settings', updateAdminPermissionsSettings);
 
 // Jobs moderation
 router.get('/jobs', getAdminJobs);
+router.get('/jobs/:id/applicants', getJobApplicants);
 router.post('/jobs', createJob);
 router.put('/jobs/:id', updateJob);
 router.patch('/jobs/:id/status', updateJobStatus);

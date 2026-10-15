@@ -33,6 +33,8 @@ import {
   ShieldCheck,
   X,
   Upload,
+  FileText,
+  Trash2,
 } from "lucide-react";
 
 function JobDetailPageContent() {
@@ -102,6 +104,45 @@ function JobDetailPageContent() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [resumeFileName, setResumeFileName] = useState("");
+  const [resumeBase64, setResumeBase64] = useState("");
+  const [resumeError, setResumeError] = useState("");
+  const resumeInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isApplyModalOpen) {
+      const storedUser = getStoredUser();
+      if (storedUser) {
+        if (!fullName && storedUser.name) setFullName(storedUser.name);
+        if (!email && storedUser.email) setEmail(storedUser.email);
+        if (!phone && storedUser.phone) setPhone(storedUser.phone);
+        if (!resumeFileName && storedUser.resumeName) setResumeFileName(storedUser.resumeName);
+        if (!resumeBase64 && storedUser.resumeUrl) setResumeBase64(storedUser.resumeUrl);
+      }
+    }
+  }, [isApplyModalOpen]);
+
+  const handleResumeFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setResumeError("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 12 * 1024 * 1024) {
+      setResumeError("Resume must be smaller than 12MB");
+      return;
+    }
+
+    setResumeFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const res = event.target?.result as string;
+      setResumeBase64(res);
+    };
+    reader.onerror = () => {
+      setResumeError("Failed to read resume file");
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSendJobsLikeThis = () => {
     setAlertMessage("Job alert created! We'll send similar jobs to your inbox.");
@@ -139,7 +180,7 @@ function JobDetailPageContent() {
   const suggestedJobs = allJobs
     .filter((j) => (j.id || j._id) !== currentId)
     .sort((a, b) => {
-      const aTags = Array.isArray(a.tags) ? a.tags : Array.isArray(a.skills) ? a.skills : [];
+      const aTags = Array.isArray(a.tags) ? a.tags : Array.isArray(b.tags) ? a.skills : [];
       const bTags = Array.isArray(b.tags) ? b.tags : Array.isArray(b.skills) ? b.skills : [];
       const aMatches = aTags.filter((t: string) => currentTags.includes(t)).length;
       const bMatches = bTags.filter((t: string) => currentTags.includes(t)).length;
@@ -153,6 +194,10 @@ function JobDetailPageContent() {
 
     const storedUser = getStoredUser();
     const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+    const finalResume = resumeBase64 || storedUser?.resumeUrl || "";
+    const finalFileName =
+      resumeFileName || storedUser?.resumeName || (finalResume ? `${(fullName || "Candidate").replace(/\s+/g, "_")}_Resume.pdf` : "");
+
     const appData = {
       id: "app-" + Date.now(),
       jobId: currentId,
@@ -176,7 +221,11 @@ function JobDetailPageContent() {
       candidateEmail: email || storedUser?.email || "",
       candidatePhone: phone || storedUser?.phone || "",
       candidateId: storedUser?.id || storedUser?.userId || "",
-      resumeUrl: storedUser?.resumeUrl || "",
+      resumeUrl: finalResume || storedUser?.resumeUrl || "",
+      pdfData: finalResume || storedUser?.resumeUrl || "",
+      fileName: finalFileName || (storedUser?.resumeName || "Resume.pdf"),
+      experience: storedUser?.experience || "",
+      skills: storedUser?.skills || job.tags || job.skills || [],
     };
 
     saveLocalAppliedJob(uid, appData);
@@ -185,9 +234,11 @@ function JobDetailPageContent() {
       candidateEmail: appData.candidateEmail,
       candidatePhone: appData.candidatePhone,
       candidateId: storedUser?.id || storedUser?.userId || undefined,
-      resumeUrl: storedUser?.resumeUrl || "",
-      experience: storedUser?.experience || "",
-      skills: storedUser?.skills || [],
+      resumeUrl: appData.resumeUrl,
+      pdfData: appData.pdfData,
+      fileName: appData.fileName,
+      experience: appData.experience,
+      skills: appData.skills,
     })
       .then((res) => {
         if (res?.application?._id) {
@@ -730,18 +781,74 @@ function JobDetailPageContent() {
                     />
                   </div>
 
-                  {/* Resume Upload Pill */}
+                  {/* Resume Upload Box */}
                   <div>
                     <label className="text-xs font-bold text-slate-700 block mb-1">
                       Upload Resume (PDF, DOCX)
                     </label>
-                    <div className="border border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 transition cursor-pointer flex flex-col items-center justify-center">
-                      <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                      <span className="text-xs font-semibold text-blue-600">
-                        Attach Resume or Drag &amp; Drop
-                      </span>
-                      <span className="text-[10px] text-slate-400">PDF or Word file (Max 5MB)</span>
-                    </div>
+
+                    <input
+                      type="file"
+                      ref={resumeInputRef}
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={handleResumeFileSelect}
+                      className="hidden"
+                    />
+
+                    {resumeFileName ? (
+                      <div className="flex items-center justify-between p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl">
+                        <div className="flex items-center gap-2.5 truncate">
+                          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="truncate">
+                            <p className="text-xs font-bold text-slate-900 truncate">
+                              {resumeFileName}
+                            </p>
+                            <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Resume attached successfully</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          <button
+                            type="button"
+                            onClick={() => resumeInputRef.current?.click()}
+                            className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-white hover:bg-blue-100 rounded-lg border border-blue-200 transition cursor-pointer"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResumeFileName("");
+                              setResumeBase64("");
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                            title="Remove file"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => resumeInputRef.current?.click()}
+                        className="border border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 hover:border-blue-400 transition cursor-pointer flex flex-col items-center justify-center group"
+                      >
+                        <Upload className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition mb-1" />
+                        <span className="text-xs font-semibold text-blue-600 group-hover:underline">
+                          Attach Resume (Click to browse file)
+                        </span>
+                        <span className="text-[10px] text-slate-400">PDF, DOC, DOCX (Max 12MB)</span>
+                      </div>
+                    )}
+
+                    {resumeError && (
+                      <p className="text-[11px] text-rose-500 font-semibold mt-1">{resumeError}</p>
+                    )}
                   </div>
                 </div>
 
