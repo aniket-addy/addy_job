@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
@@ -17,8 +17,39 @@ import {
   ShieldCheck,
   Home,
   Heart,
+  Eye,
+  Star,
+  Calendar,
+  Award,
+  AlertCircle,
+  ArrowRight,
 } from "lucide-react";
-import { getStoredUser, clearAuthSession, UserSession } from "@/lib/api";
+import {
+  getStoredUser,
+  clearAuthSession,
+  UserSession,
+  fetchCandidateApplicationsFromDB,
+  getLocalAppliedJobs,
+} from "@/lib/api";
+
+interface NotificationItem {
+  id: string;
+  type: "resume_viewed" | "shortlisted" | "interview" | "hired" | "rejected" | "applied";
+  title: string;
+  message: string;
+  company: string;
+  position: string;
+  time: string;
+  timestamp: number;
+  read: boolean;
+}
+
+function getInitials(name?: string) {
+  if (!name) return "U";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
 
 interface NavbarProps {
   activeTab?: string;
@@ -38,24 +69,252 @@ export default function Navbar({
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [navSearchQuery, setNavSearchQuery] = useState("");
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  // Close notifications/profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (notificationsRef.current && !notificationsRef.current.contains(target)) {
+        setNotificationsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(target)) {
+        setProfileOpen(false);
+      }
+    };
+    if (notificationsOpen || profileOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [notificationsOpen, profileOpen]);
+
+  // Load candidate notifications based on real application events
+  const loadNotifications = async () => {
+    const user = getStoredUser();
+    if (!user) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    const uid = user.id || user.userId || user.email || "candidate";
+    const readMapKey = `candidate_notifications_read_${uid}`;
+    let readMap: Record<string, boolean> = {};
+    try {
+      readMap = JSON.parse(localStorage.getItem(readMapKey) || "{}");
+    } catch {}
+
+    const localJobs = getLocalAppliedJobs(uid);
+    let dbJobs: any[] = [];
+    try {
+      dbJobs = await fetchCandidateApplicationsFromDB(user.email, uid, user.phone);
+    } catch {}
+
+    const allApps = [...dbJobs, ...localJobs];
+    const map = new Map<string, any>();
+    allApps.forEach((app) => {
+      const key = String(app.id || app._id || app.jobId || "");
+      if (key && !map.has(key)) {
+        map.set(key, app);
+      }
+    });
+
+    const items: NotificationItem[] = [];
+
+    map.forEach((app, key) => {
+      const company = app.company || app.companyName || "Employer";
+      const position = app.position || app.jobTitle || app.title || "Job Application";
+      const status = (app.status || "").trim();
+      const recruiterAction = (app.recruiterAction || "").trim();
+      const isHired = recruiterAction.toLowerCase() === "hired" || status.toLowerCase() === "hired";
+      const isShortlisted = recruiterAction.toLowerCase() === "shortlisted" || status.toLowerCase() === "shortlisted";
+      const isInterview = recruiterAction.toLowerCase() === "interview" || status.toLowerCase() === "interview";
+      const isRejected = recruiterAction.toLowerCase() === "rejected" || status.toLowerCase() === "rejected";
+      const hasAction = isHired || isShortlisted || isInterview || isRejected;
+      const isResumeViewed = Boolean(
+        app.resumeViewed ||
+        (app.statusStep && app.statusStep >= 2) ||
+        hasAction ||
+        ["Reviewed", "Reviewing", "Resume Viewed"].includes(status)
+      );
+
+      // Event: Recruiter Decisions
+      if (isHired) {
+        const notifId = `hired_${key}`;
+        items.push({
+          id: notifId,
+          type: "hired",
+          title: "Offer / Hired! 🎉",
+          message: `Congratulations! ${company} marked you as Hired for ${position}.`,
+          company,
+          position,
+          time: app.updatedAt ? new Date(app.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently",
+          timestamp: app.updatedAt ? new Date(app.updatedAt).getTime() : Date.now() - 1000,
+          read: Boolean(readMap[notifId]),
+        });
+      } else if (isInterview) {
+        const notifId = `interview_${key}`;
+        items.push({
+          id: notifId,
+          type: "interview",
+          title: "Interview Scheduled! 🎯",
+          message: `${company} invited you for an interview for ${position}.`,
+          company,
+          position,
+          time: app.updatedAt ? new Date(app.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently",
+          timestamp: app.updatedAt ? new Date(app.updatedAt).getTime() : Date.now() - 2000,
+          read: Boolean(readMap[notifId]),
+        });
+      } else if (isShortlisted) {
+        const notifId = `shortlisted_${key}`;
+        items.push({
+          id: notifId,
+          type: "shortlisted",
+          title: "Application Shortlisted! ⭐",
+          message: `${company} shortlisted your profile for ${position}.`,
+          company,
+          position,
+          time: app.updatedAt ? new Date(app.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently",
+          timestamp: app.updatedAt ? new Date(app.updatedAt).getTime() : Date.now() - 3000,
+          read: Boolean(readMap[notifId]),
+        });
+      } else if (isRejected) {
+        const notifId = `rejected_${key}`;
+        items.push({
+          id: notifId,
+          type: "rejected",
+          title: "Application Status Update",
+          message: `${company} updated your application status for ${position}.`,
+          company,
+          position,
+          time: app.updatedAt ? new Date(app.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently",
+          timestamp: app.updatedAt ? new Date(app.updatedAt).getTime() : Date.now() - 4000,
+          read: Boolean(readMap[notifId]),
+        });
+      }
+
+      // Event: Recruiter Viewed Resume
+      if (isResumeViewed) {
+        const notifId = `viewed_${key}`;
+        items.push({
+          id: notifId,
+          type: "resume_viewed",
+          title: "Resume Viewed! 👁️",
+          message: `${company} viewed and reviewed your resume for ${position}.`,
+          company,
+          position,
+          time: app.resumeViewedAt ? new Date(app.resumeViewedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently",
+          timestamp: app.resumeViewedAt ? new Date(app.resumeViewedAt).getTime() : Date.now() - 5000,
+          read: Boolean(readMap[notifId]),
+        });
+      }
+
+      // Event: Application Submitted
+      const notifId = `applied_${key}`;
+      items.push({
+        id: notifId,
+        type: "applied",
+        title: "Application Submitted",
+        message: `Your application for ${position} was sent to ${company}.`,
+        company,
+        position,
+        time: app.appliedDate || (app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : "Applied"),
+        timestamp: app.appliedAt ? new Date(app.appliedAt).getTime() : Date.now() - 86400000,
+        read: Boolean(readMap[notifId]),
+      });
+    });
+
+    items.sort((a, b) => b.timestamp - a.timestamp);
+    setNotifications(items);
+    setUnreadCount(items.filter((i) => !i.read).length);
+  };
+
+  const markAllAsRead = () => {
+    const user = getStoredUser();
+    const uid = user?.id || user?.userId || user?.email || "candidate";
+    const readMap: Record<string, boolean> = {};
+    notifications.forEach((n) => {
+      readMap[n.id] = true;
+    });
+    try {
+      localStorage.setItem(`candidate_notifications_read_${uid}`, JSON.stringify(readMap));
+    } catch {}
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
+  const markAsRead = (id: string) => {
+    const user = getStoredUser();
+    const uid = user?.id || user?.userId || user?.email || "candidate";
+    const readMapKey = `candidate_notifications_read_${uid}`;
+    try {
+      const readMap = JSON.parse(localStorage.getItem(readMapKey) || "{}");
+      readMap[id] = true;
+      localStorage.setItem(readMapKey, JSON.stringify(readMap));
+    } catch {}
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+  };
 
   useEffect(() => {
     setMounted(true);
-    setCurrentUser(getStoredUser());
-    const handleAuth = () => setCurrentUser(getStoredUser());
+    const u = getStoredUser();
+    setCurrentUser(u);
+    loadNotifications();
+
+    const handleAuth = () => {
+      setCurrentUser(getStoredUser());
+      loadNotifications();
+    };
+
+    const handleSync = () => {
+      loadNotifications();
+    };
+
     window.addEventListener("auth_change", handleAuth);
     window.addEventListener("storage", handleAuth);
     window.addEventListener("focus", handleAuth);
+    window.addEventListener("applied_jobs_change", handleSync);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("addyjob_channel");
+      bc.onmessage = () => {
+        handleSync();
+      };
+    } catch {}
+
     return () => {
       window.removeEventListener("auth_change", handleAuth);
       window.removeEventListener("storage", handleAuth);
       window.removeEventListener("focus", handleAuth);
+      window.removeEventListener("applied_jobs_change", handleSync);
+      if (bc) bc.close();
     };
   }, []);
 
   useEffect(() => {
     setCurrentUser(getStoredUser());
+    loadNotifications();
   }, [pathname]);
+
+  const handleNavSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (navSearchQuery.trim()) {
+      router.push(`/jobs?q=${encodeURIComponent(navSearchQuery.trim())}`);
+    } else {
+      router.push("/jobs");
+    }
+  };
 
   const handleLogout = () => {
     clearAuthSession();
@@ -133,21 +392,52 @@ export default function Navbar({
           </div>
 
           {/* Right Action Icons & Profile */}
-          <div className="hidden md:flex items-center gap-2 sm:gap-3 lg:gap-5 relative shrink-0">
-            {/* Search Link */}
-            <Link
-              href="/jobs"
-              aria-label="Search Jobs"
-              className="p-1.5 lg:p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-colors shrink-0"
-            >
-              <Search className="w-4 h-4 lg:w-5 lg:h-5 stroke-[2]" />
-            </Link>
+          <div className="hidden md:flex items-center gap-2 sm:gap-3 lg:gap-4 relative shrink-0">
+            {/* Working Search Bar */}
+            <form onSubmit={handleNavSearch} className="relative flex items-center">
+              <div className="relative flex items-center group">
+                <Search className="absolute left-3 w-4 h-4 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search jobs, skills..."
+                  value={navSearchQuery}
+                  onChange={(e) => setNavSearchQuery(e.target.value)}
+                  className="w-36 sm:w-44 md:w-52 lg:w-64 pl-9 pr-7 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/70 focus:bg-white border border-slate-200/80 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder:text-slate-400 font-medium"
+                />
+                {navSearchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setNavSearchQuery("")}
+                    className="absolute right-2.5 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    aria-label="Submit Search"
+                    className="absolute right-2 text-slate-400 hover:text-blue-600 p-0.5 cursor-pointer"
+                  >
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </form>
 
             {/* When Logged In: Show Bell, Profile Avatar with Dropdown, and Dashboard Button */}
             {mounted && currentUser ? (
               <>
+                {/* Backdrop for click outside dismiss */}
+                {notificationsOpen && (
+                  <div
+                    className="fixed inset-0 z-40 bg-transparent"
+                    onClick={() => setNotificationsOpen(false)}
+                  />
+                )}
+
                 {/* Notification Bell with Badge */}
-                <div className="relative shrink-0">
+                <div ref={notificationsRef} className="relative shrink-0">
                   <button
                     onClick={() => {
                       setNotificationsOpen(!notificationsOpen);
@@ -157,53 +447,154 @@ export default function Navbar({
                     className="relative p-1.5 lg:p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-colors cursor-pointer shrink-0"
                   >
                     <Bell className="w-4 h-4 lg:w-5 lg:h-5 stroke-[2]" />
-                    <span className="absolute top-1 right-1 lg:top-1.5 lg:right-1.5 w-3.5 h-3.5 lg:w-4 lg:h-4 bg-rose-500 text-white text-[9px] lg:text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
-                      1
-                    </span>
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 lg:top-1.5 lg:right-1.5 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] lg:text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white shadow-xs select-none">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
                   </button>
 
-                  {/* Notification Popover */}
+                  {/* Notification Popover / Sidebar Panel */}
                   {notificationsOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 z-50 animate-in fade-in zoom-in-95">
-                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                        <span className="text-sm font-bold text-slate-900">Notifications</span>
-                        <span className="text-xs text-blue-600 font-medium">Mark all read</span>
+                    <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-slate-200/90 p-4 z-50 animate-in fade-in zoom-in-95 max-h-[80vh] flex flex-col">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-slate-900">Notifications</span>
+                          {unreadCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100">
+                              {unreadCount} new
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={markAllAsRead}
+                              className="text-xs text-blue-600 hover:text-blue-700 font-bold cursor-pointer"
+                            >
+                              Mark all read
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setNotificationsOpen(false)}
+                            className="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="py-3 flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                          <CheckCircle className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-slate-900">Application Viewed!</p>
-                          <p className="text-xs text-slate-500 mt-0.5">NovaTech reviewed your Frontend Developer application.</p>
-                          <span className="text-[10px] text-slate-400 mt-1 block">10 minutes ago</span>
-                        </div>
+
+                      <div className="py-2 overflow-y-auto space-y-2 flex-1 no-scrollbar divide-y divide-slate-50">
+                        {notifications.length > 0 ? (
+                          notifications.map((n) => (
+                            <Link
+                              key={n.id}
+                              href="/candidate/dashboard"
+                              onClick={() => {
+                                setNotificationsOpen(false);
+                                markAsRead(n.id);
+                              }}
+                              className={`p-3 rounded-2xl flex items-start gap-3 transition-colors cursor-pointer border ${
+                                !n.read
+                                  ? "bg-blue-50/40 border-blue-100 hover:bg-blue-50/70"
+                                  : "bg-white border-transparent hover:bg-slate-50"
+                              }`}
+                            >
+                              <div
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                  n.type === "hired"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : n.type === "interview"
+                                    ? "bg-indigo-100 text-indigo-700"
+                                    : n.type === "shortlisted"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : n.type === "resume_viewed"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : n.type === "rejected"
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {n.type === "hired" ? (
+                                  <Award className="w-4 h-4" />
+                                ) : n.type === "interview" ? (
+                                  <Calendar className="w-4 h-4" />
+                                ) : n.type === "shortlisted" ? (
+                                  <Star className="w-4 h-4 fill-amber-500" />
+                                ) : n.type === "resume_viewed" ? (
+                                  <Eye className="w-4 h-4" />
+                                ) : n.type === "rejected" ? (
+                                  <AlertCircle className="w-4 h-4" />
+                                ) : (
+                                  <CheckCircle className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-1">
+                                  <p className="text-xs font-bold text-slate-900 truncate">{n.title}</p>
+                                  <span className="text-[10px] text-slate-400 shrink-0">{n.time}</span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
+                                  {n.message}
+                                </p>
+                              </div>
+                            </Link>
+                          ))
+                        ) : (
+                          <div className="py-8 text-center space-y-2">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                              <Bell className="w-5 h-5 stroke-[1.5]" />
+                            </div>
+                            <p className="text-xs font-bold text-slate-800">No notifications yet</p>
+                            <p className="text-[11px] text-slate-500 max-w-[200px] mx-auto leading-relaxed">
+                              When companies view your resume or update your applications, alerts will appear here.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 shrink-0 text-center">
+                        <Link
+                          href="/candidate/dashboard"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-700 block py-1"
+                        >
+                          View All Applications →
+                        </Link>
                       </div>
                     </div>
                   )}
                 </div>
 
+                {/* Backdrop for profile menu click outside dismiss */}
+                {profileOpen && (
+                  <div
+                    className="fixed inset-0 z-40 bg-transparent"
+                    onClick={() => setProfileOpen(false)}
+                  />
+                )}
+
                 {/* Profile Avatar & Dropdown */}
-                <div className="relative pl-0.5 lg:pl-1 shrink-0">
+                <div ref={profileRef} className="relative pl-0.5 lg:pl-1 shrink-0">
                   <button
                     onClick={() => {
                       setProfileOpen(!profileOpen);
                       setNotificationsOpen(false);
                     }}
                     title={currentUser.name || "My Profile"}
-                    className="w-8 h-8 lg:w-10 lg:h-10 rounded-full overflow-hidden ring-2 ring-slate-200/90 shadow-xs hover:ring-blue-500 transition-all cursor-pointer flex items-center justify-center bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs lg:text-sm hover:scale-105 shrink-0"
+                    className="w-8 h-8 lg:w-10 lg:h-10 rounded-full overflow-hidden ring-2 ring-slate-200/90 shadow-xs hover:ring-blue-500 transition-all cursor-pointer flex items-center justify-center bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs lg:text-sm hover:scale-105 shrink-0 select-none"
                   >
-                    <Image
-                      src={
-                        currentUser.role === "job_seeker"
-                          ? "/reviewer-1.jpg"
-                          : "/avatar.png"
-                      }
-                      alt={currentUser.name || "User Profile"}
-                      width={40}
-                      height={40}
-                      className="w-full h-full object-cover"
-                    />
+                    {currentUser.profileImage ? (
+                      <img
+                        src={currentUser.profileImage}
+                        alt={currentUser.name || "User Profile"}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center font-bold text-xs uppercase bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white select-none">
+                        {getInitials(currentUser.name || currentUser.email || "U")}
+                      </div>
+                    )}
                   </button>
 
                   {/* Profile Dropdown Menu */}
@@ -335,6 +726,24 @@ export default function Navbar({
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-3 shadow-lg animate-in slide-in-from-top-2 duration-200">
+          {/* Mobile Search Bar */}
+          <form
+            onSubmit={(e) => {
+              handleNavSearch(e);
+              setMobileMenuOpen(false);
+            }}
+            className="relative"
+          >
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search jobs, skills, companies..."
+              value={navSearchQuery}
+              onChange={(e) => setNavSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:bg-white"
+            />
+          </form>
+
           <div className="flex flex-col space-y-1">
             {navLinks.map((link) => {
               const isActive = getIsActive(link.href, link.name);
@@ -363,14 +772,16 @@ export default function Navbar({
             <div className="pt-2 space-y-3">
               <div className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full overflow-hidden ring-1 ring-slate-200">
-                    <Image
-                      src="/avatar.png"
-                      alt="User Profile"
-                      width={36}
-                      height={36}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-9 h-9 rounded-full overflow-hidden ring-1 ring-slate-200 flex items-center justify-center bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs">
+                    {currentUser.profileImage ? (
+                      <img
+                        src={currentUser.profileImage}
+                        alt="User Profile"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span>{getInitials(currentUser.name || currentUser.email || "U")}</span>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-800">

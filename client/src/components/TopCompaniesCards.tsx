@@ -12,18 +12,26 @@ export default function TopCompaniesCards() {
 
   useEffect(() => {
     let isMounted = true;
-    fetchPublicCompanies()
-      .then((data) => {
-        if (isMounted && Array.isArray(data)) {
-          setCompanies(data);
-        }
-      })
-      .catch((err) => console.error("Error fetching top companies:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    const load = () => {
+      fetchPublicCompanies()
+        .then((data) => {
+          if (isMounted && Array.isArray(data)) {
+            setCompanies(data);
+          }
+        })
+        .catch((err) => console.error("Error fetching top companies:", err))
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    };
+
+    load();
+    window.addEventListener("applied_jobs_change", load);
+    window.addEventListener("storage", load);
     return () => {
       isMounted = false;
+      window.removeEventListener("applied_jobs_change", load);
+      window.removeEventListener("storage", load);
     };
   }, []);
 
@@ -79,10 +87,18 @@ export default function TopCompaniesCards() {
                 >
                   <div className="flex flex-col items-center w-full">
                     {/* White Logo Container */}
-                    <div className="w-14 h-14 bg-white rounded-xl shadow-xs flex items-center justify-center p-2 mb-3 shrink-0">
-                      <span className="text-sm font-black text-slate-900">
-                        {(company.name || "C").charAt(0).toUpperCase()}
-                      </span>
+                    <div className="w-14 h-14 bg-white rounded-xl shadow-xs flex items-center justify-center p-1.5 mb-3 shrink-0 overflow-hidden border border-slate-100">
+                      {company.logo || company.profileImage ? (
+                        <img
+                          src={company.logo || company.profileImage}
+                          alt={company.name}
+                          className="w-full h-full object-contain rounded-lg"
+                        />
+                      ) : (
+                        <span className="text-sm font-black text-slate-900">
+                          {(company.name || "C").charAt(0).toUpperCase()}
+                        </span>
+                      )}
                     </div>
 
                     {/* Company Name */}

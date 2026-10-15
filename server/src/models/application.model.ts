@@ -9,7 +9,11 @@ export interface IApplication extends Document {
   position: string;
   company: string;
   appliedOn: string;
-  status: 'New' | 'Shortlisted' | 'Reviewed' | 'Hired' | 'Rejected';
+  status: 'New' | 'Shortlisted' | 'Reviewed' | 'Reviewing' | 'Hired' | 'Rejected' | 'Interview';
+  resumeViewed?: boolean;
+  resumeViewedAt?: Date;
+  recruiterAction?: string;
+  recruiterActionAt?: Date;
   domain?: string;
   experience?: string;
   skills?: string[];
@@ -17,6 +21,7 @@ export interface IApplication extends Document {
   fileName?: string;
   resumeUrl?: string;
   jobId?: mongoose.Types.ObjectId | string;
+  companyId?: mongoose.Types.ObjectId | string;
   candidateId?: mongoose.Types.ObjectId | string;
   createdAt: Date;
   updatedAt: Date;
@@ -68,8 +73,22 @@ const applicationSchema = new Schema<IApplication>(
     },
     status: {
       type: String,
-      enum: ['New', 'Shortlisted', 'Reviewed', 'Hired', 'Rejected'],
+      enum: ['New', 'Shortlisted', 'Reviewed', 'Reviewing', 'Hired', 'Rejected', 'Interview'],
       default: 'New',
+    },
+    resumeViewed: {
+      type: Boolean,
+      default: false,
+    },
+    resumeViewedAt: {
+      type: Date,
+    },
+    recruiterAction: {
+      type: String,
+      default: '',
+    },
+    recruiterActionAt: {
+      type: Date,
     },
     domain: {
       type: String,
@@ -100,6 +119,10 @@ const applicationSchema = new Schema<IApplication>(
     jobId: {
       type: Schema.Types.Mixed,
       ref: 'Job',
+    },
+    companyId: {
+      type: Schema.Types.Mixed,
+      ref: 'User',
     },
     candidateId: {
       type: Schema.Types.Mixed,

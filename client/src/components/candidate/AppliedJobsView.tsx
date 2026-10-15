@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchJobActivityAPI } from "@/lib/api";
 import {
   CheckCircle2,
   Bookmark,
@@ -29,6 +30,8 @@ export interface AppliedJobItem {
   title: string;
   company: string;
   companyId?: string;
+  logo?: string;
+  companyLogo?: string;
   location?: string;
   salary?: string;
   type?: string;
@@ -36,7 +39,11 @@ export interface AppliedJobItem {
   appliedDate?: string;
   appliedOn?: string;
   status: string;
-  statusStep?: number; // 1: Sent, 2: Viewed, 3: Resume Viewed, 4: Action/Interview
+  statusStep?: number; // 1: Sent, 2: Resume Viewed, 3: Recruiter Action
+  resumeViewed?: boolean;
+  resumeViewedAt?: string | Date;
+  recruiterAction?: string; // Hired, Shortlisted, Interview, Rejected
+  recruiterActionAt?: string | Date;
   recruiterStatus?: string;
   totalApplicants?: number;
   viewedCount?: number;
@@ -51,7 +58,7 @@ interface AppliedJobsViewProps {
   appliedJobs: AppliedJobItem[];
   onSelectCompanyForMessage?: (companyName: string, companyId?: string) => void;
   onToggleSave?: (job: any) => void;
-  isJobSaved?: (jobId: string) => boolean;
+  isJobSaved?: (jobOrId: any) => boolean;
 }
 
 export default function AppliedJobsView({
@@ -61,14 +68,57 @@ export default function AppliedJobsView({
   isJobSaved,
 }: AppliedJobsViewProps) {
   const [selectedJobId, setSelectedJobId] = useState<string>(
-    appliedJobs[0]?.id || appliedJobs[0]?.jobId || ""
+    String(appliedJobs[0]?.jobId || appliedJobs[0]?.id || "")
   );
   const [mockModalOpen, setMockModalOpen] = useState(false);
   const [qaModalOpen, setQaModalOpen] = useState(false);
   const [prepRole, setPrepRole] = useState<string>("");
 
   const activeJob =
-    appliedJobs.find((j) => (j.id || j.jobId) === selectedJobId) || appliedJobs[0];
+    appliedJobs.find((j) => {
+      const sId = String(selectedJobId);
+      return String(j.jobId) === sId || String(j.id) === sId;
+    }) || appliedJobs[0];
+
+  const [liveActivity, setLiveActivity] = useState<{ totalApplicants: number; viewedCount: number } | null>(null);
+
+  useEffect(() => {
+    if (!activeJob) {
+      setLiveActivity(null);
+      return;
+    }
+    const jId = String(activeJob.jobId || activeJob.id || "");
+    if (!jId) return;
+
+    let isMounted = true;
+    const fetchStats = async () => {
+      try {
+        const stats = await fetchJobActivityAPI(jId, activeJob.title, activeJob.company);
+        if (stats && stats.success && isMounted) {
+          setLiveActivity({
+            totalApplicants: stats.totalApplicants,
+            viewedCount: stats.viewedCount,
+          });
+        }
+      } catch {}
+    };
+
+    fetchStats();
+    const interval = setInterval(fetchStats, 3000);
+
+    const onSync = () => {
+      fetchStats();
+    };
+    window.addEventListener("applied_jobs_change", onSync);
+    window.addEventListener("storage", onSync);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener("applied_jobs_change", onSync);
+      window.removeEventListener("storage", onSync);
+    };
+  }, [activeJob?.jobId, activeJob?.id, activeJob?.title, activeJob?.company]);
 
   const filteredList = appliedJobs;
 
@@ -105,6 +155,23 @@ export default function AppliedJobsView({
     );
   }
 
+  // Active Job Stepper Analysis
+  const activeStatus = (activeJob?.status || "").trim();
+  const activeAction = (activeJob?.recruiterAction || (["Shortlisted", "Interview", "Hired", "Rejected"].includes(activeStatus) ? activeStatus : "")).trim();
+  
+  const isHired = activeAction.toLowerCase() === "hired" || activeStatus.toLowerCase() === "hired";
+  const isShortlisted = activeAction.toLowerCase() === "shortlisted" || activeStatus.toLowerCase() === "shortlisted";
+  const isInterview = activeAction.toLowerCase() === "interview" || activeStatus.toLowerCase() === "interview";
+  const isRejected = activeAction.toLowerCase() === "rejected" || activeStatus.toLowerCase() === "rejected";
+  const hasRecruiterAction = isHired || isShortlisted || isInterview || isRejected;
+
+  const isResumeViewed = Boolean(
+    activeJob?.resumeViewed ||
+    (activeJob?.statusStep && activeJob.statusStep >= 2) ||
+    hasRecruiterAction ||
+    ["Reviewed", "Reviewing", "Resume Viewed"].includes(activeStatus)
+  );
+
   return (
     <>
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
@@ -115,8 +182,29 @@ export default function AppliedJobsView({
             {/* Application Cards List */}
             <div className="space-y-3 overflow-y-auto max-h-[700px] pr-1">
               {filteredList.map((job) => {
-                const jId = job.id || job.jobId;
-                const isSelected = (activeJob?.id || activeJob?.jobId) === jId;
+                const jId = String(job.jobId || job.id);
+                const isSelected = Boolean(
+                  activeJob && (
+                    String(activeJob.id) === String(job.id) ||
+                    (job.jobId && String(activeJob.jobId) === String(job.jobId)) ||
+                    String(activeJob.id) === jId ||
+                    String(activeJob.jobId) === jId
+                  )
+                );
+
+                const jStatus = (job.status || "").trim();
+                const jAction = (job.recruiterAction || (["Shortlisted", "Interview", "Hired", "Rejected"].includes(jStatus) ? jStatus : "")).trim();
+                const jIsHired = jAction.toLowerCase() === "hired" || jStatus.toLowerCase() === "hired";
+                const jIsShortlisted = jAction.toLowerCase() === "shortlisted" || jStatus.toLowerCase() === "shortlisted";
+                const jIsInterview = jAction.toLowerCase() === "interview" || jStatus.toLowerCase() === "interview";
+                const jIsRejected = jAction.toLowerCase() === "rejected" || jStatus.toLowerCase() === "rejected";
+                const jHasAction = jIsHired || jIsShortlisted || jIsInterview || jIsRejected;
+                const jIsResumeViewed = Boolean(
+                  job.resumeViewed ||
+                  (job.statusStep && job.statusStep >= 2) ||
+                  jHasAction ||
+                  ["Reviewed", "Reviewing", "Resume Viewed"].includes(jStatus)
+                );
 
                 return (
                   <div
@@ -130,32 +218,95 @@ export default function AppliedJobsView({
                   >
                     {/* Top Row: Title & Company + Bookmark */}
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 leading-snug">
-                          {job.title}
-                        </h4>
-                        <p className="text-xs text-slate-500 font-medium mt-0.5">
-                          {job.company} <span className="text-amber-500 font-bold">★ {job.rating || 4.8}</span> | {job.reviewsCount || "120 Reviews"}
-                        </p>
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-100 overflow-hidden">
+                          {job.logo || job.companyLogo ? (
+                            <img
+                              src={job.logo || job.companyLogo}
+                              alt={job.company}
+                              className="w-full h-full object-contain p-0.5"
+                            />
+                          ) : (
+                            (job.company || "C").charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-slate-900 leading-snug truncate">
+                            {job.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
+                            {job.company} <span className="text-amber-500 font-bold">★ {job.rating || 4.8}</span> | {job.reviewsCount || "120 Reviews"}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
-                        <Bookmark className="w-3.5 h-3.5" />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onToggleSave) onToggleSave(job);
+                        }}
+                        className={`w-7 h-7 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                          isJobSaved && (isJobSaved(job.jobId || job.id) || isJobSaved(job))
+                            ? "bg-blue-50 border-blue-200 text-blue-600 shadow-2xs"
+                            : "border-slate-200 text-slate-400 hover:text-blue-600 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                        title={
+                          isJobSaved && (isJobSaved(job.jobId || job.id) || isJobSaved(job))
+                            ? "Remove from Saved Jobs"
+                            : "Save Job"
+                        }
+                      >
+                        <Bookmark
+                          className={`w-3.5 h-3.5 ${
+                            isJobSaved && (isJobSaved(job.jobId || job.id) || isJobSaved(job))
+                              ? "fill-blue-600 text-blue-600"
+                              : ""
+                          }`}
+                        />
+                      </button>
                     </div>
 
                     {/* Middle Status Pill + Recruiter Activity */}
                     <div className="flex items-center justify-between gap-2 mt-3 pt-1">
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Resume viewed {job.viewedDays || "2 days ago"}</span>
-                      </div>
+                      {jIsHired ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Hired 🎉</span>
+                        </div>
+                      ) : jIsShortlisted ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Shortlisted ⭐</span>
+                        </div>
+                      ) : jIsInterview ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                          <Mic className="w-3.5 h-3.5 text-purple-600" />
+                          <span>Interview Scheduled</span>
+                        </div>
+                      ) : jIsRejected ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <X className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Not Selected</span>
+                        </div>
+                      ) : jIsResumeViewed ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Resume viewed {job.viewedDays || "recently"}</span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                          <Clock className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Application submitted</span>
+                        </div>
+                      )}
+
                       <span className="text-[10px] text-slate-400 font-medium">
-                        {job.recruiterStatus || "Recruiter last active 1d ago"}
+                        {job.recruiterStatus || (jHasAction ? "Action taken" : jIsResumeViewed ? "Recruiter active recently" : "Application sent")}
                       </span>
                     </div>
 
-                    {/* Bottom Interview Prep Row matching Reference Image 2: [ Prep for this interview   🎙️ Mock | 📖 Q&A ] */}
+                    {/* Bottom Interview Prep Row: [ Prep for this interview   🎙️ Mock | 📖 Q&A ] */}
                     <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
                       <span className="text-slate-500 text-[11px] font-medium">
                         Prep for this interview
@@ -192,31 +343,53 @@ export default function AppliedJobsView({
               <div className="space-y-6">
                 {/* Header: Title, Company, Similar Jobs Link, Bookmark */}
                 <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
-                      {activeJob.title}
-                    </h3>
-                    <p className="text-sm font-semibold text-slate-700">
-                      {activeJob.company}{" "}
-                      <span className="text-amber-500 font-bold">★ {activeJob.rating || 4.8}</span> | {activeJob.reviewsCount || "120 Reviews"}
-                    </p>
-                    <Link
-                      href={`/jobs?q=${encodeURIComponent(activeJob.title)}`}
-                      className="inline-block text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline transition pt-1"
-                    >
-                      View similar jobs
-                    </Link>
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base shrink-0 border border-blue-100 overflow-hidden shadow-xs">
+                      {activeJob.logo || activeJob.companyLogo ? (
+                        <img
+                          src={activeJob.logo || activeJob.companyLogo}
+                          alt={activeJob.company}
+                          className="w-full h-full object-contain p-1"
+                        />
+                      ) : (
+                        (activeJob.company || "C").charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                        {activeJob.title}
+                      </h3>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {activeJob.company}{" "}
+                        <span className="text-amber-500 font-bold">★ {activeJob.rating || 4.8}</span> | {activeJob.reviewsCount || "120 Reviews"}
+                      </p>
+                      <Link
+                        href={`/jobs?q=${encodeURIComponent(activeJob.title)}`}
+                        className="inline-block text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline transition pt-1"
+                      >
+                        View similar jobs
+                      </Link>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
                     <button
+                      type="button"
                       onClick={() => onToggleSave && onToggleSave(activeJob)}
-                      className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer"
-                      title="Bookmark Job"
+                      className={`p-2 rounded-xl border transition cursor-pointer flex items-center justify-center ${
+                        isJobSaved && (isJobSaved(activeJob.jobId || activeJob.id) || isJobSaved(activeJob))
+                          ? "bg-blue-50 border-blue-200 text-blue-600 shadow-2xs"
+                          : "border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-slate-50"
+                      }`}
+                      title={
+                        isJobSaved && (isJobSaved(activeJob.jobId || activeJob.id) || isJobSaved(activeJob))
+                          ? "Remove from Saved Jobs"
+                          : "Bookmark Job"
+                      }
                     >
                       <Bookmark
                         className={`w-4 h-4 ${
-                          isJobSaved && isJobSaved(activeJob.jobId || activeJob.id)
+                          isJobSaved && (isJobSaved(activeJob.jobId || activeJob.id) || isJobSaved(activeJob))
                             ? "fill-blue-600 text-blue-600"
                             : ""
                         }`}
@@ -239,69 +412,133 @@ export default function AppliedJobsView({
 
                 <div className="border-t border-slate-100" />
 
-                {/* ================= 1. APPLICATION STATUS STEPPER (Exact Reference Image 2) ================= */}
+                {/* ================= 1. APPLICATION STATUS STEPPER (3 STAGES) ================= */}
                 <div className="space-y-3.5">
                   <h4 className="text-sm font-bold text-slate-900">Application status</h4>
 
-                  {/* Horizontal Stepper Progress Bar */}
+                  {/* Horizontal Stepper Progress Bar (3 Nodes: Sent, Resume Viewed, Recruiter Action) */}
                   <div className="relative pt-2 pb-4">
-                    {/* Connecting lines */}
-                    <div className="absolute top-5 left-4 right-4 h-0.5 bg-slate-200 -z-0" />
+                    {/* Background connecting line */}
+                    <div className="absolute top-5 left-10 right-10 h-0.5 bg-slate-200 -z-0" />
+
+                    {/* Animated Active connecting line */}
                     <div
-                      className="absolute top-5 left-4 h-0.5 bg-emerald-500 transition-all duration-500 -z-0"
+                      className={`absolute top-5 left-10 h-0.5 transition-all duration-500 -z-0 ${
+                        isRejected ? "bg-rose-400" : isInterview ? "bg-purple-500" : "bg-emerald-500"
+                      }`}
                       style={{
-                        width: `${Math.min(100, Math.max(15, ((activeJob.statusStep || 3) - 1) * 33.3))}%`,
+                        width: hasRecruiterAction
+                          ? "calc(100% - 80px)"
+                          : isResumeViewed
+                          ? "calc(50% - 40px)"
+                          : "0%",
                       }}
                     />
 
-                    {/* Step Nodes */}
-                    <div className="relative z-10 grid grid-cols-4 text-center">
+                    {/* Step Nodes: 3 Columns */}
+                    <div className="relative z-10 grid grid-cols-3 text-center">
                       {/* Step 1: Application Sent */}
                       <div className="flex flex-col items-center">
-                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs ring-4 ring-white">
+                          <Check className="w-4 h-4 stroke-[3]" />
                         </div>
                         <span className="text-xs font-bold text-slate-800 mt-2">Application Sent</span>
-                        <span className="text-[10px] text-slate-400 mt-0.5">{activeJob.appliedDate || "08 Oct '26"}</span>
+                        <span className="text-[10px] text-slate-400 mt-0.5">
+                          {activeJob.appliedDate || activeJob.appliedOn || "Recently"}
+                        </span>
                       </div>
 
-                      {/* Step 2: Application Viewed */}
-                      <div className="flex flex-col items-center">
-                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-800 mt-2">Application Viewed</span>
-                        <span className="text-[10px] text-slate-400 mt-0.5">{activeJob.appliedDate || "08 Oct '26"}</span>
-                      </div>
-
-                      {/* Step 3: Resume Viewed */}
+                      {/* Step 2: Resume Viewed */}
                       <div className="flex flex-col items-center">
                         <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center shadow-xs ${
-                            (activeJob.statusStep || 3) >= 3
+                          className={`w-7 h-7 rounded-full flex items-center justify-center shadow-xs ring-4 ring-white transition-all ${
+                            isResumeViewed
                               ? "bg-emerald-500 text-white"
-                              : "bg-slate-200 text-slate-500"
+                              : "bg-slate-100 border-2 border-slate-300 text-slate-400"
                           }`}
                         >
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          {isResumeViewed ? (
+                            <Check className="w-4 h-4 stroke-[3]" />
+                          ) : (
+                            <Clock className="w-3.5 h-3.5" />
+                          )}
                         </div>
-                        <span className="text-xs font-bold text-slate-800 mt-2">Resume Viewed</span>
-                        <span className="text-[10px] text-slate-400 mt-0.5">{activeJob.appliedDate || "08 Oct '26"}</span>
+                        <span
+                          className={`text-xs font-bold mt-2 ${
+                            isResumeViewed ? "text-slate-800" : "text-slate-500"
+                          }`}
+                        >
+                          Resume Viewed
+                        </span>
+                        <span className="text-[10px] text-slate-400 mt-0.5">
+                          {isResumeViewed
+                            ? (activeJob.viewedDays || (activeJob.resumeViewedAt ? new Date(activeJob.resumeViewedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : activeJob.appliedDate || "Viewed"))
+                            : "Awaiting recruiter"}
+                        </span>
                       </div>
 
-                      {/* Step 4: Awaiting Recruiter Action */}
+                      {/* Step 3: Recruiter Action */}
                       <div className="flex flex-col items-center">
                         <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${
-                            (activeJob.statusStep || 3) >= 4
-                              ? "bg-emerald-500 text-white border-emerald-500"
-                              : "bg-white border-slate-300 text-slate-400"
+                          className={`w-7 h-7 rounded-full flex items-center justify-center ring-4 ring-white transition-all ${
+                            isHired
+                              ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                              : isShortlisted
+                              ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                              : isInterview
+                              ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
+                              : isRejected
+                              ? "bg-rose-500 text-white shadow-md shadow-rose-500/20"
+                              : "bg-white border-2 border-slate-300 text-slate-400"
                           }`}
                         >
-                          <span className="w-2 h-2 rounded-full bg-slate-300" />
+                          {isHired ? (
+                            <Check className="w-4 h-4 stroke-[3]" />
+                          ) : isShortlisted ? (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          ) : isInterview ? (
+                            <Mic className="w-3.5 h-3.5" />
+                          ) : isRejected ? (
+                            <X className="w-4 h-4 stroke-[3]" />
+                          ) : (
+                            <span className="w-2 h-2 rounded-full bg-slate-300" />
+                          )}
                         </div>
-                        <span className="text-xs font-bold text-slate-700 mt-2 max-w-[100px] leading-tight">
-                          Awaiting Recruiter Action
+
+                        <span
+                          className={`text-xs font-bold mt-2 max-w-[130px] leading-tight ${
+                            isHired
+                              ? "text-emerald-700"
+                              : isShortlisted
+                              ? "text-amber-700"
+                              : isInterview
+                              ? "text-purple-700"
+                              : isRejected
+                              ? "text-rose-600"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {isHired
+                            ? "Hired 🎉"
+                            : isShortlisted
+                            ? "Shortlisted ⭐"
+                            : isInterview
+                            ? "Interview"
+                            : isRejected
+                            ? "Not Selected"
+                            : "Awaiting Recruiter Action"}
+                        </span>
+
+                        <span className="text-[10px] text-slate-400 mt-0.5">
+                          {isHired
+                            ? "Offer / Hired"
+                            : isShortlisted
+                            ? "Selected for next round"
+                            : isInterview
+                            ? "Interview Scheduled"
+                            : isRejected
+                            ? "Application Closed"
+                            : "Under Evaluation"}
                         </span>
                       </div>
                     </div>
@@ -316,13 +553,18 @@ export default function AppliedJobsView({
                   <div className="bg-slate-50/60 rounded-2xl border border-slate-200/90 p-4 sm:p-5 grid grid-cols-2 gap-4 max-w-md">
                     <div>
                       <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                        {activeJob.totalApplicants || 3772}
+                        {liveActivity?.totalApplicants ?? (activeJob.totalApplicants || 1)}
                       </p>
                       <p className="text-xs text-slate-500 leading-snug mt-1">Total applications</p>
                     </div>
                     <div>
                       <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                        {activeJob.viewedCount || 1681}
+                        {liveActivity?.viewedCount ??
+                          (typeof activeJob.viewedCount === "number"
+                            ? activeJob.viewedCount
+                            : isResumeViewed
+                            ? 1
+                            : 0)}
                       </p>
                       <p className="text-xs text-slate-500 leading-snug mt-1">Applications viewed by recruiter</p>
                     </div>

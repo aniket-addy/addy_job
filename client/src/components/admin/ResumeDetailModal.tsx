@@ -502,6 +502,7 @@ export default function ResumeDetailModal({
                   <option value="New">New / Applied</option>
                   <option value="Reviewed">Reviewed / Reviewing</option>
                   <option value="Shortlisted">Shortlisted</option>
+                  <option value="Interview">Interview</option>
                   <option value="Hired">Hired</option>
                   <option value="Rejected">Rejected</option>
                 </select>

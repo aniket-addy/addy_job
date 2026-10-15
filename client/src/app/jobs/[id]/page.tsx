@@ -214,15 +214,16 @@ function JobDetailPageContent() {
       statusStep: 1,
       recruiterStatus: "Recruiter active today",
       totalApplicants: (job.applicantsCount || 0) + 1,
-      viewedCount: 1,
-      rating: 4.8,
-      reviewsCount: "120 Reviews",
+      viewedCount: 0,
+      rating: job.rating || 4.8,
+      reviewsCount: job.reviewsCount || "120 Reviews",
       candidateName: fullName || storedUser?.name || "Candidate",
       candidateEmail: email || storedUser?.email || "",
       candidatePhone: phone || storedUser?.phone || "",
-      resumeUrl: finalResume,
-      pdfData: finalResume,
-      fileName: finalFileName,
+      candidateId: storedUser?.id || storedUser?.userId || "",
+      resumeUrl: finalResume || storedUser?.resumeUrl || "",
+      pdfData: finalResume || storedUser?.resumeUrl || "",
+      fileName: finalFileName || (storedUser?.resumeName || "Resume.pdf"),
       experience: storedUser?.experience || "",
       skills: storedUser?.skills || job.tags || job.skills || [],
     };
@@ -232,12 +233,23 @@ function JobDetailPageContent() {
       candidateName: appData.candidateName,
       candidateEmail: appData.candidateEmail,
       candidatePhone: appData.candidatePhone,
+      candidateId: storedUser?.id || storedUser?.userId || undefined,
       resumeUrl: appData.resumeUrl,
       pdfData: appData.pdfData,
       fileName: appData.fileName,
       experience: appData.experience,
       skills: appData.skills,
-    }).catch((err) => console.warn("Backend submit error:", err));
+    })
+      .then((res) => {
+        if (res?.application?._id) {
+          saveLocalAppliedJob(uid, {
+            ...appData,
+            id: String(res.application._id),
+            _id: String(res.application._id),
+          });
+        }
+      })
+      .catch((err) => console.warn("Backend submit error:", err));
 
     setApplicationSubmitted(true);
     setTimeout(() => {
@@ -359,27 +371,35 @@ function JobDetailPageContent() {
                 </div>
 
                 {/* Company Logo Box */}
-                <div className="w-24 h-20 sm:w-28 sm:h-22 rounded-2xl border border-slate-200/90 p-2 sm:p-2.5 flex items-center justify-center bg-white shadow-xs shrink-0 select-none">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="flex flex-col text-left">
-                      <span className="text-xs sm:text-sm font-black tracking-tight text-slate-900 leading-none">
-                        {job.company.split(" ")[0].toUpperCase() || "MNC"}
-                      </span>
-                      <span className="text-[6.5px] sm:text-[7.5px] font-bold tracking-widest text-slate-400 uppercase leading-none mt-0.5">
-                        CORPORATION
-                      </span>
+                <div className="w-24 h-20 sm:w-28 sm:h-22 rounded-2xl border border-slate-200/90 p-2 sm:p-2.5 flex items-center justify-center bg-white shadow-xs shrink-0 select-none overflow-hidden">
+                  {job.logo || job.companyLogo ? (
+                    <img
+                      src={job.logo || job.companyLogo}
+                      alt={job.company}
+                      className="w-full h-full object-contain rounded-xl"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className="flex flex-col text-left">
+                        <span className="text-xs sm:text-sm font-black tracking-tight text-slate-900 leading-none">
+                          {job.company.split(" ")[0].toUpperCase() || "MNC"}
+                        </span>
+                        <span className="text-[6.5px] sm:text-[7.5px] font-bold tracking-widest text-slate-400 uppercase leading-none mt-0.5">
+                          CORPORATION
+                        </span>
+                      </div>
+                      {/* Multi-facet diamond logo badge */}
+                      <div className="relative w-6 h-6 sm:w-7 sm:h-7 shrink-0 flex items-center justify-center">
+                        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-xs">
+                          <polygon points="20,4 36,20 20,20" fill="#FBBF24" />
+                          <polygon points="36,20 20,36 20,20" fill="#EF4444" />
+                          <polygon points="20,36 4,20 20,20" fill="#1E3A8A" />
+                          <polygon points="4,20 20,4 20,20" fill="#10B981" />
+                          <circle cx="20" cy="20" r="5" fill="#FFFFFF" fillOpacity="0.9" />
+                        </svg>
+                      </div>
                     </div>
-                    {/* Multi-facet diamond logo badge */}
-                    <div className="relative w-6 h-6 sm:w-7 sm:h-7 shrink-0 flex items-center justify-center">
-                      <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-xs">
-                        <polygon points="20,4 36,20 20,20" fill="#FBBF24" />
-                        <polygon points="36,20 20,36 20,20" fill="#EF4444" />
-                        <polygon points="20,36 4,20 20,20" fill="#1E3A8A" />
-                        <polygon points="4,20 20,4 20,20" fill="#10B981" />
-                        <circle cx="20" cy="20" r="5" fill="#FFFFFF" fillOpacity="0.9" />
-                      </svg>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 

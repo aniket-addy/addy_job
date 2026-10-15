@@ -581,6 +581,10 @@ export const getJobApplicants = async (req: Request, res: Response) => {
         company: a.company || (job ? job.company : ''),
         appliedOn: a.appliedOn || (a.createdAt ? new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'),
         status: a.status || 'New',
+        resumeViewed: Boolean(a.resumeViewed),
+        resumeViewedAt: a.resumeViewedAt,
+        recruiterAction: a.recruiterAction || '',
+        recruiterActionAt: a.recruiterActionAt,
         resumeUrl: a.resumeUrl || (u ? u.resumeUrl : '') || '',
         domain: a.domain || (u ? u.specialization || u.targetRole : '') || '',
         experience: a.experience || (u ? u.experience : '') || '',
@@ -933,7 +937,18 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
       return;
     }
 
-    const app = await Application.findByIdAndUpdate(id, { status }, { new: true });
+    const updateFields: any = { status };
+    if (['Shortlisted', 'Interview', 'Hired', 'Rejected'].includes(status)) {
+      updateFields.recruiterAction = status;
+      updateFields.recruiterActionAt = new Date();
+      updateFields.resumeViewed = true;
+      updateFields.resumeViewedAt = new Date();
+    } else if (['Reviewed', 'Reviewing'].includes(status)) {
+      updateFields.resumeViewed = true;
+      updateFields.resumeViewedAt = new Date();
+    }
+
+    const app = await Application.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
     if (!app) {
       res.status(404).json({ success: false, message: 'Application not found' });
       return;
@@ -946,6 +961,8 @@ export const updateApplicationStatus = async (req: Request, res: Response) => {
         id: app._id.toString(),
         candidateName: app.candidateName,
         status: app.status,
+        recruiterAction: app.recruiterAction,
+        resumeViewed: app.resumeViewed,
       },
     });
   } catch (error: any) {

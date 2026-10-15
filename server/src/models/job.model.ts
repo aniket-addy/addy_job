@@ -21,6 +21,7 @@ export interface IJob extends Document {
   responsibilities?: string[];
   requirements?: string[];
   benefits?: string[];
+  logo?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +41,10 @@ const jobSchema = new Schema<IJob>(
     companyId: {
       type: Schema.Types.Mixed,
       ref: 'User',
+    },
+    logo: {
+      type: String,
+      default: '',
     },
     type: {
       type: String,

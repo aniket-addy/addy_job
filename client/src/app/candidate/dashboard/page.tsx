@@ -58,6 +58,8 @@ import {
 } from "lucide-react";
 import {
   getStoredUser,
+  setStoredUser,
+  notifyApplicationSync,
   getAuthToken,
   setAuthSession,
   clearAuthSession,
@@ -359,6 +361,7 @@ export default function CandidateDashboardPage() {
   const [resumeName, setResumeName] = useState("");
   const [resumeDate, setResumeDate] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
+  const [profileImage, setProfileImage] = useState<string | null>(null);
 
   // Real backend metrics
   const [appliedJobsCount, setAppliedJobsCount] = useState(0);
@@ -1043,6 +1046,15 @@ export default function CandidateDashboardPage() {
     setProfileViewsCount(u.profileViewsCount ?? 0);
 
     const uid = u.id || u.userId || u.email || "candidate";
+    let imgToSet = u.profileImage || (u as any).logo || null;
+    if (typeof window !== "undefined") {
+      try {
+        const savedImg = localStorage.getItem(`candidate_profile_image_${uid}`);
+        if (savedImg) imgToSet = savedImg;
+      } catch {}
+    }
+    setProfileImage(imgToSet);
+
     if (typeof window !== "undefined") {
       try {
         const savedEdu = localStorage.getItem(`candidate_education_${uid}`);
@@ -1159,80 +1171,226 @@ export default function CandidateDashboardPage() {
     const uid = userObj?.id || userObj?.userId || userObj?.email || "candidate";
     const userEmail = userObj?.email;
 
-    // 1. Load Local Applied Jobs
+    // 1. Load Local Applied Jobs (including any saved under different candidate keys)
     const localApplied = getLocalAppliedJobs(uid);
-
-    // 2. Load DB Applications if email exists
-    let dbApplications: any[] = [];
-    if (userEmail) {
+    let allLocalApplied = [...localApplied];
+    if (typeof window !== "undefined") {
       try {
-        dbApplications = await fetchCandidateApplicationsFromDB(userEmail);
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("candidate_applied_jobs_") && k !== `candidate_applied_jobs_${uid}`) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                allLocalApplied.push(...parsed);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Filter out any previous dummy items from local storage
+    const cleanLocalApplied = allLocalApplied.filter((item: any) => {
+      const isDefaultDummy = ["app-default-1", "app-default-2", "app-default-3", "app-default-4", "app-default-5"].includes(item.id);
+      const isProfileUploadDummy = item.company === "Candidate Profile Upload" && !item.jobId;
+      return !isDefaultDummy && !isProfileUploadDummy;
+    });
+
+    // Collect all candidate email identities across session, profile state, and applied jobs
+    const candidateEmails = Array.from(
+      new Set(
+        [
+          userEmail,
+          email,
+          ...cleanLocalApplied.map((a: any) => a.candidateEmail),
+        ]
+          .filter(Boolean)
+          .map((e) => String(e).trim().toLowerCase())
+      )
+    );
+
+    // Collect all candidate phones across session, profile state, and applied jobs
+    const candidatePhones = Array.from(
+      new Set(
+        [
+          userObj?.phone,
+          phone,
+          ...cleanLocalApplied.map((a: any) => a.candidatePhone),
+        ]
+          .filter(Boolean)
+          .map((p) => String(p).trim())
+      )
+    );
+
+    // Collect applied job IDs
+    const localJobIds = Array.from(
+      new Set(
+        cleanLocalApplied
+          .map((a: any) => a.jobId || a.id)
+          .filter((id: any) => id && !String(id).startsWith("app-"))
+      )
+    );
+
+    // 2. Load DB Applications using all candidate identifiers
+    let dbApplications: any[] = [];
+    if (candidateEmails.length > 0 || userObj?.id || candidatePhones.length > 0 || localJobIds.length > 0) {
+      try {
+        dbApplications = await fetchCandidateApplicationsFromDB(
+          candidateEmails,
+          userObj?.id || userObj?.userId,
+          candidatePhones,
+          localJobIds
+        );
       } catch (e) {
         console.warn("Could not fetch DB applications:", e);
       }
     }
 
-    // Merge DB & Local applications
+    // Merge DB & Local applications (no hardcoded fallback)
     const mergedAppliedMap = new Map<string, AppliedJobItem>();
-
-    // First populate default sample entries if nothing saved yet
-    if (localApplied.length === 0 && dbApplications.length === 0) {
-      DEFAULT_INITIAL_APPLIED_JOBS.forEach((item) => {
-        mergedAppliedMap.set(item.jobId || item.id, item);
-      });
-    }
 
     // Add DB applications
     dbApplications.forEach((app: any) => {
-      const jId = (typeof app.jobId === "object" ? app.jobId?._id : app.jobId) || app._id;
-      const jTitle = (typeof app.jobId === "object" ? app.jobId?.title : "") || app.jobTitle || app.title || "Applied Role";
+      // Exclude profile upload placeholders that are not job applications
+      if (app.company === "Candidate Profile Upload" && !app.jobId) {
+        return;
+      }
+
+      const rawJobId = typeof app.jobId === "object" ? (app.jobId?._id || app.jobId?.id) : app.jobId;
+      const jId = String(rawJobId || app._id || "");
+      const jTitle = (typeof app.jobId === "object" ? app.jobId?.title : "") || app.position || app.jobTitle || app.title || "Applied Role";
       const jComp = (typeof app.jobId === "object" ? app.jobId?.company : "") || app.company || "Company";
-      const jLoc = (typeof app.jobId === "object" ? app.jobId?.location : "") || app.location || "";
-      const jSal = (typeof app.jobId === "object" ? app.jobId?.salary : "") || app.salary || "";
+      const jLoc = (typeof app.jobId === "object" ? app.jobId?.location : "") || app.location || "Remote";
+      const jSal = (typeof app.jobId === "object" ? app.jobId?.salary : "") || app.salary || "Competitive";
+      const jApplicantsCount = app.totalApplicants || (typeof app.jobId === "object" ? app.jobId?.applicantsCount : 0) || 1;
+      const jRating = (typeof app.jobId === "object" ? app.jobId?.rating : 0) || app.rating || 4.8;
+      const jReviewsCount = (typeof app.jobId === "object" ? app.jobId?.reviewsCount : "") || app.reviewsCount || "120 Reviews";
+
+      const st = (app.status || "New").trim();
+      const recAction = (app.recruiterAction || (["Shortlisted", "Interview", "Hired", "Rejected"].includes(st) ? st : "")).trim();
+      const isHired = recAction.toLowerCase() === "hired" || st.toLowerCase() === "hired";
+      const isShortlisted = recAction.toLowerCase() === "shortlisted" || st.toLowerCase() === "shortlisted";
+      const isInterview = recAction.toLowerCase() === "interview" || st.toLowerCase() === "interview";
+      const isRejected = recAction.toLowerCase() === "rejected" || st.toLowerCase() === "rejected";
+      const hasAction = isHired || isShortlisted || isInterview || isRejected;
+
+      const isResumeViewed = Boolean(
+        app.resumeViewed ||
+        hasAction ||
+        ["Reviewed", "Reviewing", "Resume Viewed"].includes(st)
+      );
+
+      const jViewedCount = typeof app.viewedCount === "number" ? app.viewedCount : (isResumeViewed ? 1 : 0);
+      const statusStep = hasAction ? 3 : isResumeViewed ? 2 : 1;
+      const recruiterStatus = hasAction
+        ? (isHired ? "Offer / Hired by Recruiter" : isShortlisted ? "Shortlisted for next round" : isInterview ? "Interview Scheduled" : "Application closed")
+        : isResumeViewed
+        ? "Resume reviewed by recruiter"
+        : "Recruiter received application";
+
+      const viewedDays = app.resumeViewedAt
+        ? new Date(app.resumeViewedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })
+        : isResumeViewed
+        ? "Recently"
+        : undefined;
 
       if (jId) {
         mergedAppliedMap.set(jId, {
-          id: app._id || `app-${Date.now()}`,
+          id: String(app._id || jId),
           jobId: jId,
           title: jTitle,
           company: jComp,
+          companyId: app.companyId || (typeof app.jobId === "object" ? app.jobId?.companyId : undefined),
+          logo: (typeof app.jobId === "object" ? app.jobId?.logo : "") || app.logo || (typeof app.jobId === "object" ? app.jobId?.companyLogo : "") || "",
           location: jLoc,
           salary: jSal,
           appliedDate: app.appliedDate || (app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "Today"),
           appliedOn: app.createdAt ? new Date(app.createdAt).toLocaleDateString() : "Recently",
-          status: app.status || "Applied",
-          statusStep: app.status === "Interview" || app.status === "Hired" ? 4 : app.status === "Shortlisted" ? 3 : app.status === "Viewed" ? 2 : 1,
-          recruiterStatus: "Recruiter active recently",
-          totalApplicants: 150,
-          viewedCount: 65,
-          rating: 4.0,
-          reviewsCount: "85 Reviews",
+          status: st,
+          statusStep,
+          resumeViewed: isResumeViewed,
+          resumeViewedAt: app.resumeViewedAt,
+          recruiterAction: recAction || (hasAction ? st : undefined),
+          recruiterActionAt: app.recruiterActionAt,
+          recruiterStatus,
+          totalApplicants: jApplicantsCount,
+          viewedCount: jViewedCount,
+          rating: jRating,
+          reviewsCount: jReviewsCount,
+          viewedDays,
           candidateName: app.candidateName || userObj?.name,
           candidateEmail: app.candidateEmail || userObj?.email,
         });
       }
     });
 
-    // Add local applied jobs (takes precedence for recent applications)
-    localApplied.forEach((item: any) => {
-      const key = item.jobId || item.id;
-      if (key) {
-        mergedAppliedMap.set(key, {
+    // Add local applied jobs (merges matching DB entries using String comparisons)
+    cleanLocalApplied.forEach((item: any) => {
+      const itemJobId = String(item.jobId || "");
+      const itemId = String(item.id || "");
+      const itemTitle = (item.title || "").trim().toLowerCase();
+      const itemCompany = (item.company || "").trim().toLowerCase();
+
+      // Find matching DB entry by key, jobId, id, or role+company
+      let matchedKey = "";
+      for (const [k, dbItem] of mergedAppliedMap.entries()) {
+        if (
+          (itemJobId && (k === itemJobId || String(dbItem.jobId) === itemJobId)) ||
+          (itemId && (k === itemId || String(dbItem.id) === itemId)) ||
+          (itemTitle && itemCompany && dbItem.title?.trim().toLowerCase() === itemTitle && dbItem.company?.trim().toLowerCase() === itemCompany)
+        ) {
+          matchedKey = k;
+          break;
+        }
+      }
+
+      if (matchedKey) {
+        const existingDb = mergedAppliedMap.get(matchedKey)!;
+        // DB is authoritative for status, recruiter action, and activity counts
+        mergedAppliedMap.set(matchedKey, {
           ...item,
-          statusStep: item.statusStep || 1,
-          recruiterStatus: item.recruiterStatus || "Application submitted",
-          totalApplicants: item.totalApplicants || 120,
-          viewedCount: item.viewedCount || 45,
-          rating: item.rating || 4.0,
-          reviewsCount: item.reviewsCount || "50 Reviews",
-          viewedDays: item.viewedDays || "Application submitted today",
+          ...existingDb,
+          id: existingDb.id || item.id,
+          jobId: existingDb.jobId || item.jobId,
+          status: existingDb.status,
+          statusStep: existingDb.statusStep,
+          resumeViewed: existingDb.resumeViewed,
+          resumeViewedAt: existingDb.resumeViewedAt,
+          recruiterAction: existingDb.recruiterAction,
+          recruiterActionAt: existingDb.recruiterActionAt,
+          recruiterStatus: existingDb.recruiterStatus,
+          viewedDays: existingDb.viewedDays || item.viewedDays,
+          totalApplicants: existingDb.totalApplicants || item.totalApplicants || 1,
+          viewedCount: typeof existingDb.viewedCount === "number" ? existingDb.viewedCount : (item.viewedCount || 0),
         });
+      } else {
+        const key = itemJobId || itemId;
+        if (key) {
+          mergedAppliedMap.set(key, {
+            ...item,
+            id: itemId || key,
+            jobId: itemJobId || key,
+            statusStep: item.statusStep || 1,
+            recruiterStatus: item.recruiterStatus || "Application submitted",
+            totalApplicants: item.totalApplicants || 1,
+            viewedCount: item.viewedCount || 0,
+            rating: item.rating || 4.8,
+            reviewsCount: item.reviewsCount || "120 Reviews",
+            viewedDays: item.viewedDays || "Application submitted today",
+          });
+        }
       }
     });
 
     const finalApplied = Array.from(mergedAppliedMap.values());
     setAppliedList(finalApplied);
     setAppliedJobsCount(finalApplied.length);
+
+    try {
+      localStorage.setItem(`candidate_applied_jobs_${uid}`, JSON.stringify(finalApplied));
+    } catch (e) {}
 
     // 3. Load Saved Jobs
     const localSaved = getLocalSavedJobs(uid);
@@ -1263,17 +1421,42 @@ export default function CandidateDashboardPage() {
 
   // Handlers for Save, Messages, and Alerts
   const handleToggleSave = (job: any) => {
-    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
-    const res = toggleLocalSavedJob(uid, job);
+    const storedUser = getStoredUser();
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+
+    const jId = String(job.jobId || job.id || job._id || "");
+    const normalizedJob = {
+      ...job,
+      id: jId,
+      _id: jId,
+      jobId: jId,
+      title: job.title || "Job Title",
+      company: job.company || "Company",
+      location: job.location || "Remote",
+      salary: job.salary || "Competitive",
+      type: job.type || "Full-time",
+      workplace: job.workplace || "Hybrid",
+      tags: Array.isArray(job.tags) && job.tags.length > 0 ? job.tags : Array.isArray(job.skills) ? job.skills : [],
+      rating: job.rating || 4.8,
+      reviewsCount: job.reviewsCount || "120 Reviews",
+      savedAt: new Date().toISOString(),
+    };
+
+    const res = toggleLocalSavedJob(uid, normalizedJob);
     setSavedList(res.list);
     setSavedJobsCount(res.list.length);
     showToast(res.saved ? "Job saved successfully!" : "Job removed from saved.");
   };
 
   const handleRemoveSaved = (jobId: string) => {
-    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || "candidate";
+    const storedUser = getStoredUser();
+    const uid = currentUser?.id || currentUser?.userId || currentUser?.email || storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
     const current = getLocalSavedJobs(uid);
-    const updated = current.filter((j: any) => (j.id || j._id || j.jobId) !== jobId);
+    const targetId = String(jobId);
+    const updated = current.filter((j: any) => {
+      const curId = String(j.id || j._id || j.jobId || "");
+      return curId !== targetId;
+    });
     if (typeof window !== "undefined") {
       localStorage.setItem(`candidate_saved_jobs_${uid}`, JSON.stringify(updated));
       window.dispatchEvent(new Event("saved_jobs_change"));
@@ -1283,8 +1466,26 @@ export default function CandidateDashboardPage() {
     showToast("Job removed from saved.");
   };
 
-  const isJobSaved = (jobId: string) => {
-    return savedList.some((j: any) => (j.id || j._id || j.jobId) === jobId);
+  const isJobSaved = (target: any) => {
+    if (!target) return false;
+    const targetId = typeof target === "object" ? String(target.jobId || target.id || target._id || "") : String(target);
+    const targetTitle = typeof target === "object" ? (target.title || "").trim().toLowerCase() : "";
+    const targetCompany = typeof target === "object" ? (target.company || "").trim().toLowerCase() : "";
+
+    return savedList.some((j: any) => {
+      const jId = String(j.jobId || j.id || j._id || "");
+      if (targetId && (jId === targetId || String(j.id) === targetId || String(j.jobId) === targetId)) {
+        return true;
+      }
+      if (targetTitle && targetCompany) {
+        const jTitle = (j.title || "").trim().toLowerCase();
+        const jComp = (j.company || "").trim().toLowerCase();
+        if (jTitle === targetTitle && jComp === targetCompany) {
+          return true;
+        }
+      }
+      return false;
+    });
   };
 
   const handleSendMessage = (threadId: string, text: string) => {
@@ -1426,18 +1627,35 @@ export default function CandidateDashboardPage() {
     };
     init();
 
-    // Cross-tab and event synchronization
+    // Cross-tab and live recruiter synchronization
     const handleSync = () => {
       loadAppliedAndSaved();
     };
     window.addEventListener("applied_jobs_change", handleSync);
     window.addEventListener("saved_jobs_change", handleSync);
     window.addEventListener("messages_change", handleSync);
+    window.addEventListener("storage", handleSync);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("addyjob_channel");
+      bc.onmessage = () => {
+        handleSync();
+      };
+    } catch {}
+
+    // Live background polling every 3 seconds so company actions immediately reflect
+    const pollInterval = setInterval(() => {
+      loadAppliedAndSaved();
+    }, 3000);
 
     return () => {
       window.removeEventListener("applied_jobs_change", handleSync);
       window.removeEventListener("saved_jobs_change", handleSync);
       window.removeEventListener("messages_change", handleSync);
+      window.removeEventListener("storage", handleSync);
+      if (bc) bc.close();
+      clearInterval(pollInterval);
     };
   }, []);
 
@@ -1459,6 +1677,78 @@ export default function CandidateDashboardPage() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleProfileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("Please upload an image file (PNG, JPG, JPEG, WEBP)");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image size must be less than 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Data = event.target?.result as string;
+      if (!base64Data) return;
+
+      setProfileImage(base64Data);
+
+      const user = getStoredUser();
+      const uid = user?.id || user?.userId || user?.email || "candidate";
+
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`candidate_profile_image_${uid}`, base64Data);
+        } catch {}
+        if (user) {
+          const updated = { ...user, profileImage: base64Data };
+          setStoredUser(updated);
+          setCurrentUser(updated);
+          window.dispatchEvent(new Event("auth_change"));
+        }
+      }
+
+      try {
+        await updateUserProfile({ profileImage: base64Data });
+        notifyApplicationSync();
+        showToast("Profile picture updated successfully!");
+      } catch (err) {
+        console.warn("Backend profile picture sync warning:", err);
+        showToast("Profile picture updated!");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveProfileImage = async () => {
+    setProfileImage(null);
+    const user = getStoredUser();
+    const uid = user?.id || user?.userId || user?.email || "candidate";
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(`candidate_profile_image_${uid}`);
+      } catch {}
+      if (user) {
+        const updated = { ...user, profileImage: "" };
+        setStoredUser(updated);
+        setCurrentUser(updated);
+        window.dispatchEvent(new Event("auth_change"));
+      }
+    }
+    try {
+      await updateUserProfile({ profileImage: "" });
+      notifyApplicationSync();
+      showToast("Profile picture removed");
+    } catch {
+      showToast("Profile picture removed");
+    }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -1768,7 +2058,10 @@ export default function CandidateDashboardPage() {
             </button>
 
             <button
-              onClick={() => setActiveSidebarTab("applied")}
+              onClick={() => {
+                setActiveSidebarTab("applied");
+                loadAppliedAndSaved();
+              }}
               className={`flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
                 activeSidebarTab === "applied"
                   ? "bg-blue-50 text-blue-600 font-extrabold"
@@ -1788,14 +2081,21 @@ export default function CandidateDashboardPage() {
 
             <button
               onClick={() => setActiveSidebarTab("saved")}
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
+              className={`flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
                 activeSidebarTab === "saved"
                   ? "bg-blue-50 text-blue-600 font-extrabold"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
               }`}
             >
-              <Bookmark className="w-4 h-4 text-slate-500" />
-              <span>Saved Jobs</span>
+              <div className="flex items-center gap-3.5">
+                <Bookmark className="w-4 h-4 text-slate-500" />
+                <span>Saved Jobs</span>
+              </div>
+              {savedJobsCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {savedJobsCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -1906,20 +2206,35 @@ export default function CandidateDashboardPage() {
                 id="overview-section"
                 className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-7 shadow-xs relative"
               >
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              {/* Left Column (Avatar + Info): 6 cols */}
-              <div className="lg:col-span-5 flex items-start gap-4 sm:gap-5 min-w-0">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+              {/* Left Column (Avatar + Info) */}
+              <div className="flex items-start gap-4 sm:gap-5 min-w-0 flex-1">
                 <div className="relative shrink-0">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden ring-4 ring-slate-100 shadow-md bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-black text-2xl sm:text-3xl select-none">
-                    {getInitials(name || currentUser?.userId || "Tushar Raghav")}
+                    {profileImage ? (
+                      <img
+                        src={profileImage}
+                        alt={name || "Profile"}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      getInitials(name || currentUser?.userId || "Tushar Raghav")
+                    )}
                   </div>
-                  <button
-                    onClick={openEditModal}
+                  <label
+                    htmlFor="candidate-hero-avatar-upload"
                     className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md ring-2 ring-white transition cursor-pointer"
                     title="Change profile picture"
                   >
                     <Camera className="w-3.5 h-3.5" />
-                  </button>
+                    <input
+                      id="candidate-hero-avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleProfileImageUpload}
+                    />
+                  </label>
                 </div>
 
                 <div className="space-y-1.5 flex-1 min-w-0">
@@ -1962,78 +2277,14 @@ export default function CandidateDashboardPage() {
                 </div>
               </div>
 
-              {/* Middle Column (Circular Gauge): 2.5 cols */}
-              <div className="lg:col-span-3 flex items-center gap-3 lg:border-l lg:border-r border-slate-100 lg:px-4 min-w-0">
-                <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                    <path
-                      className="text-slate-100"
-                      strokeWidth="3.5"
-                      stroke="currentColor"
-                      fill="none"
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    />
-                    <path
-                      className="text-blue-600 transition-all duration-500"
-                      strokeDasharray={`${profileCompletion || 75}, 100`}
-                      strokeWidth="3.5"
-                      strokeLinecap="round"
-                      stroke="currentColor"
-                      fill="none"
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    />
-                  </svg>
-                  <span className="absolute text-xs font-bold text-slate-900">
-                    {profileCompletion || 75}%
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">Profile Completion</p>
-                  <p className="text-[11px] text-slate-500 leading-tight">
-                    Complete your profile to get opportunities
-                  </p>
-                </div>
-              </div>
-
-              {/* Right Column (Checklist + Complete Profile button): 3.5 cols */}
-              <div className="lg:col-span-4 space-y-3 min-w-0">
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-slate-700">
-                    <span className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 fill-blue-50" />
-                      <span>Complete basic information</span>
-                    </span>
-                    <span className="font-semibold text-emerald-600 text-[11px]">100%</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-700">
-                    <span className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 fill-blue-50" />
-                      <span>Add professional skills</span>
-                    </span>
-                    <span className="font-semibold text-emerald-600 text-[11px]">100%</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-700">
-                    <span className="flex items-center gap-2">
-                      <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300" />
-                      <span>Add work experience</span>
-                    </span>
-                    <span className="font-semibold text-blue-600 text-[11px]">60%</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-700">
-                    <span className="flex items-center gap-2">
-                      <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300" />
-                      <span>Add education details</span>
-                    </span>
-                    <span className="font-semibold text-emerald-600 text-[11px]">50%</span>
-                  </div>
-                </div>
-
+              {/* Action Button */}
+              <div className="shrink-0 flex items-center gap-3">
                 <button
-                  onClick={() => setCompleteProfileModalOpen(true)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+                  onClick={openEditModal}
+                  className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs transition flex items-center gap-2 border border-blue-100 cursor-pointer shadow-2xs"
                 >
-                  <span>Complete Profile</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <Edit3 className="w-4 h-4" />
+                  <span>Edit Profile</span>
                 </button>
               </div>
             </div>
@@ -2684,6 +2935,44 @@ export default function CandidateDashboardPage() {
             </div>
 
             <form onSubmit={handleSaveProfile} className="space-y-4 pt-4 text-xs">
+              {/* Profile Photo Uploader */}
+              <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="w-14 h-14 rounded-full overflow-hidden ring-2 ring-white shadow-xs bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-bold text-lg shrink-0 select-none">
+                  {profileImage ? (
+                    <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{getInitials(name || currentUser?.userId || "U")}</span>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-slate-800">Profile Photo</p>
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="modal-profile-picture-upload"
+                      className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] cursor-pointer transition shadow-2xs"
+                    >
+                      Change Photo
+                      <input
+                        id="modal-profile-picture-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleProfileImageUpload}
+                      />
+                    </label>
+                    {profileImage && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveProfileImage}
+                        className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-rose-50 text-slate-700 hover:text-rose-600 font-semibold text-[11px] transition cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Full Name</label>

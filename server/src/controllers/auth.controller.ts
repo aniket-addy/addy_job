@@ -97,6 +97,14 @@ const formatUser = (user: IUser) => {
     location: user.location || '',
     phone: user.phone || '',
     gstNumber: user.gstNumber || '',
+    tagline: user.tagline || '',
+    website: user.website || '',
+    aboutCompany: user.aboutCompany || '',
+    logo: user.logo || user.profileImage || '',
+    profileImage: user.profileImage || user.logo || '',
+    bannerImage: user.bannerImage || '',
+    culture: user.culture || [],
+    perks: user.perks || [],
     status: user.status || 'Pending',
     plan: user.plan || '',
     permissions: user.permissions || {
@@ -528,6 +536,8 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const oldCompanyName = user.companyName || user.name || '';
+
     const {
       name,
       fullName,
@@ -562,6 +572,14 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       industry,
       companySize,
       gstNumber,
+      tagline,
+      website,
+      aboutCompany,
+      logo,
+      profileImage,
+      bannerImage,
+      culture,
+      perks,
     } = req.body;
 
     if (name !== undefined) user.name = name;
@@ -571,6 +589,29 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     if (industry !== undefined) user.industry = industry;
     if (companySize !== undefined) user.companySize = companySize;
     if (gstNumber !== undefined) user.gstNumber = gstNumber;
+    if (tagline !== undefined) user.tagline = tagline;
+    if (website !== undefined) user.website = website;
+    if (aboutCompany !== undefined) user.aboutCompany = aboutCompany;
+    if (logo !== undefined) user.logo = logo;
+    if (profileImage !== undefined) {
+      user.profileImage = profileImage;
+      if (!user.logo) user.logo = profileImage;
+    }
+    if (bannerImage !== undefined) user.bannerImage = bannerImage;
+    if (culture !== undefined) {
+      user.culture = Array.isArray(culture)
+        ? culture
+        : typeof culture === 'string'
+        ? culture.split('\n').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+    }
+    if (perks !== undefined) {
+      user.perks = Array.isArray(perks)
+        ? perks
+        : typeof perks === 'string'
+        ? perks.split('\n').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+    }
     if (headline !== undefined) user.headline = headline;
     if (targetRole !== undefined) user.targetRole = targetRole;
     if (experience !== undefined) user.experience = experience;
@@ -615,6 +656,48 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 
     await user.save();
 
+    // If company updated profile, synchronize company's jobs and applications
+    if (user.role === 'company') {
+      try {
+        const { Job } = await import('../models/job.model.js');
+        const { Application } = await import('../models/application.model.js');
+
+        const newCompName = user.companyName || user.name || '';
+        const jobUpdate: any = {};
+        if (newCompName) {
+          jobUpdate.company = newCompName;
+          jobUpdate.postedBy = newCompName;
+        }
+        if (user.logo || user.profileImage) {
+          jobUpdate.logo = user.logo || user.profileImage;
+        }
+
+        const compConditions: any[] = [
+          { companyId: user._id.toString() },
+          { companyId: user._id },
+        ];
+        if (user.userId) compConditions.push({ companyId: user.userId });
+        if (user.customId) compConditions.push({ companyId: user.customId });
+        if (oldCompanyName) compConditions.push({ company: oldCompanyName });
+
+        if (Object.keys(jobUpdate).length > 0) {
+          await Job.updateMany(
+            { $or: compConditions },
+            { $set: jobUpdate }
+          );
+
+          if (newCompName && oldCompanyName && newCompName !== oldCompanyName) {
+            await Application.updateMany(
+              { company: oldCompanyName },
+              { $set: { company: newCompName } }
+            );
+          }
+        }
+      } catch (compSyncErr) {
+        console.warn('Warning syncing company jobs/applications:', compSyncErr);
+      }
+    }
+
     // If job seeker has a resume uploaded, sync to Application so admin immediately sees it
     if (user.role === 'job_seeker' && (resumeName || user.resumeName)) {
       const activeResumeName = resumeName || user.resumeName || '';
@@ -622,6 +705,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       try {
         await Application.findOneAndUpdate(
           {
+            company: 'Candidate Profile Upload',
             $or: [
               { candidateId: user._id },
               { candidateEmail: user.email },
@@ -657,11 +741,16 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     }
 
     // Sync to UserProfile collection & disk backup
-    const customId = user.userId || user.customId || 'us01';
+    const customId = user.userId || user.customId || user._id.toString();
     try {
+      const profileConditions: any[] = [{ userId: customId }, { userId: user._id.toString() }];
+      if (user.email) profileConditions.push({ email: user.email });
+
       await UserProfile.findOneAndUpdate(
-        { userId: customId },
+        { $or: profileConditions },
         {
+          userId: customId,
+          email: user.email,
           fullName: user.name,
           mobile: user.phone,
           location: user.location,
@@ -687,6 +776,18 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
           preferredLocation: user.preferredLocation,
           expectedSalary: user.expectedSalary,
           workStatus: user.workStatus,
+          aboutCompany: user.aboutCompany,
+          tagline: user.tagline,
+          companyName: user.companyName,
+          companySize: user.companySize,
+          industry: user.industry,
+          website: user.website,
+          gstNumber: user.gstNumber,
+          logo: user.logo,
+          profileImage: user.profileImage,
+          bannerImage: user.bannerImage,
+          culture: user.culture,
+          perks: user.perks,
         },
         { upsert: true, new: true }
       );

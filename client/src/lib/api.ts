@@ -41,6 +41,14 @@ export interface UserSession {
   location?: string;
   phone?: string;
   gstNumber?: string;
+  tagline?: string;
+  website?: string;
+  aboutCompany?: string;
+  logo?: string;
+  profileImage?: string;
+  bannerImage?: string;
+  culture?: string[];
+  perks?: string[];
   status?: string;
   plan?: string;
   permissions?: any;
@@ -97,6 +105,14 @@ export const getStoredUser = (): UserSession | null => {
     return JSON.parse(data);
   } catch {
     return null;
+  }
+};
+
+// Update stored user in localStorage
+export const setStoredUser = (user: UserSession): void => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('career_user', JSON.stringify(user));
+    window.dispatchEvent(new Event('auth_change'));
   }
 };
 
@@ -252,6 +268,20 @@ export async function updateUserProfile(
 
     if (data.user) {
       setAuthSession(token, data.user);
+    }
+
+    // Direct company endpoint synchronization to ensure 100% database persistence
+    const storedUser = getStoredUser();
+    const compId = (storedUser as any)?._id || storedUser?.id || storedUser?.userId || storedUser?.email;
+    if (compId && (storedUser?.role === 'company' || payload.companyName)) {
+      fetch(`${API_BASE_URL}/companies/${encodeURIComponent(compId)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
     }
 
     return data;
@@ -587,7 +617,9 @@ export async function updateAdminApplicationStatus(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
-    return await res.json();
+    const data = await res.json();
+    notifyApplicationSync();
+    return data;
   } catch (error: any) {
     console.error('updateAdminApplicationStatus error:', error);
     return { success: false, message: 'Failed to update application status' };
@@ -1011,17 +1043,60 @@ export async function submitJobApplication(jobId: string, payload: any): Promise
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return await res.json();
+    const data = await res.json();
+    notifyApplicationSync();
+    return data;
   } catch (err: any) {
     console.error('submitJobApplication error:', err);
     return { success: false, message: 'Could not connect to application service.' };
   }
 }
 
-export async function fetchCandidateApplicationsFromDB(email?: string): Promise<any[]> {
+export async function fetchJobActivityAPI(
+  jobId: string,
+  title?: string,
+  company?: string
+): Promise<{ success: boolean; jobId: string; totalApplicants: number; viewedCount: number } | null> {
   try {
-    if (!email) return [];
-    const res = await fetch(`${API_BASE_URL}/jobs/applied/candidate?email=${encodeURIComponent(email)}`, {
+    const params = new URLSearchParams();
+    if (title) params.append('title', title);
+    if (company) params.append('company', company);
+    const q = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/activity${q}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function fetchCandidateApplicationsFromDB(
+  email?: string | string[],
+  candidateId?: string,
+  phone?: string | string[],
+  jobIds?: string | string[]
+): Promise<any[]> {
+  try {
+    const params = new URLSearchParams();
+    if (email) {
+      const emailStr = Array.isArray(email) ? email.filter(Boolean).join(',') : email;
+      if (emailStr) params.append('email', emailStr);
+    }
+    if (candidateId) params.append('candidateId', candidateId);
+    if (phone) {
+      const phoneStr = Array.isArray(phone) ? phone.filter(Boolean).join(',') : phone;
+      if (phoneStr) params.append('phone', phoneStr);
+    }
+    if (jobIds) {
+      const jobIdsStr = Array.isArray(jobIds) ? jobIds.filter(Boolean).join(',') : jobIds;
+      if (jobIdsStr) params.append('jobIds', jobIdsStr);
+    }
+
+    if ([...params.keys()].length === 0) return [];
+
+    const res = await fetch(`${API_BASE_URL}/jobs/applied/candidate?${params.toString()}`, {
       cache: 'no-store',
     });
     if (!res.ok) return [];
@@ -1030,6 +1105,76 @@ export async function fetchCandidateApplicationsFromDB(email?: string): Promise<
   } catch (err) {
     console.error('fetchCandidateApplications error:', err);
     return [];
+  }
+}
+
+export async function fetchCompanyApplicationsFromDB(companyId?: string, companyName?: string): Promise<any[]> {
+  try {
+    if (!companyId && !companyName) return [];
+    const params = new URLSearchParams();
+    if (companyId) params.append('companyId', companyId);
+    if (companyName) params.append('companyName', companyName);
+
+    const res = await fetch(`${API_BASE_URL}/jobs/applied/company?${params.toString()}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.applications || [];
+  } catch (err) {
+    console.error('fetchCompanyApplications error:', err);
+    return [];
+  }
+}
+
+export function notifyApplicationSync() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('applied_jobs_change'));
+    try {
+      localStorage.setItem('addyjob_sync_event', Date.now().toString());
+    } catch {}
+    try {
+      const bc = new BroadcastChannel('addyjob_channel');
+      bc.postMessage({ type: 'applied_jobs_change', timestamp: Date.now() });
+      bc.close();
+    } catch {}
+  }
+}
+
+export async function updateApplicationStatusAPI(
+  id: string,
+  status: string,
+  recruiterAction?: string
+): Promise<{ success: boolean; message?: string; application?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/applications/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, recruiterAction }),
+    });
+    const data = await res.json();
+    notifyApplicationSync();
+    return data;
+  } catch (err: any) {
+    console.error('updateApplicationStatusAPI error:', err);
+    return { success: false, message: err.message };
+  }
+}
+
+export async function markResumeViewedAPI(
+  id: string
+): Promise<{ success: boolean; message?: string; application?: any }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/jobs/applications/${id}/view-resume`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    notifyApplicationSync();
+    return data;
+  } catch (err: any) {
+    console.error('markResumeViewedAPI error:', err);
+    return { success: false, message: err.message };
   }
 }
 
@@ -1077,15 +1222,35 @@ export function toggleLocalSavedJob(uid: string, jobItem: any): { saved: boolean
   if (typeof window === 'undefined') return { saved: false, list: [] };
   try {
     const current = getLocalSavedJobs(uid);
-    const jId = jobItem.id || jobItem._id || jobItem.jobId;
-    const exists = current.some((j: any) => (j.id || j._id || j.jobId) === jId);
+    const jId = String(jobItem.jobId || jobItem.id || jobItem._id || '');
+    const jTitle = (jobItem.title || '').trim().toLowerCase();
+    const jComp = (jobItem.company || '').trim().toLowerCase();
+
+    const exists = current.some((j: any) => {
+      const curId = String(j.jobId || j.id || j._id || '');
+      if (jId && (curId === jId || String(j.id) === jId || String(j.jobId) === jId)) return true;
+      if (jTitle && jComp && (j.title || '').trim().toLowerCase() === jTitle && (j.company || '').trim().toLowerCase() === jComp) return true;
+      return false;
+    });
+
     let updated;
     let saved;
     if (exists) {
-      updated = current.filter((j: any) => (j.id || j._id || j.jobId) !== jId);
+      updated = current.filter((j: any) => {
+        const curId = String(j.jobId || j.id || j._id || '');
+        if (jId && (curId === jId || String(j.id) === jId || String(j.jobId) === jId)) return false;
+        if (jTitle && jComp && (j.title || '').trim().toLowerCase() === jTitle && (j.company || '').trim().toLowerCase() === jComp) return false;
+        return true;
+      });
       saved = false;
     } else {
-      updated = [jobItem, ...current];
+      const formattedItem = {
+        ...jobItem,
+        id: jId || String(Date.now()),
+        jobId: jId,
+        savedAt: new Date().toISOString(),
+      };
+      updated = [formattedItem, ...current];
       saved = true;
     }
     localStorage.setItem(`candidate_saved_jobs_${uid}`, JSON.stringify(updated));

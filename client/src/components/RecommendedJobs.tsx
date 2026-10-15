@@ -22,20 +22,31 @@ export default function RecommendedJobs() {
   const [savedJobs, setSavedJobs] = useState<Record<string, boolean>>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadJobs = () => {
     fetchPublicJobs()
       .then((data) => {
-        if (isMounted && Array.isArray(data)) {
+        if (Array.isArray(data)) {
           setJobs(data);
         }
       })
       .catch((err) => console.error("Error fetching recommended jobs:", err))
       .finally(() => {
-        if (isMounted) setIsLoading(false);
+        setIsLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadJobs();
+
+    const handleSync = () => {
+      loadJobs();
+    };
+
+    window.addEventListener("applied_jobs_change", handleSync);
+    window.addEventListener("storage", handleSync);
     return () => {
-      isMounted = false;
+      window.removeEventListener("applied_jobs_change", handleSync);
+      window.removeEventListener("storage", handleSync);
     };
   }, []);
 
@@ -116,8 +127,16 @@ export default function RecommendedJobs() {
                     {/* Company Row: Logo + Company Name + Heart Save Icon */}
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100">
-                          {comp.charAt(0).toUpperCase()}
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100 overflow-hidden">
+                          {job.logo || job.companyLogo ? (
+                            <img
+                              src={job.logo || job.companyLogo}
+                              alt={comp}
+                              className="w-full h-full object-contain p-1"
+                            />
+                          ) : (
+                            comp.charAt(0).toUpperCase()
+                          )}
                         </div>
                         <span className="font-bold text-slate-900 text-sm truncate">
                           {comp}

@@ -48,6 +48,8 @@ import {
   Lock,
   Unlock,
   KeyRound,
+  HeartHandshake,
+  Gift,
 } from "lucide-react";
 import {
   getStoredUser,
@@ -67,9 +69,13 @@ import {
   updateCompanyJob,
   updateCompanyJobStatus,
   deleteCompanyJob,
+  fetchCompanyApplicationsFromDB,
+  updateApplicationStatusAPI,
+  markResumeViewedAPI,
   fetchJobApplicants,
   fetchCompanyApplications,
   updateAdminApplicationStatus,
+  notifyApplicationSync,
 } from "@/lib/api";
 import CompanyJobApplicantsModal, {
   CompanyCandidateApplicant,
@@ -180,6 +186,8 @@ export default function CompanyDashboardPage() {
   const [contactPhone, setContactPhone] = useState("");
   const [gstNumber, setGstNumber] = useState("");
   const [aboutCompany, setAboutCompany] = useState("");
+  const [cultureText, setCultureText] = useState("");
+  const [perksText, setPerksText] = useState("");
 
   // Profile Image & Banner Cover Image states
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -646,18 +654,57 @@ export default function CompanyDashboardPage() {
   };
 
   const handleUpdateApplicantStatus = async (appId: string, newStatus: string) => {
+    const recruiterAction = ["Shortlisted", "Interview", "Hired", "Rejected"].includes(newStatus)
+      ? newStatus
+      : undefined;
+
     setJobApplicantsList((prev) =>
       prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a))
     );
     setApplicants((prev) =>
-      prev.map((a) => (a.id === appId ? { ...a, status: newStatus as any } : a))
+      prev.map((a) =>
+        a.id === appId
+          ? {
+              ...a,
+              status: newStatus as any,
+              notes: recruiterAction ? `Status: ${recruiterAction}` : a.notes,
+            }
+          : a
+      )
     );
+
+    const storedUser = getStoredUser();
+    const uid = storedUser?.id || storedUser?.userId || "company";
+    try {
+      const current = localStorage.getItem(`company_applicants_data_${uid}`);
+      if (current) {
+        const parsed = JSON.parse(current);
+        if (Array.isArray(parsed)) {
+          const updated = parsed.map((a: any) =>
+            a.id === appId || a._id === appId
+              ? {
+                  ...a,
+                  status: newStatus,
+                  recruiterAction: recruiterAction || a.recruiterAction,
+                  resumeViewed: true,
+                }
+              : a
+          );
+          localStorage.setItem(`company_applicants_data_${uid}`, JSON.stringify(updated));
+        }
+      }
+    } catch (e) {}
+
     setToastMessage(`Candidate status updated to "${newStatus}"`);
     try {
-      await updateAdminApplicationStatus(appId, newStatus);
+      await updateApplicationStatusAPI(appId, newStatus, recruiterAction);
     } catch (e) {
       console.warn("Backend status update error:", e);
+      try {
+        await updateAdminApplicationStatus(appId, newStatus);
+      } catch (err) {}
     }
+    notifyApplicationSync();
   };
 
   // Form states for Post / Edit Job (matching /jobs/1 details)
@@ -737,25 +784,39 @@ export default function CompanyDashboardPage() {
           setResumesUsed(0);
         }
 
-        // Custom branding (only if this specific company user has saved it)
+        // Custom branding (combines saved localStorage and database user session)
         if (uid) {
           const userProfileStr = localStorage.getItem(`company_profile_data_${uid}`);
+          let parsed: any = {};
           if (userProfileStr) {
             try {
-              const parsed = JSON.parse(userProfileStr);
-              if (parsed.tagline) setTagline(parsed.tagline);
-              if (parsed.website) setWebsite(parsed.website);
-              if (parsed.profileImage) setProfileImage(parsed.profileImage);
-              if (parsed.bannerImage) setBannerImage(parsed.bannerImage);
-              if (parsed.aboutCompany) setAboutCompany(parsed.aboutCompany);
+              parsed = JSON.parse(userProfileStr);
             } catch (e) {
               console.error(e);
             }
+          }
+          setTagline(parsed.tagline || (u as any).tagline || "");
+          setWebsite(parsed.website || (u as any).website || "");
+          setProfileImage(parsed.profileImage || (u as any).profileImage || (u as any).logo || null);
+          setBannerImage(parsed.bannerImage || (u as any).bannerImage || null);
+          setAboutCompany(parsed.aboutCompany || (u as any).aboutCompany || u.bio || "");
+
+          const storedCulture = parsed.culture || (u as any).culture;
+          if (Array.isArray(storedCulture) && storedCulture.length > 0) {
+            setCultureText(storedCulture.join("\n"));
+          } else if (typeof storedCulture === "string" && storedCulture.trim()) {
+            setCultureText(storedCulture);
           } else {
-            setTagline("");
-            setWebsite("");
-            setProfileImage(null);
-            setBannerImage(null);
+            setCultureText("");
+          }
+
+          const storedPerks = parsed.perks || (u as any).perks;
+          if (Array.isArray(storedPerks) && storedPerks.length > 0) {
+            setPerksText(storedPerks.join("\n"));
+          } else if (typeof storedPerks === "string" && storedPerks.trim()) {
+            setPerksText(storedPerks);
+          } else {
+            setPerksText("");
           }
 
           const savedJobs = localStorage.getItem(`company_posted_jobs_${uid}`);
@@ -788,27 +849,62 @@ export default function CompanyDashboardPage() {
             });
 
           const savedApplicants = localStorage.getItem(`company_applicants_data_${uid}`);
+          let localAppList: RecruiterApplicant[] = [];
           if (savedApplicants) {
             try {
               const parsedApplicants = JSON.parse(savedApplicants);
-              if (Array.isArray(parsedApplicants)) setApplicants(parsedApplicants);
+              if (Array.isArray(parsedApplicants)) localAppList = parsedApplicants;
             } catch (e) {}
-          } else {
-            setApplicants([]);
           }
 
-          // Fetch live company applications from MongoDB database
+          // Fetch applications from database for this company
           fetchCompanyApplications({ company: compName, companyId: uid })
             .then((dbApps) => {
               if (Array.isArray(dbApps) && dbApps.length > 0) {
-                setApplicants(dbApps);
+                const formatted: RecruiterApplicant[] = dbApps.map((a: any) => ({
+                  id: a._id || a.id,
+                  candidateName: a.candidateName || "Candidate",
+                  appliedRole: a.appliedRole || a.position || (typeof a.jobId === "object" ? a.jobId?.title : "") || "Applicant",
+                  jobId: (typeof a.jobId === "object" ? a.jobId?._id : a.jobId) || "",
+                  experience: a.experience || "Fresher",
+                  location: a.location || (typeof a.jobId === "object" ? a.jobId?.location : "") || "Remote",
+                  appliedDate: a.appliedDate || a.appliedOn || (a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "Recent"),
+                  resumeFileName: a.resumeFileName || a.fileName || "Resume.pdf",
+                  skills: Array.isArray(a.skills) && a.skills.length > 0 ? a.skills : ["General"],
+                  status: (["Shortlisted", "Interview", "Hired", "Rejected"].includes(a.status) ? a.status : a.resumeViewed ? "Reviewing" : "Applied") as any,
+                  matchScore: a.matchScore || 88,
+                  email: a.email || a.candidateEmail || "candidate@example.com",
+                  phone: a.phone || a.candidatePhone || "+91 9876543210",
+                  notes: a.notes || (a.recruiterAction ? `Status: ${a.recruiterAction}` : undefined),
+                  resumeUrl: a.resumeUrl || a.pdfData || "",
+                  pdfData: a.pdfData || a.resumeUrl || "",
+                  education: a.education || "",
+                  university: a.university || "",
+                  passingYear: a.passingYear || "",
+                  headline: a.headline || "",
+                  bio: a.bio || "",
+                  languages: a.languages || "",
+                }));
+
+                const map = new Map<string, RecruiterApplicant>();
+                formatted.forEach((fa) => map.set(fa.id, fa));
+                localAppList.forEach((la) => {
+                  if (!map.has(la.id)) {
+                    map.set(la.id, la);
+                  }
+                });
+                const combined = Array.from(map.values());
+                setApplicants(combined);
                 try {
-                  localStorage.setItem(`company_applicants_data_${uid}`, JSON.stringify(dbApps));
+                  localStorage.setItem(`company_applicants_data_${uid}`, JSON.stringify(combined));
                 } catch (e) {}
+              } else {
+                setApplicants(localAppList);
               }
             })
             .catch((err) => {
               console.warn("Backend company applications fetch error:", err);
+              setApplicants(localAppList);
             });
 
           let currentVault: PurchasedResume[] = [];
@@ -1020,9 +1116,13 @@ export default function CompanyDashboardPage() {
         if (uid) {
           try {
             const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
-            localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify({ ...prev, profileImage: base64 }));
+            localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify({ ...prev, profileImage: base64, logo: base64 }));
           } catch (err) {}
         }
+        updateUserProfile({ profileImage: base64, logo: base64 }).catch((err) =>
+          console.warn("Backend profile sync error:", err)
+        );
+        notifyApplicationSync();
         showToast("Company profile image updated successfully!");
         setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
       };
@@ -1049,6 +1149,10 @@ export default function CompanyDashboardPage() {
             localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify({ ...prev, bannerImage: base64 }));
           } catch (err) {}
         }
+        updateUserProfile({ bannerImage: base64 }).catch((err) =>
+          console.warn("Backend profile sync error:", err)
+        );
+        notifyApplicationSync();
         showToast("Company cover banner updated successfully!");
         setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
       };
@@ -1065,9 +1169,14 @@ export default function CompanyDashboardPage() {
         try {
           const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
           delete prev.profileImage;
+          delete prev.logo;
           localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify(prev));
         } catch (err) {}
       }
+      updateUserProfile({ profileImage: "", logo: "" }).catch((err) =>
+        console.warn("Backend profile sync error:", err)
+      );
+      notifyApplicationSync();
       showToast("Profile image removed. Reverted to default.");
     } else {
       setBannerImage(null);
@@ -1078,6 +1187,10 @@ export default function CompanyDashboardPage() {
           localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify(prev));
         } catch (err) {}
       }
+      updateUserProfile({ bannerImage: "" }).catch((err) =>
+        console.warn("Backend profile sync error:", err)
+      );
+      notifyApplicationSync();
       showToast("Cover banner removed. Reverted to default gradient.");
     }
     setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
@@ -1095,6 +1208,24 @@ export default function CompanyDashboardPage() {
     showToast(
       `${applicant?.candidateName || "Candidate"} has been marked as ${newStatus}!`
     );
+
+    // Persist real recruiter action to MongoDB backend!
+    updateApplicationStatusAPI(applicantId, newStatus, newStatus).catch((err) => {
+      console.warn("Backend status update error:", err);
+    });
+  };
+
+  // View candidate resume and update status
+  const handleViewResume = (app: RecruiterApplicant) => {
+    setSelectedApplicant(app);
+    if (app.id) {
+      markResumeViewedAPI(app.id).catch((err) => console.warn("Backend resume view error:", err));
+      setApplicants((prev) =>
+        prev.map((a) =>
+          a.id === app.id ? { ...a, status: a.status === "Applied" ? "Reviewing" : a.status } : a
+        )
+      );
+    }
   };
 
   // Modal Handlers: Open New Job / Edit Existing Job
@@ -1303,6 +1434,17 @@ export default function CompanyDashboardPage() {
     const cPhone = (formData.get("contactPhone") as string) || contactPhone;
     const cGst = (formData.get("gstNumber") as string) || gstNumber;
     const cAbout = (formData.get("aboutCompany") as string) || aboutCompany;
+    const cCulture = (formData.get("culture") as string) ?? cultureText;
+    const cPerks = (formData.get("perks") as string) ?? perksText;
+
+    const cultureArr = cCulture
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const perksArr = cPerks
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     setCompanyName(cName);
     setTagline(cTagline);
@@ -1314,41 +1456,72 @@ export default function CompanyDashboardPage() {
     setContactPhone(cPhone);
     setGstNumber(cGst);
     setAboutCompany(cAbout);
+    setCultureText(cCulture);
+    setPerksText(cPerks);
 
     const user = getStoredUser();
     const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
 
+    const profileData = {
+      companyName: cName,
+      tagline: cTagline,
+      industry: cIndustry,
+      companySize: cSize,
+      headquarters: cHq,
+      website: cWeb,
+      contactEmail: cEmail,
+      contactPhone: cPhone,
+      gstNumber: cGst,
+      aboutCompany: cAbout,
+      profileImage,
+      bannerImage,
+      culture: cultureArr,
+      perks: perksArr,
+    };
+
     if (uid && typeof window !== "undefined") {
-      localStorage.setItem(
-        `company_profile_data_${uid}`,
-        JSON.stringify({
-          companyName: cName,
-          tagline: cTagline,
-          industry: cIndustry,
-          companySize: cSize,
-          headquarters: cHq,
-          website: cWeb,
-          contactEmail: cEmail,
-          contactPhone: cPhone,
-          gstNumber: cGst,
-          aboutCompany: cAbout,
-          profileImage,
-          bannerImage,
-        })
-      );
+      localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify(profileData));
+      if (user?.id) localStorage.setItem(`company_profile_data_${user.id}`, JSON.stringify(profileData));
+      if (user?.email) localStorage.setItem(`company_profile_data_${user.email}`, JSON.stringify(profileData));
+      if (cName) {
+        localStorage.setItem(`company_profile_data_${cName.toLowerCase().trim()}`, JSON.stringify(profileData));
+        localStorage.setItem(`company_profile_data_${cName.toLowerCase().replace(/\s+/g, "-")}`, JSON.stringify(profileData));
+      }
     }
 
     // Persist real changes to MongoDB backend
-    updateUserProfile({
+    const updatePayload: any = {
       companyName: cName,
+      tagline: cTagline,
+      industry: cIndustry,
+      companySize: cSize,
       location: cHq,
+      website: cWeb,
+      workEmail: cEmail,
       phone: cPhone,
       gstNumber: cGst,
       bio: cAbout,
-      industry: cIndustry,
-      companySize: cSize,
-      workEmail: cEmail,
-    }).catch((err) => console.warn("Backend profile sync error:", err));
+      aboutCompany: cAbout,
+      culture: cultureArr,
+      perks: perksArr,
+    };
+    if (profileImage) {
+      updatePayload.profileImage = profileImage;
+      updatePayload.logo = profileImage;
+    }
+    if (bannerImage) {
+      updatePayload.bannerImage = bannerImage;
+    }
+
+    updateUserProfile(updatePayload)
+      .then((res) => {
+        if (res && res.success) {
+          notifyApplicationSync();
+        }
+      })
+      .catch((err) => console.warn("Backend profile sync error:", err));
+
+    notifyApplicationSync();
 
     showToast("Company profile updated successfully!");
   };
@@ -1923,7 +2096,7 @@ export default function CompanyDashboardPage() {
                             )}
 
                             <button
-                              onClick={() => setSelectedApplicant(app)}
+                              onClick={() => handleViewResume(app)}
                               className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition cursor-pointer shadow-2xs"
                               title="View Full Profile & Resume"
                             >
@@ -2161,7 +2334,7 @@ export default function CompanyDashboardPage() {
                       {/* Right: Actions (Follow, Website, Share from Image 1) */}
                       <div className="flex flex-wrap items-center gap-2 self-start sm:self-end shrink-0 w-full sm:w-auto">
                         <Link
-                          href="/companies/1"
+                          href={`/companies/${encodeURIComponent(companyName || "company")}`}
                           target="_blank"
                           className="flex-1 sm:flex-initial justify-center px-3.5 sm:px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
                         >
@@ -2170,7 +2343,7 @@ export default function CompanyDashboardPage() {
                         </Link>
 
                         <a
-                          href={website.startsWith("http") ? website : `https://${website}`}
+                          href={website ? (website.startsWith("http") ? website : `https://${website}`) : "#"}
                           target="_blank"
                           rel="noreferrer"
                           className="flex-1 sm:flex-initial justify-center px-3 sm:px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
@@ -2183,7 +2356,7 @@ export default function CompanyDashboardPage() {
                           type="button"
                           onClick={() => {
                             if (typeof window !== "undefined") {
-                              navigator.clipboard?.writeText(window.location.origin + "/companies/1");
+                              navigator.clipboard?.writeText(window.location.origin + `/companies/${encodeURIComponent(companyName || "company")}`);
                               showToast("Company profile link copied to clipboard!");
                             }
                           }}
@@ -2388,6 +2561,59 @@ export default function CompanyDashboardPage() {
                       defaultValue={aboutCompany}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden resize-none"
                     />
+                  </div>
+
+                  {/* Work Culture & Employee Perks (Candidate Profile Sections) */}
+                  <div className="pt-4 border-t border-slate-100 space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-violet-600" />
+                        <h3 className="text-sm font-bold text-slate-900">
+                          Work Culture &amp; Employee Benefits (Job Seeker View)
+                        </h3>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        These points will appear on your public company profile for candidates. Type each point on a new line.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Work Culture & Values Input */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-slate-700 flex items-center gap-1.5 text-xs">
+                            <HeartHandshake className="w-4 h-4 text-blue-600 shrink-0" />
+                            <span>Work Culture &amp; Values</span>
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-medium">1 point per line</span>
+                        </div>
+                        <textarea
+                          name="culture"
+                          rows={4}
+                          value={cultureText}
+                          onChange={(e) => setCultureText(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden resize-none leading-relaxed"
+                        />
+                      </div>
+
+                      {/* Employee Perks & Benefits Input */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-slate-700 flex items-center gap-1.5 text-xs">
+                            <Gift className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>Employee Perks &amp; Benefits</span>
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-medium">1 point per line</span>
+                        </div>
+                        <textarea
+                          name="perks"
+                          rows={4}
+                          value={perksText}
+                          onChange={(e) => setPerksText(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden resize-none leading-relaxed"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-slate-100">
@@ -2739,7 +2965,7 @@ export default function CompanyDashboardPage() {
                         {/* Right Action Buttons */}
                         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pl-4 whitespace-nowrap">
                           <button
-                            onClick={() => setSelectedApplicant(app)}
+                            onClick={() => handleViewResume(app)}
                             className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
                           >
                             <FileText className="w-3.5 h-3.5 text-[#7C3AED]" />
@@ -3901,13 +4127,20 @@ export default function CompanyDashboardPage() {
                   </span>
                 </div>
                 <button
-                  onClick={() =>
-                    showToast(`Downloading CV for ${selectedApplicant.candidateName}...`)
-                  }
+                  onClick={() => {
+                    if (selectedApplicant.id) {
+                      markResumeViewedAPI(selectedApplicant.id).catch(() => {});
+                    }
+                    if (selectedApplicant.resumeUrl) {
+                      window.open(selectedApplicant.resumeUrl, "_blank");
+                    } else {
+                      showToast(`Viewing resume for ${selectedApplicant.candidateName}`);
+                    }
+                  }}
                   className="px-3 py-1.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download</span>
+                  <span>Download / View</span>
                 </button>
               </div>
 
@@ -4218,6 +4451,11 @@ export default function CompanyDashboardPage() {
         applicants={jobApplicantsList}
         isLoading={isLoadingJobApplicants}
         onUpdateStatus={handleUpdateApplicantStatus}
+        onViewResume={(app) => {
+          if (app.id) {
+            markResumeViewedAPI(app.id).catch(() => {});
+          }
+        }}
         onNavigateToApplications={() => {
           setActiveTab("applicants");
           if (selectedApplicantsJob) {
