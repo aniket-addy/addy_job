@@ -91,32 +91,59 @@ export const getJobs = async (req: Request, res: Response) => {
 
     const jobs = await queryExec.exec();
 
-    const formatted = jobs.map((j) => ({
-      id: j._id.toString(),
-      _id: j._id.toString(),
-      title: j.title,
-      company: j.company,
-      companyId: j.companyId ? j.companyId.toString() : '',
-      type: j.type,
-      location: j.location,
-      salary: j.salary,
-      status: j.status,
-      postedOn: j.postedOn || 'Recent',
-      applicantsCount: j.applicantsCount || 0,
-      department: j.department || 'Engineering',
-      category: j.department || 'Engineering',
-      workplace: j.workplace || 'Hybrid',
-      experience: j.experience || '2-4 years',
-      skills: j.skills || [],
-      tags: j.tags && j.tags.length > 0 ? j.tags : j.skills || [],
-      openings: j.openings || 1,
-      postedBy: j.postedBy || j.company,
-      description: j.description || '',
-      responsibilities: j.responsibilities || [],
-      requirements: j.requirements || [],
-      benefits: j.benefits || [],
-      createdAt: j.createdAt,
-    }));
+    // Map company logos to jobs
+    const compIds = jobs.map((j) => j.companyId).filter(Boolean);
+    const compNames = jobs.map((j) => j.company).filter(Boolean);
+    const compUsers = await User.find({
+      role: 'company',
+      $or: [
+        { _id: { $in: compIds.filter((id) => mongoose.isValidObjectId(id)) } },
+        { userId: { $in: compIds } },
+        { companyName: { $in: compNames } },
+      ],
+    }).select('_id userId companyName name logo profileImage');
+
+    const compMap = new Map<string, string>();
+    compUsers.forEach((u) => {
+      const img = u.profileImage || u.logo || '';
+      if (img) {
+        compMap.set(u._id.toString(), img);
+        if (u.userId) compMap.set(u.userId, img);
+        if (u.companyName) compMap.set(u.companyName.toLowerCase().trim(), img);
+        if (u.name) compMap.set(u.name.toLowerCase().trim(), img);
+      }
+    });
+
+    const formatted = jobs.map((j) => {
+      const compLogo = j.logo || compMap.get(j.companyId?.toString()) || compMap.get(j.company?.toLowerCase().trim()) || '';
+      return {
+        id: j._id.toString(),
+        _id: j._id.toString(),
+        title: j.title,
+        company: j.company,
+        companyId: j.companyId ? j.companyId.toString() : '',
+        logo: compLogo,
+        type: j.type,
+        location: j.location,
+        salary: j.salary,
+        status: j.status,
+        postedOn: j.postedOn || 'Recent',
+        applicantsCount: j.applicantsCount || 0,
+        department: j.department || 'Engineering',
+        category: j.department || 'Engineering',
+        workplace: j.workplace || 'Hybrid',
+        experience: j.experience || '2-4 years',
+        skills: j.skills || [],
+        tags: j.tags && j.tags.length > 0 ? j.tags : j.skills || [],
+        openings: j.openings || 1,
+        postedBy: j.postedBy || j.company,
+        description: j.description || '',
+        responsibilities: j.responsibilities || [],
+        requirements: j.requirements || [],
+        benefits: j.benefits || [],
+        createdAt: j.createdAt,
+      };
+    });
 
     res.json({
       success: true,
@@ -149,18 +176,48 @@ export const getJobById = async (req: Request, res: Response) => {
       return;
     }
 
+    const stats = await getJobActivityStats(job, job.title, job.company);
+
+    let companyUser = null;
+    if (job.companyId && mongoose.isValidObjectId(job.companyId)) {
+      companyUser = await User.findById(job.companyId);
+    }
+    if (!companyUser && job.company) {
+      companyUser = await User.findOne({
+        role: 'company',
+        $or: [
+          { companyName: new RegExp(`^${job.company.trim()}$`, 'i') },
+          { name: new RegExp(`^${job.company.trim()}$`, 'i') },
+        ],
+      });
+    }
+
+    const cLogo = job.logo || companyUser?.profileImage || companyUser?.logo || '';
+    const cAbout = companyUser?.aboutCompany || companyUser?.bio || `${job.company} is an industry-leading organization building modern solutions.`;
+    const cSize = companyUser?.companySize || '50-200 employees';
+    const cWebsite = companyUser?.website || (companyUser?.workEmail && !companyUser?.workEmail.toLowerCase().endsWith('gmail.com') ? companyUser.workEmail.split('@')[1] : '') || 'company.com';
+    const cIndustry = companyUser?.industry || 'Technology & Software';
+
     const formatted = {
       id: job._id.toString(),
       _id: job._id.toString(),
       title: job.title,
       company: job.company,
       companyId: job.companyId ? job.companyId.toString() : '',
+      logo: cLogo,
+      aboutCompany: cAbout,
+      companySize: cSize,
+      website: cWebsite,
+      industry: cIndustry,
+      founded: '2020',
       type: job.type,
       location: job.location,
       salary: job.salary,
       status: job.status,
       postedOn: job.postedOn || 'Recent',
-      applicantsCount: job.applicantsCount || 0,
+      applicantsCount: stats.totalApplicants,
+      totalApplicants: stats.totalApplicants,
+      viewedCount: stats.viewedCount,
       department: job.department || 'Engineering',
       category: job.department || 'Engineering',
       workplace: job.workplace || 'Hybrid',
@@ -442,6 +499,95 @@ export const applyToJob = async (req: Request, res: Response) => {
   }
 };
 
+// Helper to calculate real-time activity statistics (total applications and viewed count) for a job
+export const getJobActivityStats = async (jobIdOrDoc: any, title?: string, company?: string) => {
+  try {
+    const { Application } = await import('../models/application.model.js');
+    const { Job } = await import('../models/job.model.js');
+
+    let jIdStr = '';
+    let jobDoc: any = null;
+
+    if (typeof jobIdOrDoc === 'string') {
+      jIdStr = jobIdOrDoc.trim();
+    } else if (jobIdOrDoc && typeof jobIdOrDoc === 'object') {
+      jobDoc = jobIdOrDoc;
+      jIdStr = jobDoc._id ? jobDoc._id.toString() : (jobDoc.id ? jobDoc.id.toString() : '');
+    }
+
+    const jobConditions: any[] = [];
+    if (jIdStr) {
+      jobConditions.push({ jobId: jIdStr });
+      if (mongoose.isValidObjectId(jIdStr)) {
+        jobConditions.push({ jobId: new mongoose.Types.ObjectId(jIdStr) });
+      }
+    }
+
+    const jobTitle = title || (jobDoc ? jobDoc.title : '');
+    const jobCompany = company || (jobDoc ? jobDoc.company : '');
+
+    if (jobTitle && jobCompany) {
+      jobConditions.push({
+        position: new RegExp(`^${jobTitle.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        company: new RegExp(`^${jobCompany.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      });
+    }
+
+    if (jobConditions.length === 0) {
+      return { totalApplicants: 1, viewedCount: 0 };
+    }
+
+    const matchedApps = await Application.find({
+      $or: jobConditions,
+      $nor: [{ company: 'Candidate Profile Upload', jobId: { $exists: false } }],
+    }).select('_id candidateEmail resumeViewed status recruiterAction');
+
+    let docApplicantsCount = 0;
+    if (jobDoc && typeof jobDoc.applicantsCount === 'number') {
+      docApplicantsCount = jobDoc.applicantsCount;
+    } else if (jIdStr && mongoose.isValidObjectId(jIdStr)) {
+      const j = await Job.findById(jIdStr).select('applicantsCount');
+      if (j && typeof j.applicantsCount === 'number') {
+        docApplicantsCount = j.applicantsCount;
+      }
+    }
+
+    const totalApplicants = Math.max(matchedApps.length, docApplicantsCount, 1);
+    const viewedCount = matchedApps.filter((a: any) => {
+      const st = (a.status || '').trim();
+      const hasAction = Boolean(a.recruiterAction && a.recruiterAction.trim() !== '') ||
+        ['Shortlisted', 'Interview', 'Hired', 'Rejected'].includes(st);
+      return Boolean(a.resumeViewed || hasAction || ['Reviewed', 'Reviewing', 'Resume Viewed'].includes(st));
+    }).length;
+
+    return { totalApplicants, viewedCount };
+  } catch (err) {
+    console.warn('getJobActivityStats error:', err);
+    return { totalApplicants: 1, viewedCount: 0 };
+  }
+};
+
+// @desc    Get live job activity (total applications & applications viewed by recruiter)
+// @route   GET /api/jobs/:id/activity
+export const getJobActivity = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const { id } = req.params;
+    const { title, company } = req.query;
+
+    const stats = await getJobActivityStats(id, title ? String(title) : undefined, company ? String(company) : undefined);
+
+    res.json({
+      success: true,
+      jobId: id,
+      ...stats,
+    });
+  } catch (error: any) {
+    console.error('getJobActivity error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get job activity', error: error.message });
+  }
+};
+
 // @desc    Get candidate's submitted applications
 // @route   GET /api/jobs/applied/candidate
 export const getCandidateApplications = async (req: Request, res: Response) => {
@@ -497,10 +643,35 @@ export const getCandidateApplications = async (req: Request, res: Response) => {
     const { Application } = await import('../models/application.model.js');
     const apps = await Application.find(query).populate('jobId').sort({ createdAt: -1 });
 
+    const statsCache = new Map<string, { totalApplicants: number; viewedCount: number }>();
+    const formattedApps = await Promise.all(
+      apps.map(async (appDoc) => {
+        const a = appDoc.toObject ? appDoc.toObject() : { ...appDoc };
+        const rawJobId = (a.jobId && typeof a.jobId === 'object')
+          ? (a.jobId._id?.toString() || a.jobId.id?.toString())
+          : (a.jobId ? a.jobId.toString() : '');
+        const pos = ((a.jobId && typeof a.jobId === 'object') ? a.jobId.title : '') || a.position || '';
+        const comp = ((a.jobId && typeof a.jobId === 'object') ? a.jobId.company : '') || a.company || '';
+        const cacheKey = rawJobId || `${pos.toLowerCase()}:::${comp.toLowerCase()}`;
+
+        let stats = statsCache.get(cacheKey);
+        if (!stats) {
+          stats = await getJobActivityStats(a.jobId, pos, comp);
+          statsCache.set(cacheKey, stats);
+        }
+
+        return {
+          ...a,
+          totalApplicants: stats.totalApplicants,
+          viewedCount: stats.viewedCount,
+        };
+      })
+    );
+
     res.json({
       success: true,
-      count: apps.length,
-      applications: apps,
+      count: formattedApps.length,
+      applications: formattedApps,
     });
   } catch (error: any) {
     console.error('getCandidateApplications error:', error);

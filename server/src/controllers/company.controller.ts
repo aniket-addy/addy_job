@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { User } from '../models/user.model.js';
+import { UserProfile } from '../models/profile.model.js';
 import { Job } from '../models/job.model.js';
 import { ensureDBConnection } from '../config/db.js';
 
@@ -73,11 +74,17 @@ export const getCompanies = async (req: Request, res: Response) => {
     // Fetch all active jobs to aggregate count per company
     const activeJobs = await Job.find({ status: 'Active' });
 
+    const companyIds = companyUsers.map((u) => u._id.toString());
+    const profiles = await UserProfile.find({ userId: { $in: companyIds } });
+    const profileMap = new Map();
+    profiles.forEach((p: any) => profileMap.set(p.userId, p));
+
     const formatted = companyUsers.map((u) => {
       const cName = u.companyName || u.name || 'Company';
       const cKey = cName.toLowerCase().trim();
       const idStr = u._id.toString();
       const customId = u.userId || u.customId || '';
+      const p = profileMap.get(idStr);
 
       // Count all active jobs belonging to this company by ID or Name
       const matchingJobs = activeJobs.filter((j) => {
@@ -93,15 +100,28 @@ export const getCompanies = async (req: Request, res: Response) => {
       const openRoles = matchingJobs.length;
       const theme = getThemeForCompany(cName, idStr);
 
+      const realBanner = u.bannerImage || (p as any)?.bannerImage || '';
+      const realLogo = u.profileImage || u.logo || (p as any)?.profileImage || (p as any)?.logo || '';
+      const realTagline = u.tagline || (p as any)?.tagline || u.industry || u.headline || '';
+      const realAbout = u.aboutCompany || u.bio || (p as any)?.aboutCompany || (p as any)?.bio || '';
+      const realWebsite = u.website || (p as any)?.website || (u.workEmail && u.workEmail.includes('@') && !u.workEmail.toLowerCase().endsWith('gmail.com') ? u.workEmail.split('@')[1] : '');
+      const realGst = u.gstNumber || (p as any)?.gstNumber || '';
+      const realPhone = u.phone || (p as any)?.phone || '';
+      const realStatus = u.status || (p as any)?.status || 'Pending';
+
       return {
         id: idStr,
         _id: idStr,
         customId: u.userId || u.customId || idStr,
         name: cName,
-        tagline: u.industry || u.headline || 'Enterprise Software & Solutions',
-        industry: u.industry || 'Technology & Software',
-        location: u.location || 'Bengaluru, India',
-        size: u.companySize || '50-200 employees',
+        companyName: cName,
+        logo: realLogo,
+        profileImage: realLogo,
+        bannerImage: realBanner,
+        tagline: realTagline,
+        industry: u.industry || p?.industry || 'Technology & Software',
+        location: u.location || p?.location || 'India',
+        size: u.companySize || p?.companySize || '1-10 employees',
         rating: 4.8,
         reviewsCount: '250',
         recommendRate: '95%',
@@ -109,31 +129,30 @@ export const getCompanies = async (req: Request, res: Response) => {
         followers: '12.5k',
         companyType: 'Private Enterprise',
         openRoles,
-        about:
-          u.bio ||
-          `${cName} is an industry-leading organization building modern solutions, delivering high-impact services, and driving innovation.`,
-        founded: '2020',
-        website: u.workEmail ? u.workEmail.split('@')[1] || 'company.com' : 'company.com',
-        gstNumber: u.gstNumber || '',
-        phone: u.phone || '',
+        about: realAbout,
+        aboutCompany: realAbout,
+        founded: (u as any).incorporationYear || (p as any)?.incorporationYear || '',
+        website: realWebsite,
+        gstNumber: realGst,
+        phone: realPhone,
         email: u.workEmail || u.email || '',
-        status: u.status || 'Approved',
+        status: realStatus,
         iconName: theme.iconName,
         iconBg: theme.iconBg,
         color: theme.color,
         accentColor: theme.accent,
         bannerGradient: theme.banner,
         initials: getInitials(cName),
-        culture: [
-          'Innovation-driven & collaborative environment',
-          'Flexible & hybrid workplace culture',
-          'Comprehensive health and learning benefits',
-        ],
-        perks: [
-          'Health Insurance & Wellness programs',
-          'Flexible working hours & remote options',
-          'Annual performance bonuses & learning stipends',
-        ],
+        culture: (Array.isArray(u.culture) && u.culture.length > 0)
+          ? u.culture
+          : (Array.isArray((p as any)?.culture) && (p as any).culture.length > 0)
+          ? (p as any).culture
+          : [],
+        perks: (Array.isArray(u.perks) && u.perks.length > 0)
+          ? u.perks
+          : (Array.isArray((p as any)?.perks) && (p as any).perks.length > 0)
+          ? (p as any).perks
+          : [],
       };
     });
 
@@ -181,6 +200,10 @@ export const getCompanyById = async (req: Request, res: Response) => {
       });
     }
 
+    if (!companyUser && (/^\d+$/.test(id) || id === '1')) {
+      companyUser = await User.findOne({ role: 'company' });
+    }
+
     if (!companyUser) {
       res.status(404).json({ success: false, message: 'Company not found' });
       return;
@@ -189,6 +212,27 @@ export const getCompanyById = async (req: Request, res: Response) => {
     const cName = companyUser.companyName || companyUser.name || 'Company';
     const idStr = companyUser._id.toString();
     const theme = getThemeForCompany(cName, idStr);
+
+    // Also load userProfile to ensure bannerImage, logo, and descriptions are fully merged
+    const profileLookupConditions: any[] = [{ userId: companyUser._id.toString() }];
+    if (companyUser.userId) profileLookupConditions.push({ userId: companyUser.userId });
+    if (companyUser.customId) profileLookupConditions.push({ userId: companyUser.customId });
+    if (companyUser.email) profileLookupConditions.push({ email: companyUser.email });
+
+    const userProfile = await UserProfile.findOne({ $or: profileLookupConditions });
+
+    const prof = userProfile as any;
+    const realBanner = companyUser.bannerImage || prof?.bannerImage || '';
+    const realLogo = companyUser.profileImage || companyUser.logo || prof?.profileImage || prof?.logo || '';
+    const realTagline = companyUser.tagline || prof?.tagline || companyUser.industry || companyUser.headline || '';
+    const realAbout = companyUser.aboutCompany || companyUser.bio || prof?.aboutCompany || prof?.bio || '';
+    const realWebsite = companyUser.website || prof?.website || (companyUser.workEmail && companyUser.workEmail.includes('@') && !companyUser.workEmail.toLowerCase().endsWith('gmail.com') ? companyUser.workEmail.split('@')[1] : '');
+    const realGst = companyUser.gstNumber || prof?.gstNumber || '';
+    const realPhone = companyUser.phone || prof?.phone || '';
+    const realStatus = companyUser.status || prof?.status || 'Pending';
+    const realIndustry = companyUser.industry || prof?.industry || 'Technology & Software';
+    const realLocation = companyUser.location || prof?.location || 'India';
+    const realSize = companyUser.companySize || prof?.companySize || '1-10 employees';
 
     // Fetch all jobs posted by this company from MongoDB
     const jobs = await Job.find({
@@ -206,6 +250,7 @@ export const getCompanyById = async (req: Request, res: Response) => {
       title: j.title,
       company: j.company,
       companyId: idStr,
+      logo: j.logo || realLogo,
       type: j.type,
       location: j.location,
       salary: j.salary,
@@ -232,10 +277,14 @@ export const getCompanyById = async (req: Request, res: Response) => {
       _id: idStr,
       customId: companyUser.userId || companyUser.customId || idStr,
       name: cName,
-      tagline: companyUser.industry || companyUser.headline || 'Enterprise Software & Solutions',
-      industry: companyUser.industry || 'Technology & Software',
-      location: companyUser.location || 'India',
-      size: companyUser.companySize || '50-200 employees',
+      companyName: cName,
+      logo: realLogo,
+      profileImage: realLogo,
+      bannerImage: realBanner,
+      tagline: realTagline,
+      industry: realIndustry,
+      location: realLocation,
+      size: realSize,
       rating: 4.8,
       reviewsCount: '250',
       recommendRate: '95%',
@@ -243,31 +292,30 @@ export const getCompanyById = async (req: Request, res: Response) => {
       followers: '12.5k',
       companyType: 'Private Enterprise',
       openRoles: formattedJobs.filter((j) => j.status === 'Active').length,
-      about:
-        companyUser.bio ||
-        `${cName} is an industry-leading organization building modern solutions, delivering high-impact services, and driving innovation.`,
-      founded: '2020',
-      website: companyUser.workEmail ? companyUser.workEmail.split('@')[1] || 'company.com' : 'company.com',
-      gstNumber: companyUser.gstNumber || '',
-      phone: companyUser.phone || '',
+      about: realAbout,
+      aboutCompany: realAbout,
+      founded: (companyUser as any).incorporationYear || prof?.incorporationYear || '',
+      website: realWebsite,
+      gstNumber: realGst,
+      phone: realPhone,
       email: companyUser.workEmail || companyUser.email || '',
-      status: companyUser.status || 'Approved',
+      status: realStatus,
       iconName: theme.iconName,
       iconBg: theme.iconBg,
       color: theme.color,
       accentColor: theme.accent,
       bannerGradient: theme.banner,
       initials: getInitials(cName),
-      culture: [
-        'Innovation-driven & collaborative environment',
-        'Flexible & hybrid workplace culture',
-        'Comprehensive health and learning benefits',
-      ],
-      perks: [
-        'Health Insurance & Wellness programs',
-        'Flexible working hours & remote options',
-        'Annual performance bonuses & learning stipends',
-      ],
+      culture: (Array.isArray(companyUser.culture) && companyUser.culture.length > 0)
+        ? companyUser.culture
+        : (Array.isArray(prof?.culture) && prof.culture.length > 0)
+        ? prof.culture
+        : [],
+      perks: (Array.isArray(companyUser.perks) && companyUser.perks.length > 0)
+        ? companyUser.perks
+        : (Array.isArray(prof?.perks) && prof.perks.length > 0)
+        ? prof.perks
+        : [],
     };
 
     res.json({
@@ -278,5 +326,178 @@ export const getCompanyById = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('getCompanyById error:', error);
     res.status(500).json({ success: false, message: 'Failed to retrieve company details', error: error.message });
+  }
+};
+
+// @desc    Update single company profile directly by ID, customId, email, or name
+// @route   PUT /api/companies/:id
+export const updateCompanyById = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const id = String(req.params.id);
+
+    let companyUser = null;
+    if (mongoose.isValidObjectId(id)) {
+      companyUser = await User.findById(id);
+    }
+    if (!companyUser) {
+      companyUser = await User.findOne({
+        role: 'company',
+        $or: [{ userId: id }, { customId: id }, { email: id }],
+      });
+    }
+    if (!companyUser) {
+      const cleanName = id.replace(/-/g, ' ');
+      companyUser = await User.findOne({
+        role: 'company',
+        $or: [
+          { companyName: new RegExp(`^${cleanName}$`, 'i') },
+          { name: new RegExp(`^${cleanName}$`, 'i') },
+        ],
+      });
+    }
+
+    if (!companyUser) {
+      res.status(404).json({ success: false, message: 'Company not found' });
+      return;
+    }
+
+    const {
+      companyName,
+      tagline,
+      industry,
+      companySize,
+      location,
+      headquarters,
+      website,
+      workEmail,
+      contactEmail,
+      phone,
+      contactPhone,
+      gstNumber,
+      aboutCompany,
+      bio,
+      profileImage,
+      logo,
+      bannerImage,
+      culture,
+      perks,
+    } = req.body;
+
+    const oldCompanyName = companyUser.companyName || companyUser.name || '';
+
+    if (companyName !== undefined) companyUser.companyName = companyName;
+    if (tagline !== undefined) companyUser.tagline = tagline;
+    if (industry !== undefined) companyUser.industry = industry;
+    if (companySize !== undefined) companyUser.companySize = companySize;
+    if (location !== undefined) companyUser.location = location;
+    if (headquarters !== undefined && location === undefined) companyUser.location = headquarters;
+    if (website !== undefined) companyUser.website = website;
+    if (workEmail !== undefined) companyUser.workEmail = workEmail;
+    if (contactEmail !== undefined && workEmail === undefined) companyUser.workEmail = contactEmail;
+    if (phone !== undefined) companyUser.phone = phone;
+    if (contactPhone !== undefined && phone === undefined) companyUser.phone = contactPhone;
+    if (gstNumber !== undefined) companyUser.gstNumber = gstNumber;
+    if (aboutCompany !== undefined) companyUser.aboutCompany = aboutCompany;
+    if (bio !== undefined && aboutCompany === undefined) companyUser.bio = bio;
+    if (profileImage !== undefined) {
+      companyUser.profileImage = profileImage;
+      companyUser.logo = profileImage;
+    }
+    if (logo !== undefined && profileImage === undefined) {
+      companyUser.logo = logo;
+      companyUser.profileImage = logo;
+    }
+    if (bannerImage !== undefined) companyUser.bannerImage = bannerImage;
+
+    if (culture !== undefined) {
+      companyUser.culture = Array.isArray(culture)
+        ? culture
+        : typeof culture === 'string'
+        ? culture.split('\n').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+    }
+    if (perks !== undefined) {
+      companyUser.perks = Array.isArray(perks)
+        ? perks
+        : typeof perks === 'string'
+        ? perks.split('\n').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+    }
+
+    await companyUser.save();
+
+    // Also sync to UserProfile collection
+    const idStr = companyUser._id.toString();
+    const profileLookupConditions: any[] = [{ userId: idStr }];
+    if (companyUser.userId) profileLookupConditions.push({ userId: companyUser.userId });
+    if (companyUser.customId) profileLookupConditions.push({ userId: companyUser.customId });
+    if (companyUser.email) profileLookupConditions.push({ email: companyUser.email });
+
+    await UserProfile.findOneAndUpdate(
+      { $or: profileLookupConditions },
+      {
+        userId: companyUser.userId || companyUser.customId || idStr,
+        email: companyUser.email,
+        companyName: companyUser.companyName,
+        tagline: companyUser.tagline,
+        industry: companyUser.industry,
+        companySize: companyUser.companySize,
+        location: companyUser.location,
+        website: companyUser.website,
+        mobile: companyUser.phone,
+        gstNumber: companyUser.gstNumber,
+        aboutCompany: companyUser.aboutCompany,
+        profileImage: companyUser.profileImage,
+        logo: companyUser.logo,
+        bannerImage: companyUser.bannerImage,
+        culture: companyUser.culture,
+        perks: companyUser.perks,
+      },
+      { upsert: true, new: true }
+    );
+
+    // Sync to Jobs
+    const newCompName = companyUser.companyName || companyUser.name || '';
+    if (newCompName || companyUser.logo || companyUser.profileImage) {
+      const jobUpdate: any = {};
+      if (newCompName) {
+        jobUpdate.company = newCompName;
+        jobUpdate.postedBy = newCompName;
+      }
+      if (companyUser.logo || companyUser.profileImage) {
+        jobUpdate.logo = companyUser.logo || companyUser.profileImage;
+      }
+      await Job.updateMany(
+        {
+          $or: [
+            { companyId: idStr },
+            { companyId: companyUser.userId },
+            { company: oldCompanyName },
+          ].filter(Boolean),
+        },
+        { $set: jobUpdate }
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Company profile updated successfully',
+      company: {
+        id: idStr,
+        name: newCompName,
+        companyName: newCompName,
+        bannerImage: companyUser.bannerImage,
+        logo: companyUser.profileImage || companyUser.logo,
+        profileImage: companyUser.profileImage || companyUser.logo,
+        culture: companyUser.culture,
+        perks: companyUser.perks,
+        tagline: companyUser.tagline,
+        aboutCompany: companyUser.aboutCompany,
+      },
+    });
+  } catch (error: any) {
+    console.error('updateCompanyById error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update company profile', error: error.message });
   }
 };

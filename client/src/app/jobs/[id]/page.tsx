@@ -371,27 +371,35 @@ function JobDetailPageContent() {
                 </div>
 
                 {/* Company Logo Box */}
-                <div className="w-24 h-20 sm:w-28 sm:h-22 rounded-2xl border border-slate-200/90 p-2 sm:p-2.5 flex items-center justify-center bg-white shadow-xs shrink-0 select-none">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="flex flex-col text-left">
-                      <span className="text-xs sm:text-sm font-black tracking-tight text-slate-900 leading-none">
-                        {job.company.split(" ")[0].toUpperCase() || "MNC"}
-                      </span>
-                      <span className="text-[6.5px] sm:text-[7.5px] font-bold tracking-widest text-slate-400 uppercase leading-none mt-0.5">
-                        CORPORATION
-                      </span>
+                <div className="w-24 h-20 sm:w-28 sm:h-22 rounded-2xl border border-slate-200/90 p-2 sm:p-2.5 flex items-center justify-center bg-white shadow-xs shrink-0 select-none overflow-hidden">
+                  {job.logo || job.companyLogo ? (
+                    <img
+                      src={job.logo || job.companyLogo}
+                      alt={job.company}
+                      className="w-full h-full object-contain rounded-xl"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className="flex flex-col text-left">
+                        <span className="text-xs sm:text-sm font-black tracking-tight text-slate-900 leading-none">
+                          {job.company.split(" ")[0].toUpperCase() || "MNC"}
+                        </span>
+                        <span className="text-[6.5px] sm:text-[7.5px] font-bold tracking-widest text-slate-400 uppercase leading-none mt-0.5">
+                          CORPORATION
+                        </span>
+                      </div>
+                      {/* Multi-facet diamond logo badge */}
+                      <div className="relative w-6 h-6 sm:w-7 sm:h-7 shrink-0 flex items-center justify-center">
+                        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-xs">
+                          <polygon points="20,4 36,20 20,20" fill="#FBBF24" />
+                          <polygon points="36,20 20,36 20,20" fill="#EF4444" />
+                          <polygon points="20,36 4,20 20,20" fill="#1E3A8A" />
+                          <polygon points="4,20 20,4 20,20" fill="#10B981" />
+                          <circle cx="20" cy="20" r="5" fill="#FFFFFF" fillOpacity="0.9" />
+                        </svg>
+                      </div>
                     </div>
-                    {/* Multi-facet diamond logo badge */}
-                    <div className="relative w-6 h-6 sm:w-7 sm:h-7 shrink-0 flex items-center justify-center">
-                      <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-xs">
-                        <polygon points="20,4 36,20 20,20" fill="#FBBF24" />
-                        <polygon points="36,20 20,36 20,20" fill="#EF4444" />
-                        <polygon points="20,36 4,20 20,20" fill="#1E3A8A" />
-                        <polygon points="4,20 20,4 20,20" fill="#10B981" />
-                        <circle cx="20" cy="20" r="5" fill="#FFFFFF" fillOpacity="0.9" />
-                      </svg>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 

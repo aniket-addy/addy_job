@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchJobActivityAPI } from "@/lib/api";
 import {
   CheckCircle2,
   Bookmark,
@@ -29,6 +30,8 @@ export interface AppliedJobItem {
   title: string;
   company: string;
   companyId?: string;
+  logo?: string;
+  companyLogo?: string;
   location?: string;
   salary?: string;
   type?: string;
@@ -55,7 +58,7 @@ interface AppliedJobsViewProps {
   appliedJobs: AppliedJobItem[];
   onSelectCompanyForMessage?: (companyName: string, companyId?: string) => void;
   onToggleSave?: (job: any) => void;
-  isJobSaved?: (jobId: string) => boolean;
+  isJobSaved?: (jobOrId: any) => boolean;
 }
 
 export default function AppliedJobsView({
@@ -76,6 +79,46 @@ export default function AppliedJobsView({
       const sId = String(selectedJobId);
       return String(j.jobId) === sId || String(j.id) === sId;
     }) || appliedJobs[0];
+
+  const [liveActivity, setLiveActivity] = useState<{ totalApplicants: number; viewedCount: number } | null>(null);
+
+  useEffect(() => {
+    if (!activeJob) {
+      setLiveActivity(null);
+      return;
+    }
+    const jId = String(activeJob.jobId || activeJob.id || "");
+    if (!jId) return;
+
+    let isMounted = true;
+    const fetchStats = async () => {
+      try {
+        const stats = await fetchJobActivityAPI(jId, activeJob.title, activeJob.company);
+        if (stats && stats.success && isMounted) {
+          setLiveActivity({
+            totalApplicants: stats.totalApplicants,
+            viewedCount: stats.viewedCount,
+          });
+        }
+      } catch {}
+    };
+
+    fetchStats();
+    const interval = setInterval(fetchStats, 3000);
+
+    const onSync = () => {
+      fetchStats();
+    };
+    window.addEventListener("applied_jobs_change", onSync);
+    window.addEventListener("storage", onSync);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener("applied_jobs_change", onSync);
+      window.removeEventListener("storage", onSync);
+    };
+  }, [activeJob?.jobId, activeJob?.id, activeJob?.title, activeJob?.company]);
 
   const filteredList = appliedJobs;
 
@@ -175,18 +218,53 @@ export default function AppliedJobsView({
                   >
                     {/* Top Row: Title & Company + Bookmark */}
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 leading-snug">
-                          {job.title}
-                        </h4>
-                        <p className="text-xs text-slate-500 font-medium mt-0.5">
-                          {job.company} <span className="text-amber-500 font-bold">★ {job.rating || 4.8}</span> | {job.reviewsCount || "120 Reviews"}
-                        </p>
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-100 overflow-hidden">
+                          {job.logo || job.companyLogo ? (
+                            <img
+                              src={job.logo || job.companyLogo}
+                              alt={job.company}
+                              className="w-full h-full object-contain p-0.5"
+                            />
+                          ) : (
+                            (job.company || "C").charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-slate-900 leading-snug truncate">
+                            {job.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
+                            {job.company} <span className="text-amber-500 font-bold">★ {job.rating || 4.8}</span> | {job.reviewsCount || "120 Reviews"}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="w-6 h-6 rounded-md border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
-                        <Bookmark className="w-3.5 h-3.5" />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onToggleSave) onToggleSave(job);
+                        }}
+                        className={`w-7 h-7 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                          isJobSaved && (isJobSaved(job.jobId || job.id) || isJobSaved(job))
+                            ? "bg-blue-50 border-blue-200 text-blue-600 shadow-2xs"
+                            : "border-slate-200 text-slate-400 hover:text-blue-600 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                        title={
+                          isJobSaved && (isJobSaved(job.jobId || job.id) || isJobSaved(job))
+                            ? "Remove from Saved Jobs"
+                            : "Save Job"
+                        }
+                      >
+                        <Bookmark
+                          className={`w-3.5 h-3.5 ${
+                            isJobSaved && (isJobSaved(job.jobId || job.id) || isJobSaved(job))
+                              ? "fill-blue-600 text-blue-600"
+                              : ""
+                          }`}
+                        />
+                      </button>
                     </div>
 
                     {/* Middle Status Pill + Recruiter Activity */}
@@ -265,31 +343,53 @@ export default function AppliedJobsView({
               <div className="space-y-6">
                 {/* Header: Title, Company, Similar Jobs Link, Bookmark */}
                 <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
-                      {activeJob.title}
-                    </h3>
-                    <p className="text-sm font-semibold text-slate-700">
-                      {activeJob.company}{" "}
-                      <span className="text-amber-500 font-bold">★ {activeJob.rating || 4.8}</span> | {activeJob.reviewsCount || "120 Reviews"}
-                    </p>
-                    <Link
-                      href={`/jobs?q=${encodeURIComponent(activeJob.title)}`}
-                      className="inline-block text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline transition pt-1"
-                    >
-                      View similar jobs
-                    </Link>
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base shrink-0 border border-blue-100 overflow-hidden shadow-xs">
+                      {activeJob.logo || activeJob.companyLogo ? (
+                        <img
+                          src={activeJob.logo || activeJob.companyLogo}
+                          alt={activeJob.company}
+                          className="w-full h-full object-contain p-1"
+                        />
+                      ) : (
+                        (activeJob.company || "C").charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                        {activeJob.title}
+                      </h3>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {activeJob.company}{" "}
+                        <span className="text-amber-500 font-bold">★ {activeJob.rating || 4.8}</span> | {activeJob.reviewsCount || "120 Reviews"}
+                      </p>
+                      <Link
+                        href={`/jobs?q=${encodeURIComponent(activeJob.title)}`}
+                        className="inline-block text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline transition pt-1"
+                      >
+                        View similar jobs
+                      </Link>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
                     <button
+                      type="button"
                       onClick={() => onToggleSave && onToggleSave(activeJob)}
-                      className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition cursor-pointer"
-                      title="Bookmark Job"
+                      className={`p-2 rounded-xl border transition cursor-pointer flex items-center justify-center ${
+                        isJobSaved && (isJobSaved(activeJob.jobId || activeJob.id) || isJobSaved(activeJob))
+                          ? "bg-blue-50 border-blue-200 text-blue-600 shadow-2xs"
+                          : "border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-slate-50"
+                      }`}
+                      title={
+                        isJobSaved && (isJobSaved(activeJob.jobId || activeJob.id) || isJobSaved(activeJob))
+                          ? "Remove from Saved Jobs"
+                          : "Bookmark Job"
+                      }
                     >
                       <Bookmark
                         className={`w-4 h-4 ${
-                          isJobSaved && isJobSaved(activeJob.jobId || activeJob.id)
+                          isJobSaved && (isJobSaved(activeJob.jobId || activeJob.id) || isJobSaved(activeJob))
                             ? "fill-blue-600 text-blue-600"
                             : ""
                         }`}
@@ -453,13 +553,18 @@ export default function AppliedJobsView({
                   <div className="bg-slate-50/60 rounded-2xl border border-slate-200/90 p-4 sm:p-5 grid grid-cols-2 gap-4 max-w-md">
                     <div>
                       <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                        {activeJob.totalApplicants || 1}
+                        {liveActivity?.totalApplicants ?? (activeJob.totalApplicants || 1)}
                       </p>
                       <p className="text-xs text-slate-500 leading-snug mt-1">Total applications</p>
                     </div>
                     <div>
                       <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                        {activeJob.viewedCount || (isResumeViewed ? 1 : 0)}
+                        {liveActivity?.viewedCount ??
+                          (typeof activeJob.viewedCount === "number"
+                            ? activeJob.viewedCount
+                            : isResumeViewed
+                            ? 1
+                            : 0)}
                       </p>
                       <p className="text-xs text-slate-500 leading-snug mt-1">Applications viewed by recruiter</p>
                     </div>

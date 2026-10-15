@@ -41,6 +41,14 @@ export interface IUser extends Document {
   location?: string;
   phone?: string;
   gstNumber?: string;
+  tagline?: string;
+  website?: string;
+  aboutCompany?: string;
+  logo?: string;
+  profileImage?: string;
+  bannerImage?: string;
+  culture?: string[];
+  perks?: string[];
   status?: 'Pending' | 'Approved' | 'Rejected';
   plan?: string;
   permissions?: {
@@ -266,6 +274,41 @@ const userSchema = new Schema<IUser>(
     gstNumber: {
       type: String,
       trim: true,
+    },
+    tagline: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    website: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    aboutCompany: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    logo: {
+      type: String,
+      default: '',
+    },
+    profileImage: {
+      type: String,
+      default: '',
+    },
+    bannerImage: {
+      type: String,
+      default: '',
+    },
+    culture: {
+      type: [String],
+      default: [],
+    },
+    perks: {
+      type: [String],
+      default: [],
     },
     status: {
       type: String,

@@ -34,18 +34,26 @@ export default function CompaniesPage() {
 
   useEffect(() => {
     let isMounted = true;
-    fetchPublicCompanies()
-      .then((data) => {
-        if (isMounted && Array.isArray(data)) {
-          setCompanies(data);
-        }
-      })
-      .catch((err) => console.error("Error fetching companies:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    const load = () => {
+      fetchPublicCompanies()
+        .then((data) => {
+          if (isMounted && Array.isArray(data)) {
+            setCompanies(data);
+          }
+        })
+        .catch((err) => console.error("Error fetching companies:", err))
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    };
+
+    load();
+    window.addEventListener("applied_jobs_change", load);
+    window.addEventListener("storage", load);
     return () => {
       isMounted = false;
+      window.removeEventListener("applied_jobs_change", load);
+      window.removeEventListener("storage", load);
     };
   }, []);
 
@@ -654,9 +662,17 @@ export default function CompaniesPage() {
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-12 h-12 rounded-2xl ${comp.iconBg} border flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform`}
+                        className={`w-12 h-12 rounded-2xl ${comp.iconBg} border flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform overflow-hidden p-1`}
                       >
-                        {getCompanyIcon(comp.iconName, comp.color)}
+                        {comp.logo || comp.profileImage ? (
+                          <img
+                            src={comp.logo || comp.profileImage}
+                            alt={comp.name}
+                            className="w-full h-full object-contain rounded-xl"
+                          />
+                        ) : (
+                          getCompanyIcon(comp.iconName, comp.color)
+                        )}
                       </div>
                       <div>
                         <h3 className="font-bold text-slate-900 text-base group-hover:text-blue-600 transition-colors">

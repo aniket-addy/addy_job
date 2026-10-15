@@ -9,15 +9,23 @@ export default function TopCompanies() {
 
   useEffect(() => {
     let isMounted = true;
-    fetchPublicCompanies()
-      .then((data) => {
-        if (isMounted && Array.isArray(data) && data.length > 0) {
-          setCompanies(data);
-        }
-      })
-      .catch((err) => console.error("Error fetching companies:", err));
+    const load = () => {
+      fetchPublicCompanies()
+        .then((data) => {
+          if (isMounted && Array.isArray(data) && data.length > 0) {
+            setCompanies(data);
+          }
+        })
+        .catch((err) => console.error("Error fetching companies:", err));
+    };
+
+    load();
+    window.addEventListener("applied_jobs_change", load);
+    window.addEventListener("storage", load);
     return () => {
       isMounted = false;
+      window.removeEventListener("applied_jobs_change", load);
+      window.removeEventListener("storage", load);
     };
   }, []);
 
@@ -77,8 +85,16 @@ export default function TopCompanies() {
                   key={`${compName}-${idx}`}
                   className="flex items-center gap-3 shrink-0 opacity-80 hover:opacity-100 transition-opacity cursor-pointer group"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                    {compName.charAt(0).toUpperCase()}
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs overflow-hidden shrink-0 border border-blue-200/60 p-0.5">
+                    {comp.logo || comp.profileImage ? (
+                      <img
+                        src={comp.logo || comp.profileImage}
+                        alt={compName}
+                        className="w-full h-full object-contain rounded-md"
+                      />
+                    ) : (
+                      compName.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <span className="font-bold text-slate-800 text-base sm:text-lg tracking-tight select-none">
                     {compName}

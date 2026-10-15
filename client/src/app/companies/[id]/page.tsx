@@ -48,8 +48,7 @@ function CompanyDetailPageContent() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [workplaceFilter, setWorkplaceFilter] = useState("All");
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [workplaceFilter, setWorkplaceFilter] = useState("ALL");
   const [activeTab, setActiveTab] = useState<"jobs" | "about" | "culture">("jobs");
 
   useEffect(() => {
@@ -59,9 +58,11 @@ function CompanyDetailPageContent() {
       fetchPublicCompanyById(companyId)
         .then((data) => {
           if (!isMounted) return;
-          if (data && data.company) {
-            setCompany(data.company);
-            if (Array.isArray(data.jobs)) {
+          let comp = data && data.company ? { ...data.company } : null;
+
+          if (comp) {
+            setCompany(comp);
+            if (Array.isArray(data?.jobs)) {
               setAllCompanyJobs(data.jobs);
             }
           } else {
@@ -96,8 +97,38 @@ function CompanyDetailPageContent() {
           if (isMounted) setIsLoading(false);
         });
     }
+
+    const handleSync = () => {
+      fetchPublicCompanyById(companyId)
+        .then((data) => {
+          if (!isMounted) return;
+          const comp = data && data.company ? { ...data.company } : null;
+          if (comp) {
+            setCompany(comp);
+            if (Array.isArray(data?.jobs)) {
+              setAllCompanyJobs(data.jobs);
+            }
+          }
+        })
+        .catch(() => {});
+    };
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("addyjob_channel");
+      bc.onmessage = () => {
+        handleSync();
+      };
+    } catch {}
+
+    window.addEventListener("applied_jobs_change", handleSync);
+    window.addEventListener("storage", handleSync);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("applied_jobs_change", handleSync);
+      window.removeEventListener("storage", handleSync);
+      if (bc) bc.close();
     };
   }, [companyId]);
 
@@ -110,7 +141,7 @@ function CompanyDetailPageContent() {
 
     const wp = job.workplace || "Remote";
     const matchesWorkplace =
-      workplaceFilter === "All" ||
+      workplaceFilter.toUpperCase() === "ALL" ||
       wp.toLowerCase() === workplaceFilter.toLowerCase();
 
     return matchesSearch && matchesWorkplace;
@@ -175,6 +206,10 @@ function CompanyDetailPageContent() {
     );
   }
 
+  const hasCulture = Array.isArray(company.culture) && company.culture.length > 0;
+  const hasPerks = Array.isArray(company.perks) && company.perks.length > 0;
+  const showCultureSection = hasCulture || hasPerks;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans">
       <Navbar activeTab="Companies" />
@@ -200,18 +235,44 @@ function CompanyDetailPageContent() {
 
       {/* ================= REAL CORPORATE HEADER (LinkedIn / Glassdoor Style) ================= */}
       <section className="bg-white border-b border-slate-200/80 shadow-xs">
-        {/* Sleek Brand Cover Banner */}
-        <div className={`relative w-full h-40 sm:h-52 bg-gradient-to-r ${company.bannerGradient} overflow-hidden`}>
+        {/* Sleek Brand Cover Banner (Displays uploaded bannerImage or graceful gradient) */}
+        <div
+          className="relative w-full h-44 sm:h-64 md:h-72 bg-slate-900 overflow-hidden"
+          style={
+            company.bannerImage
+              ? {
+                  backgroundImage: `url(${company.bannerImage})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }
+              : undefined
+          }
+        >
+          {!company.bannerImage && (
+            <div className={`absolute inset-0 bg-gradient-to-r ${company.bannerGradient || "from-slate-900 via-indigo-950 to-slate-900"}`} />
+          )}
           {/* Subtle geometric dot pattern */}
-          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1.2px,transparent_1.2px)] [background-size:20px_20px]" />
+          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1.2px,transparent_1.2px)] [background-size:20px_20px] pointer-events-none" />
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
 
-          {/* Top Right Verified Pill */}
+          {/* Top Right Real Verification Pill */}
           <div className="absolute top-4 right-4 sm:right-8 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/60 backdrop-blur-md border border-white/15 text-white text-xs font-semibold shadow-sm">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Verified Employer</span>
-            </span>
+            {company.status === "Approved" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-emerald-500/30 text-emerald-300 text-xs font-semibold shadow-sm">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Verified Employer</span>
+              </span>
+            ) : company.status === "Rejected" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-rose-500/30 text-rose-300 text-xs font-semibold shadow-sm">
+                <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
+                <span>Verification Rejected</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-amber-500/30 text-amber-300 text-xs font-semibold shadow-sm">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Pending Verification</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -220,43 +281,29 @@ function CompanyDetailPageContent() {
           {/* Top Row: Avatar overlapping the banner edge + Action Buttons on the right */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-12 sm:-mt-14 mb-3 relative z-10">
             {/* High-fidelity Company Avatar Badge */}
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white border-4 border-white shadow-xl p-2 flex items-center justify-center shrink-0">
-              <div
-                className={`w-full h-full rounded-xl ${company.iconBg} border border-slate-200/80 flex flex-col items-center justify-center shadow-xs select-none`}
-              >
-                <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-none">
-                  {company.initials}
-                </span>
-                <span className="text-[8px] sm:text-[9px] font-bold tracking-widest text-slate-500 uppercase mt-0.5">
-                  {company.name.split(" ")[1] || "CORP"}
-                </span>
-              </div>
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white border-4 border-white shadow-xl p-2 flex items-center justify-center shrink-0 overflow-hidden">
+              {company.logo || company.profileImage ? (
+                <img
+                  src={company.logo || company.profileImage}
+                  alt={company.name}
+                  className="w-full h-full object-contain rounded-xl"
+                />
+              ) : (
+                <div
+                  className={`w-full h-full rounded-xl ${company.iconBg} border border-slate-200/80 flex flex-col items-center justify-center shadow-xs select-none`}
+                >
+                  <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-none">
+                    {company.initials}
+                  </span>
+                  <span className="text-[8px] sm:text-[9px] font-bold tracking-widest text-slate-500 uppercase mt-0.5">
+                    {company.name.split(" ")[1] || "CORP"}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Right: Action Buttons */}
             <div className="flex items-center gap-2.5 self-start sm:self-end shrink-0 pt-1 sm:pt-0">
-              {/* Follow Button */}
-              <button
-                type="button"
-                onClick={() => setIsFollowing(!isFollowing)}
-                className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                  isFollowing
-                    ? "bg-slate-100 text-slate-800 border border-slate-300 hover:bg-slate-200"
-                    : "bg-blue-600 hover:bg-blue-700 text-white"
-                }`}
-              >
-                {isFollowing ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
-                    <span>Following</span>
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-4 h-4" />
-                    <span>Follow • {company.followers}</span>
-                  </>
-                )}
-              </button>
 
               {/* Visit Website */}
               <a
@@ -288,43 +335,65 @@ function CompanyDetailPageContent() {
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
                 {company.name}
               </h1>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
-                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 fill-blue-100" />
-                <span>Verified</span>
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
-                {company.industry}
-              </span>
+              {company.status === "Approved" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 fill-blue-100" />
+                  <span>Verified</span>
+                </span>
+              )}
+              {company.industry && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
+                  {company.industry}
+                </span>
+              )}
             </div>
 
             {/* Company Tagline */}
-            <p className="text-xs sm:text-sm text-slate-600 font-normal max-w-3xl leading-relaxed">
-              {company.tagline}
-            </p>
+            {company.tagline && (
+              <p className="text-xs sm:text-sm text-slate-600 font-normal max-w-3xl leading-relaxed">
+                {company.tagline}
+              </p>
+            )}
 
             {/* Meta details strip with dot separators */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 pt-1">
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                <span>{company.location}</span>
-              </span>
-              <span className="text-slate-300">•</span>
-              <span className="flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-slate-400" />
-                <span>{company.size}</span>
-              </span>
-              <span className="text-slate-300">•</span>
-              <span>{company.companyType}</span>
-              <span className="text-slate-300">•</span>
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>Founded {company.founded}</span>
-              </span>
-              <span className="text-slate-300">•</span>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-200/60 text-blue-700 font-semibold">
-                <FileText className="w-3.5 h-3.5 text-blue-600" />
-                <span>GST: {company.gstNumber || "29AABCN1234F1Z6"}</span>
-              </span>
+              {company.location && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{company.location}</span>
+                </span>
+              )}
+              {company.location && company.size && <span className="text-slate-300">•</span>}
+              {company.size && (
+                <span className="flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{company.size}</span>
+                </span>
+              )}
+              {company.companyType && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span>{company.companyType}</span>
+                </>
+              )}
+              {company.founded && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Founded {company.founded}</span>
+                  </span>
+                </>
+              )}
+              {company.gstNumber && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-200/60 text-blue-700 font-semibold">
+                    <FileText className="w-3.5 h-3.5 text-blue-600" />
+                    <span>GST: {company.gstNumber}</span>
+                  </span>
+                </>
+              )}
               {company.phone && (
                 <>
                   <span className="text-slate-300">•</span>
@@ -337,66 +406,7 @@ function CompanyDetailPageContent() {
             </div>
           </div>
 
-          {/* ================= AUTHENTIC CORPORATE SCORECARD (Glassdoor / AmbitionBox Style) ================= */}
-          <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {/* 1. Overall Rating */}
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 shrink-0">
-                <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-black text-slate-900 leading-none">{company.rating}</span>
-                  <span className="text-xs text-amber-600 font-bold">★★★★★</span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {company.reviewsCount} Verified Employee Reviews
-                </p>
-              </div>
-            </div>
 
-            {/* 2. Recommend to Friend */}
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shrink-0">
-                <ThumbsUp className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-lg font-black text-slate-900 leading-none">{company.recommendRate}</span>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Recommend to a Friend
-                </p>
-              </div>
-            </div>
-
-            {/* 3. CEO Approval */}
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/80 flex items-center justify-center text-blue-600 shrink-0">
-                <Award className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-lg font-black text-slate-900 leading-none">{company.ceoApproval}</span>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Leadership &amp; CEO Approval
-                </p>
-              </div>
-            </div>
-
-            {/* 4. Active Open Positions */}
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-600 shrink-0">
-                <Briefcase className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-black text-blue-600 leading-none">{allCompanyJobs.length}</span>
-                  <span className="text-xs font-semibold text-slate-700">Open Roles</span>
-                </div>
-                <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">
-                  ● Actively Hiring Now
-                </p>
-              </div>
-            </div>
-          </div>
 
           {/* Section Navigation Tabs */}
           <div className="flex items-center gap-2 mt-6 pt-4 border-t border-slate-100 overflow-x-auto text-xs font-semibold">
@@ -422,17 +432,19 @@ function CompanyDetailPageContent() {
             >
               About {company.name}
             </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection("culture-section", "culture")}
-              className={`px-4 py-2 rounded-xl transition cursor-pointer shrink-0 ${
-                activeTab === "culture"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
-              }`}
-            >
-              Culture &amp; Benefits
-            </button>
+            {showCultureSection && (
+              <button
+                type="button"
+                onClick={() => scrollToSection("culture-section", "culture")}
+                className={`px-4 py-2 rounded-xl transition cursor-pointer shrink-0 ${
+                  activeTab === "culture"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
+                }`}
+              >
+                Culture &amp; Benefits
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -470,21 +482,24 @@ function CompanyDetailPageContent() {
             </div>
 
             {/* Workplace Filter Tabs */}
-            <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
-              {["All", "Remote", "Hybrid", "On-site"].map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setWorkplaceFilter(tab)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer shrink-0 ${
-                    workplaceFilter === tab
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+              {["ALL", "Remote", "Hybrid", "On-site"].map((tab) => {
+                const isActive = workplaceFilter.toUpperCase() === tab.toUpperCase();
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setWorkplaceFilter(tab)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                      isActive
+                        ? "bg-white text-[#7C3AED] shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -606,14 +621,16 @@ function CompanyDetailPageContent() {
               <Building2 className="w-5 h-5 text-blue-600" />
               <span>About {company.name}</span>
             </h2>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Verified Business</span>
-            </span>
+            {company.status === "Approved" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Verified Business</span>
+              </span>
+            ) : null}
           </div>
 
           <p className="text-sm text-slate-600 leading-relaxed font-normal">
-            {company.about}
+            {company.about || company.aboutCompany || `${company.name} has not added a detailed description yet.`}
           </p>
 
           {/* Corporate Registration & Key Details Grid */}
@@ -623,7 +640,7 @@ function CompanyDetailPageContent() {
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-600" />
                 <span className="font-mono font-bold text-xs sm:text-sm text-slate-900">
-                  {company.gstNumber || "29AABCN1234F1Z6"}
+                  {company.gstNumber || "Not Provided"}
                 </span>
               </div>
             </div>
@@ -633,7 +650,7 @@ function CompanyDetailPageContent() {
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-emerald-600" />
                 <span className="font-bold text-xs sm:text-sm text-slate-900">
-                  {company.phone || "+91 80 4123 4567"}
+                  {company.phone || "Not Disclosed"}
                 </span>
               </div>
             </div>
@@ -643,7 +660,7 @@ function CompanyDetailPageContent() {
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-amber-600" />
                 <span className="font-bold text-xs sm:text-sm text-slate-900 truncate">
-                  {company.location}
+                  {company.location || "India"}
                 </span>
               </div>
             </div>
@@ -653,7 +670,7 @@ function CompanyDetailPageContent() {
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-600" />
                 <span className="font-bold text-xs sm:text-sm text-slate-900">
-                  {company.size}
+                  {company.size || "1-10 employees"}
                 </span>
               </div>
             </div>
@@ -663,7 +680,7 @@ function CompanyDetailPageContent() {
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-purple-600" />
                 <span className="font-bold text-xs sm:text-sm text-slate-900">
-                  Founded {company.founded}
+                  {company.founded ? `Founded ${company.founded}` : "Established Organization"}
                 </span>
               </div>
             </div>
@@ -672,53 +689,70 @@ function CompanyDetailPageContent() {
               <span className="text-[11px] font-semibold text-slate-400 block mb-1">Official Website</span>
               <div className="flex items-center gap-2">
                 <Globe className="w-4 h-4 text-sky-600" />
-                <a
-                  href={`https://${company.website}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-bold text-xs sm:text-sm text-blue-600 hover:underline truncate"
-                >
-                  {company.website}
-                </a>
+                {company.website ? (
+                  <a
+                    href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-bold text-xs sm:text-sm text-blue-600 hover:underline truncate"
+                  >
+                    {company.website}
+                  </a>
+                ) : (
+                  <span className="font-medium text-xs sm:text-sm text-slate-500">
+                    Not Disclosed
+                  </span>
+                )}
               </div>
             </div>
           </div>
         </section>
 
         {/* Culture & Perks */}
-        <section id="culture-section" className="grid grid-cols-1 md:grid-cols-2 gap-6 scroll-mt-24">
-          {/* Culture & Values */}
-          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] space-y-4">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <HeartHandshake className="w-5 h-5 text-blue-600" />
-              <span>Work Culture & Values</span>
-            </h3>
-            <ul className="space-y-2.5">
-              {(company.culture || []).map((item: string, idx: number) => (
-                <li key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {showCultureSection && (
+          <section
+            id="culture-section"
+            className={`grid grid-cols-1 ${
+              hasCulture && hasPerks ? "md:grid-cols-2" : "max-w-3xl"
+            } gap-6 scroll-mt-24`}
+          >
+            {/* Culture & Values */}
+            {hasCulture && (
+              <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] space-y-4">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <HeartHandshake className="w-5 h-5 text-blue-600" />
+                  <span>Work Culture &amp; Values</span>
+                </h3>
+                <ul className="space-y-2.5">
+                  {company.culture.map((item: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-          {/* Perks & Benefits */}
-          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] space-y-4">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Gift className="w-5 h-5 text-emerald-600" />
-              <span>Employee Perks & Benefits</span>
-            </h3>
-            <ul className="space-y-2.5">
-              {(company.perks || []).map((item: string, idx: number) => (
-                <li key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+            {/* Perks & Benefits */}
+            {hasPerks && (
+              <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] space-y-4">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-emerald-600" />
+                  <span>Employee Perks &amp; Benefits</span>
+                </h3>
+                <ul className="space-y-2.5">
+                  {company.perks.map((item: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
       </main>
 
       <Footer />

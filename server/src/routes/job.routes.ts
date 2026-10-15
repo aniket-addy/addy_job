@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getJobs,
   getJobById,
+  getJobActivity,
   createJob,
   updateJob,
   deleteJob,
@@ -18,6 +19,7 @@ const router = Router();
 router.get('/', getJobs);
 router.get('/applied/candidate', getCandidateApplications);
 router.get('/applied/company', getCompanyApplications);
+router.get('/:id/activity', getJobActivity);
 router.get('/:id/applicants', getJobApplicants);
 router.patch('/applications/:id/status', updateJobApplicationStatus);
 router.patch('/applications/:id/view-resume', markResumeViewed);

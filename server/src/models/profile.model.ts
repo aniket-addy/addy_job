@@ -34,6 +34,14 @@ export interface IUserProfile extends Document {
   location?: string;
   phone?: string;
   gstNumber?: string;
+  tagline?: string;
+  website?: string;
+  aboutCompany?: string;
+  logo?: string;
+  profileImage?: string;
+  bannerImage?: string;
+  culture?: string[];
+  perks?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -171,6 +179,41 @@ const userProfileSchema = new Schema<IUserProfile>(
     gstNumber: {
       type: String,
       trim: true,
+    },
+    tagline: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    website: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    aboutCompany: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    logo: {
+      type: String,
+      default: '',
+    },
+    profileImage: {
+      type: String,
+      default: '',
+    },
+    bannerImage: {
+      type: String,
+      default: '',
+    },
+    culture: {
+      type: [String],
+      default: [],
+    },
+    perks: {
+      type: [String],
+      default: [],
     },
   },
   {

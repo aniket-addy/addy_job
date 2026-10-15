@@ -21,6 +21,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import ResumeDetailModal from "../admin/ResumeDetailModal";
+import { markResumeViewedAPI, notifyApplicationSync } from "@/lib/api";
 
 export interface CompanyCandidateApplicant {
   id: string;
@@ -67,6 +68,7 @@ interface CompanyJobApplicantsModalProps {
   applicants: CompanyCandidateApplicant[];
   isLoading?: boolean;
   onUpdateStatus?: (id: string, newStatus: string) => void;
+  onViewResume?: (applicant: CompanyCandidateApplicant) => void;
   onNavigateToApplications?: () => void;
 }
 
@@ -77,6 +79,7 @@ export default function CompanyJobApplicantsModal({
   applicants,
   isLoading = false,
   onUpdateStatus,
+  onViewResume,
   onNavigateToApplications,
 }: CompanyJobApplicantsModalProps) {
   const [search, setSearch] = useState("");
@@ -135,6 +138,22 @@ export default function CompanyJobApplicantsModal({
   };
 
   const handleOpenDetail = (app: CompanyCandidateApplicant) => {
+    // Mark resume as viewed in DB and notify candidate dashboard
+    if (app.id) {
+      markResumeViewedAPI(app.id).catch((err) =>
+        console.warn("Backend resume view error:", err)
+      );
+      if (app.status === "Applied" || app.status === "New") {
+        if (onUpdateStatus) {
+          onUpdateStatus(app.id, "Reviewing");
+        }
+      }
+    }
+    if (onViewResume) {
+      onViewResume(app);
+    }
+    notifyApplicationSync();
+
     // Normalize into format expected by ResumeDetailModal
     const cName = app.candidateName || "Candidate";
     const normalizedApp: any = {
