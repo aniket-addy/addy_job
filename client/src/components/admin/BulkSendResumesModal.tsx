@@ -60,6 +60,9 @@ export default function BulkSendResumesModal({
   const initialEnd = Math.min(10, totalAvailable);
   const [rangeStart, setRangeStart] = useState<number>(totalAvailable > 0 ? 1 : 0);
   const [rangeEnd, setRangeEnd] = useState<number>(initialEnd);
+  const [startInput, setStartInput] = useState<string>("1");
+  const [endInput, setEndInput] = useState<string>(String(initialEnd));
+  const [quantityInput, setQuantityInput] = useState<string>(String(initialEnd));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Submitting & Feedback
@@ -87,6 +90,9 @@ export default function BulkSendResumesModal({
       const end = Math.min(10, totalAvailable);
       setRangeStart(1);
       setRangeEnd(end);
+      setStartInput("1");
+      setEndInput(String(end));
+      setQuantityInput(String(end));
       const initialSlice = candidates.slice(0, end).map((c) => c.id);
       setSelectedIds(new Set(initialSlice));
       setStep(1);
@@ -98,12 +104,83 @@ export default function BulkSendResumesModal({
 
   // Apply Range selection helper (e.g. 1-10, 15-20)
   const applyRange = (start: number, end: number) => {
+    if (totalAvailable === 0) return;
     const s = Math.max(1, Math.min(start, totalAvailable));
     const e = Math.max(s, Math.min(end, totalAvailable));
     setRangeStart(s);
     setRangeEnd(e);
+    setStartInput(String(s));
+    setEndInput(String(e));
+    setQuantityInput(String(e - s + 1));
     const slice = candidates.slice(s - 1, e).map((c) => c.id);
     setSelectedIds(new Set(slice));
+  };
+
+  const handleQuantityChange = (valStr: string) => {
+    const cleaned = valStr.replace(/[^0-9]/g, "");
+    setQuantityInput(cleaned);
+    if (!cleaned) return;
+    const qty = parseInt(cleaned, 10);
+    if (!isNaN(qty) && qty > 0) {
+      const e = Math.min(qty, totalAvailable);
+      setRangeStart(1);
+      setRangeEnd(e);
+      setStartInput("1");
+      setEndInput(String(e));
+      const slice = candidates.slice(0, e).map((c) => c.id);
+      setSelectedIds(new Set(slice));
+    }
+  };
+
+  const handleStartChange = (valStr: string) => {
+    const cleaned = valStr.replace(/[^0-9]/g, "");
+    setStartInput(cleaned);
+    if (!cleaned) return;
+    const s = parseInt(cleaned, 10);
+    if (!isNaN(s) && s > 0) {
+      const validStart = Math.min(s, totalAvailable);
+      const validEnd = Math.max(validStart, rangeEnd);
+      setRangeStart(validStart);
+      setRangeEnd(validEnd);
+      setEndInput(String(validEnd));
+      setQuantityInput(String(validEnd - validStart + 1));
+      const slice = candidates.slice(validStart - 1, validEnd).map((c) => c.id);
+      setSelectedIds(new Set(slice));
+    }
+  };
+
+  const handleEndChange = (valStr: string) => {
+    const cleaned = valStr.replace(/[^0-9]/g, "");
+    setEndInput(cleaned);
+    if (!cleaned) return;
+    const e = parseInt(cleaned, 10);
+    if (!isNaN(e) && e > 0) {
+      const validEnd = Math.min(e, totalAvailable);
+      const validStart = Math.min(rangeStart, validEnd);
+      setRangeStart(validStart);
+      setRangeEnd(validEnd);
+      setStartInput(String(validStart));
+      setQuantityInput(String(validEnd - validStart + 1));
+      const slice = candidates.slice(validStart - 1, validEnd).map((c) => c.id);
+      setSelectedIds(new Set(slice));
+    }
+  };
+
+  const handleBlurNormalize = () => {
+    if (totalAvailable === 0) return;
+    const s = Math.max(1, Math.min(rangeStart, totalAvailable));
+    const e = Math.max(s, Math.min(rangeEnd, totalAvailable));
+    setRangeStart(s);
+    setRangeEnd(e);
+    setStartInput(String(s));
+    setEndInput(String(e));
+    setQuantityInput(String(selectedIds.size));
+  };
+
+  const stepQuantity = (delta: number) => {
+    const current = selectedIds.size || 0;
+    const next = Math.max(1, Math.min(current + delta, totalAvailable));
+    applyRange(1, next);
   };
 
   // Toggle individual candidate checkbox
@@ -115,14 +192,21 @@ export default function BulkSendResumesModal({
       next.add(id);
     }
     setSelectedIds(next);
+    setQuantityInput(String(next.size));
   };
 
   // Select all / deselect all in current candidate list
   const toggleSelectAll = () => {
     if (selectedIds.size === totalAvailable) {
       setSelectedIds(new Set());
+      setQuantityInput("0");
     } else {
       setSelectedIds(new Set(candidates.map((c) => c.id)));
+      setQuantityInput(String(totalAvailable));
+      setRangeStart(1);
+      setRangeEnd(totalAvailable);
+      setStartInput("1");
+      setEndInput(String(totalAvailable));
     }
   };
 
@@ -411,13 +495,53 @@ export default function BulkSendResumesModal({
                   </div>
 
                   {/* Range & Quantity Controls */}
-                  <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-3.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                       <span className="font-bold text-slate-800 text-xs">
                         How many resumes do you want to send?
                       </span>
                       <span className="text-[11px] text-slate-500">
-                        Pick a preset range or specify custom indices (e.g., 1-10, 15-20)
+                        Type an amount/count or pick a custom range below
+                      </span>
+                    </div>
+
+                    {/* DIRECT AMOUNT / QUANTITY INPUT WITH STEPPER */}
+                    <div className="flex flex-wrap items-center gap-3 p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+                      <span className="text-xs font-bold text-slate-700">Amount / Quantity:</span>
+                      <div className="flex items-center bg-slate-50 border border-slate-300 rounded-xl overflow-hidden shadow-2xs focus-within:border-blue-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                        <button
+                          type="button"
+                          onClick={() => stepQuantity(-1)}
+                          disabled={selectedIds.size <= 1}
+                          className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-40 disabled:hover:bg-slate-100 transition cursor-pointer text-base font-black border-r border-slate-200"
+                          title="Decrease amount"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={quantityInput}
+                          onChange={(e) => handleQuantityChange(e.target.value)}
+                          onBlur={handleBlurNormalize}
+                          className="w-16 px-2 py-1.5 text-center text-xs font-black text-slate-900 bg-transparent focus:outline-none"
+                          placeholder="0"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => stepQuantity(1)}
+                          disabled={selectedIds.size >= totalAvailable}
+                          className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-40 disabled:hover:bg-slate-100 transition cursor-pointer text-base font-black border-l border-slate-200"
+                          title="Increase amount"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="text-xs text-slate-600 font-semibold">resumes to send</span>
+
+                      <span className="text-[11px] text-slate-400 ml-auto font-medium">
+                        (Selected: <strong className="text-blue-700 font-bold">{selectedIds.size}</strong> of {totalAvailable} candidates)
                       </span>
                     </div>
 
@@ -426,15 +550,21 @@ export default function BulkSendResumesModal({
                       <span className="text-[11px] font-bold text-slate-400 uppercase mr-1">
                         Quick Range:
                       </span>
-                      {[
-                        { label: "1 - 5", s: 1, e: 5 },
-                        { label: "1 - 10", s: 1, e: 10 },
-                        { label: "1 - 15", s: 1, e: 15 },
-                        { label: "1 - 20", s: 1, e: 20 },
-                        { label: `All (${totalAvailable})`, s: 1, e: totalAvailable },
-                      ].map((preset) => {
+                      {((): { label: string; s: number; e: number }[] => {
+                        const list: { label: string; s: number; e: number }[] = [];
+                        const limits = [5, 10, 15, 20, 25, 50];
+                        for (const lim of limits) {
+                          if (totalAvailable > lim) {
+                            list.push({ label: `1 - ${lim}`, s: 1, e: lim });
+                          }
+                        }
+                        list.push({ label: `All (${totalAvailable})`, s: 1, e: totalAvailable });
+                        return list;
+                      })().map((preset) => {
                         const isActive =
-                          rangeStart === preset.s && rangeEnd === Math.min(preset.e, totalAvailable);
+                          rangeStart === preset.s &&
+                          rangeEnd === preset.e &&
+                          selectedIds.size === (preset.e - preset.s + 1);
                         return (
                           <button
                             key={preset.label}
@@ -453,40 +583,36 @@ export default function BulkSendResumesModal({
                     </div>
 
                     {/* Custom Range Inputs (1-10, 15-20, etc.) */}
-                    <div className="flex items-center gap-2.5 pt-1">
+                    <div className="flex flex-wrap items-center gap-2.5 pt-1">
                       <span className="text-xs font-medium text-slate-600">Custom Range:</span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-slate-400 text-xs">From #</span>
                         <input
-                          type="number"
-                          min={1}
-                          max={totalAvailable || 1}
-                          value={rangeStart}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10) || 1;
-                            applyRange(val, rangeEnd);
-                          }}
-                          className="w-16 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center focus:outline-none focus:border-blue-500"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={startInput}
+                          onChange={(e) => handleStartChange(e.target.value)}
+                          onBlur={handleBlurNormalize}
+                          className="w-16 px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-center focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs text-slate-900"
                         />
                       </div>
 
                       <div className="flex items-center gap-1.5">
                         <span className="text-slate-400 text-xs">to #</span>
                         <input
-                          type="number"
-                          min={rangeStart}
-                          max={totalAvailable || 1}
-                          value={rangeEnd}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10) || rangeStart;
-                            applyRange(rangeStart, val);
-                          }}
-                          className="w-16 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center focus:outline-none focus:border-blue-500"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={endInput}
+                          onChange={(e) => handleEndChange(e.target.value)}
+                          onBlur={handleBlurNormalize}
+                          className="w-16 px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-center focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs text-slate-900"
                         />
                       </div>
 
                       <span className="text-[11px] text-slate-400">
-                        (out of {totalAvailable} candidates)
+                        (out of {totalAvailable} total candidates)
                       </span>
                     </div>
                   </div>

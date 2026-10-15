@@ -15,6 +15,7 @@ import {
   Mail,
   Phone,
   Upload,
+  Send,
   Layers,
   Sparkles,
   Download,
@@ -121,7 +122,7 @@ export default function ApplicationsManager({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 max-w-full">
             {/* Status Filter Tabs (Pill wrapper) */}
             <div className="flex items-center gap-1 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
               {["ALL", "Applied", "Reviewing", "Shortlisted", "Interview", "Hired", "Rejected"].map(
@@ -150,14 +151,15 @@ export default function ApplicationsManager({
               )}
             </div>
 
-            {/* UPLOAD RESUME BUTTON (User's Core Requirement) */}
+            {/* Circular Send / Upload Resume Button on right side of filter */}
             <button
               type="button"
               onClick={() => setIsUploadModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-500/25 transition-all hover:scale-[1.02] cursor-pointer whitespace-nowrap"
+              title="Upload Candidate Resume"
+              aria-label="Upload Candidate Resume"
+              className="w-9 h-9 min-w-9 flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-md shadow-blue-500/25 transition-all hover:scale-110 active:scale-95 cursor-pointer shrink-0"
             >
-              <Upload className="w-4 h-4" />
-              <span>Upload Resume</span>
+              <Send className="w-4 h-4 ml-0.5" />
             </button>
           </div>
         </div>

@@ -399,40 +399,43 @@ function CompanyDetailPageContent() {
           </div>
 
           {/* Section Navigation Tabs */}
-          <div className="flex items-center gap-2 mt-6 pt-4 border-t border-slate-100 overflow-x-auto text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => scrollToSection("jobs-section", "jobs")}
-              className={`px-4 py-2 rounded-xl transition cursor-pointer shrink-0 ${
-                activeTab === "jobs"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
-              }`}
-            >
-              All Open Jobs ({allCompanyJobs.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection("about-section", "about")}
-              className={`px-4 py-2 rounded-xl transition cursor-pointer shrink-0 ${
-                activeTab === "about"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
-              }`}
-            >
-              About {company.name}
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection("culture-section", "culture")}
-              className={`px-4 py-2 rounded-xl transition cursor-pointer shrink-0 ${
-                activeTab === "culture"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
-              }`}
-            >
-              Culture &amp; Benefits
-            </button>
+          {/* Section Navigation Tabs (Segmented Control matching Image 2) */}
+          <div className="flex items-center gap-1.5 mt-6 pt-4 border-t border-slate-100 overflow-x-auto text-xs font-semibold">
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => scrollToSection("jobs-section", "jobs")}
+                className={`px-3.5 py-1.5 rounded-xl transition cursor-pointer whitespace-nowrap shrink-0 font-bold ${
+                  activeTab === "jobs"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                All Open Jobs ({allCompanyJobs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection("about-section", "about")}
+                className={`px-3.5 py-1.5 rounded-xl transition cursor-pointer whitespace-nowrap shrink-0 font-bold ${
+                  activeTab === "about"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                About {company.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection("culture-section", "culture")}
+                className={`px-3.5 py-1.5 rounded-xl transition cursor-pointer whitespace-nowrap shrink-0 font-bold ${
+                  activeTab === "culture"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Culture &amp; Benefits
+              </button>
+            </div>
           </div>
         </div>
       </section>

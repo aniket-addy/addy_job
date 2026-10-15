@@ -425,8 +425,8 @@ export default function JobSeekersManager({
             </p>
           </div>
 
-          {/* Action Row: Filter Pills + Send Resumes Button */}
-          <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Action Row: Filter Pills + Circular Send Resumes Button */}
+          <div className="flex items-center gap-2 max-w-full">
             {/* Filter Pills */}
             <div className="flex items-center gap-1 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
               {[
@@ -454,15 +454,15 @@ export default function JobSeekersManager({
               })}
             </div>
 
-            {/* SEND RESUMES BUTTON (Always Present) */}
+            {/* Circular Send Resumes Button on right side of filter */}
             <button
               type="button"
               onClick={() => setIsSendModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02] cursor-pointer whitespace-nowrap shrink-0"
-              title="Send candidate resumes from current view/filter to a company"
+              className="w-9 h-9 min-w-9 flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-md shadow-blue-500/20 transition-all hover:scale-110 active:scale-95 cursor-pointer shrink-0"
+              title={`Send Candidate Resumes to Company ${filteredCandidates.length > 0 ? `(${filteredCandidates.length})` : ""}`}
+              aria-label="Send Resumes to Company"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>Send Resumes {filteredCandidates.length > 0 ? `(${filteredCandidates.length})` : ""}</span>
+              <Send className="w-4 h-4 ml-0.5" />
             </button>
           </div>
         </div>
@@ -748,12 +748,6 @@ export default function JobSeekersManager({
                         <span className="font-bold text-slate-800 block">
                           {c.headline || c.targetRole || "Job Seeker"}
                         </span>
-                        {c.course && (
-                          <span className="text-[11px] text-slate-400 block mt-0.5 flex items-center gap-1">
-                            <GraduationCap className="w-3 h-3 text-indigo-500 shrink-0" />
-                            {c.course} {c.specialization ? `(${c.specialization})` : ""}
-                          </span>
-                        )}
                       </td>
 
                       {/* Experience & Location */}
@@ -769,45 +763,51 @@ export default function JobSeekersManager({
                       </td>
 
                       {/* Skills */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-wrap gap-1 max-w-[200px]">
-                          {c.skills && c.skills.length > 0 ? (
-                            c.skills.slice(0, 3).map((skill, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-100 truncate"
-                              >
-                                {skill}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-[11px] text-slate-400 italic">No skills added</span>
-                          )}
-                          {c.skills && c.skills.length > 3 && (
-                            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold">
-                              +{c.skills.length - 3}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {c.skills && c.skills.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCandidate(c);
+                            }}
+                            title={`Skills: ${c.skills.join(", ")} (Click to view candidate details)`}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all shadow-2xs hover:scale-105 active:scale-95 cursor-pointer"
+                          >
+                            <Award className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span>
+                              {c.skills.length} {c.skills.length === 1 ? "Skill" : "Skills"}
                             </span>
-                          )}
-                        </div>
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-slate-400 text-xs font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                            0 Skills
+                          </span>
+                        )}
                       </td>
 
                       {/* Resume Status */}
-                      <td
-                        className="py-3.5 px-4 whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {c.resumeName ? (
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {c.resumeName || c.resumeUrl ? (
                           <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCandidate(c);
+                              }}
+                              title={c.resumeName || "Click to view resume & details"}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all shadow-2xs hover:scale-105 active:scale-95 cursor-pointer"
+                            >
                               <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                              <span className="max-w-[120px] truncate" title={c.resumeName}>
-                                {c.resumeName}
-                              </span>
-                            </span>
+                              <span>Resume</span>
+                            </button>
                             {c.resumeUrl && (
                               <a
                                 href={c.resumeUrl}
-                                download={c.resumeName}
+                                download={c.resumeName || "Resume.pdf"}
+                                onClick={(e) => e.stopPropagation()}
                                 className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition"
                                 title="Download Resume"
                               >
@@ -816,7 +816,7 @@ export default function JobSeekersManager({
                             )}
                           </div>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-slate-400 text-xs">
+                          <span className="inline-flex items-center gap-1 text-slate-400 text-xs font-medium">
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                             No Resume
                           </span>
@@ -1064,7 +1064,7 @@ export default function JobSeekersManager({
                   )}
                 </div>
 
-                {selectedCandidate.resumeName ? (
+                {selectedCandidate.resumeName || selectedCandidate.resumeUrl ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <div className="flex items-center gap-3">
@@ -1072,7 +1072,7 @@ export default function JobSeekersManager({
                           PDF
                         </div>
                         <div>
-                          <p className="font-bold text-slate-800">{selectedCandidate.resumeName}</p>
+                          <p className="font-bold text-slate-800">{selectedCandidate.resumeName || "Candidate_Resume.pdf"}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5">
                             {selectedCandidate.resumeDate || "Uploaded recently"}
                           </p>

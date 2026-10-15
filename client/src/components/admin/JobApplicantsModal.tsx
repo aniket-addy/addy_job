@@ -43,7 +43,7 @@ export default function JobApplicantsModal({
   onNavigateToApplications,
 }: JobApplicantsModalProps) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedCandidateForDetail, setSelectedCandidateForDetail] = useState<ApplicationItem | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
@@ -52,9 +52,14 @@ export default function JobApplicantsModal({
   // Filter applicants
   const filteredApplicants = applicants.filter((app) => {
     // 1. Status Filter
+    const appStatus = (app.status || "Applied").toLowerCase();
+    const filterKey = statusFilter.toLowerCase();
     const matchesStatus =
+      statusFilter === "ALL" ||
       statusFilter === "All" ||
-      app.status?.toLowerCase() === statusFilter.toLowerCase();
+      appStatus === filterKey ||
+      (filterKey === "applied" && (appStatus === "new" || appStatus === "applied")) ||
+      (filterKey === "reviewing" && (appStatus === "reviewed" || appStatus === "reviewing"));
 
     // 2. Search
     const q = search.toLowerCase().trim();
@@ -155,34 +160,31 @@ export default function JobApplicantsModal({
               />
             </div>
 
-            {/* Status Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-              {["All", "New", "Shortlisted", "Reviewed", "Hired", "Rejected"].map((s) => {
-                const count =
-                  s === "All"
-                    ? applicants.length
-                    : applicants.filter((a) => a.status?.toLowerCase() === s.toLowerCase()).length;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                      statusFilter === s
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100"
-                    }`}
-                  >
-                    <span>{s}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        statusFilter === s ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Status Filter Tabs (Matching Image 1) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+              {(
+                [
+                  "ALL",
+                  "Applied",
+                  "Reviewing",
+                  "Shortlisted",
+                  "Interview",
+                  "Hired",
+                  "Rejected",
+                ] as const
+              ).map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                    statusFilter === st
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -213,7 +215,7 @@ export default function JobApplicantsModal({
                 <button
                   onClick={() => {
                     setSearch("");
-                    setStatusFilter("All");
+                    setStatusFilter("ALL");
                   }}
                   className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-xl text-xs transition cursor-pointer"
                 >

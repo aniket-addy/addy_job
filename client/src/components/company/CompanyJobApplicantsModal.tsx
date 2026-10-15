@@ -234,42 +234,31 @@ export default function CompanyJobApplicantsModal({
               />
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-              {["ALL", "Applied", "Reviewing", "Shortlisted", "Interview", "Hired", "Rejected"].map((s) => {
-                const count =
-                  s === "ALL"
-                    ? applicants.length
-                    : applicants.filter((a) => {
-                        const st = (a.status || "Applied").toLowerCase();
-                        const target = s.toLowerCase();
-                        return (
-                          st === target ||
-                          (target === "applied" && (st === "new" || st === "applied")) ||
-                          (target === "reviewing" && (st === "reviewed" || st === "reviewing"))
-                        );
-                      }).length;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                      statusFilter === s
-                        ? "bg-[#7C3AED] text-white shadow-sm font-bold"
-                        : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100"
-                    }`}
-                  >
-                    <span>{s}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        statusFilter === s ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Status Filter Tabs (Matching Image 1) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+              {(
+                [
+                  "ALL",
+                  "Applied",
+                  "Reviewing",
+                  "Shortlisted",
+                  "Interview",
+                  "Hired",
+                  "Rejected",
+                ] as const
+              ).map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                    statusFilter === st
+                      ? "bg-white text-[#7C3AED] shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
             </div>
           </div>
         </div>
