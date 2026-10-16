@@ -3032,7 +3032,7 @@ export default function CompanyDashboardPage() {
               </div>
 
               {/* Credits Balance Card */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-500">Total Credits Purchased</span>
                   <p className="text-3xl font-black text-slate-900 mt-1">{totalResumesPurchased}</p>

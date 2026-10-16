@@ -53,10 +53,6 @@ export default function GrowthChart({
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          Live DB
-        </div>
       </div>
 
       {/* Stats Grid */}

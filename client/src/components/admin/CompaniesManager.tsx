@@ -72,7 +72,8 @@ export default function CompaniesManager({
     const matchesSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.email.toLowerCase().includes(search.toLowerCase()) ||
-      c.location.toLowerCase().includes(search.toLowerCase());
+      c.location.toLowerCase().includes(search.toLowerCase()) ||
+      (c.userId && c.userId.toLowerCase().includes(search.toLowerCase()));
     return matchesFilter && matchesSearch;
   });
 
@@ -199,6 +200,11 @@ export default function CompaniesManager({
                         <span className="font-bold text-slate-900 leading-tight">
                           {c.name}
                         </span>
+                        {c.userId && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono">
+                            {c.userId}
+                          </span>
+                        )}
                         <span className="text-slate-300">•</span>
                         <span className="text-xs text-slate-400 flex items-center gap-1 font-normal">
                           <Mail className="w-3 h-3 text-slate-400 shrink-0" />

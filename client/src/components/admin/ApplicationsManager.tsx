@@ -11,11 +11,9 @@ import {
   FileText,
   CheckCircle2,
   Clock,
-  Eye,
   Mail,
   Phone,
   Upload,
-  Send,
   Layers,
   Sparkles,
   Download,
@@ -28,7 +26,7 @@ import ResumeDetailModal from "./ResumeDetailModal";
 
 interface ApplicationsManagerProps {
   applications: ApplicationItem[];
-  onUpdateStatus: (id: string, status: ApplicationItem["status"]) => void;
+  onUpdateStatus?: (id: string, status: ApplicationItem["status"]) => void;
   companies?: Array<{ id: string; name: string }>;
   onAddApplication?: (newApp: ApplicationItem) => void;
   activeView?: string;
@@ -151,15 +149,15 @@ export default function ApplicationsManager({
               )}
             </div>
 
-            {/* Circular Send / Upload Resume Button on right side of filter */}
+            {/* Circular Upload Resume / CV Button on right side of filter */}
             <button
               type="button"
               onClick={() => setIsUploadModalOpen(true)}
-              title="Upload Candidate Resume"
-              aria-label="Upload Candidate Resume"
+              title="Upload Candidate Resume / CV"
+              aria-label="Upload Candidate Resume / CV"
               className="w-9 h-9 min-w-9 flex items-center justify-center rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-md shadow-blue-500/25 transition-all hover:scale-110 active:scale-95 cursor-pointer shrink-0"
             >
-              <Send className="w-4 h-4 ml-0.5" />
+              <Upload className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -234,15 +232,14 @@ export default function ApplicationsManager({
                 <th className="py-3.5 px-4">Domain & Experience</th>
                 <th className="py-3.5 px-4">Applied Role</th>
                 <th className="py-3.5 px-4">Target Company</th>
-                <th className="py-3.5 px-4">Resume PDF</th>
-                <th className="py-3.5 px-4">Current Status</th>
-                <th className="py-3.5 px-4 text-right">Moderation</th>
+                <th className="py-3.5 px-4">Resume</th>
+                <th className="py-3.5 px-4 text-right">Current Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredApps.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-14 text-center">
+                  <td colSpan={6} className="py-14 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
                         <FileText className="w-6 h-6" />
@@ -322,30 +319,31 @@ export default function ApplicationsManager({
                         </span>
                       </td>
 
-                      {/* Resume PDF Badge */}
+                      {/* Resume Button */}
                       <td
                         className="py-3.5 px-4 whitespace-nowrap"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {hasPdf ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDetail(item)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition shadow-2xs group-hover:scale-105"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-rose-600" />
-                            <span>PDF Attached</span>
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-slate-400 text-xs font-normal">
-                            <FileCheck2 className="w-3.5 h-3.5 text-blue-500" />
-                            <span>Profile Verified</span>
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetail(item)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer hover:scale-105 active:scale-95 ${
+                            hasPdf
+                              ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200"
+                              : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
+                          }`}
+                          title="Open Candidate Resume"
+                        >
+                          <FileText className={`w-3.5 h-3.5 ${hasPdf ? "text-rose-600" : "text-blue-600"}`} />
+                          <span>Resume</span>
+                          {hasPdf && (
+                            <span className="text-[10px] px-1 py-0.2 rounded bg-rose-200/60 text-rose-800 font-semibold">PDF</span>
+                          )}
+                        </button>
                       </td>
 
                       {/* Current Status */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border whitespace-nowrap ${
                             item.status === "Shortlisted"
@@ -361,39 +359,6 @@ export default function ApplicationsManager({
                         >
                           {item.status}
                         </span>
-                      </td>
-
-                      {/* Moderation Controls */}
-                      <td
-                        className="py-3.5 px-4 text-right whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDetail(item)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
-                            title="View Full Resume"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <select
-                            value={item.status}
-                            onChange={(e) =>
-                              onUpdateStatus(
-                                item.id,
-                                e.target.value as ApplicationItem["status"]
-                              )
-                            }
-                            className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
-                          >
-                            <option value="New">New</option>
-                            <option value="Reviewed">Reviewed</option>
-                            <option value="Shortlisted">Shortlisted</option>
-                            <option value="Hired">Hired</option>
-                            <option value="Rejected">Rejected</option>
-                          </select>
-                        </div>
                       </td>
                     </tr>
                   );
@@ -418,7 +383,7 @@ export default function ApplicationsManager({
         }}
       />
 
-      {/* Resume Detail & PDF Preview Modal */}
+      {/* Resume Detail & PDF Preview Modal (Super Admin View - Non-editable Audit) */}
       <ResumeDetailModal
         application={selectedCandidate}
         isOpen={isDetailModalOpen}
@@ -426,7 +391,6 @@ export default function ApplicationsManager({
           setIsDetailModalOpen(false);
           setSelectedCandidate(null);
         }}
-        onUpdateStatus={onUpdateStatus}
       />
     </div>
   );

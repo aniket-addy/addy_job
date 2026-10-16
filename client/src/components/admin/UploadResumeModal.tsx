@@ -408,7 +408,7 @@ export default function UploadResumeModal({
               </div>
 
               {/* Applied Role / Position */}
-              <div>
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Applied Role / Target Job Title
                 </label>
@@ -419,23 +419,6 @@ export default function UploadResumeModal({
                   onChange={(e) => setPosition(e.target.value)}
                   className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-800"
                 />
-              </div>
-
-              {/* Initial Status */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Initial Status
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as ApplicationItem["status"])}
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-800 cursor-pointer"
-                >
-                  <option value="New">New</option>
-                  <option value="Shortlisted">Shortlisted</option>
-                  <option value="Reviewed">Reviewed</option>
-                  <option value="Hired">Hired</option>
-                </select>
               </div>
             </div>
 

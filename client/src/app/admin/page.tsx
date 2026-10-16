@@ -386,12 +386,6 @@ export default function SuperAdminPage() {
                   </div>
 
                   <div className="flex items-center gap-2.5 self-start sm:self-auto">
-                    {/* Live DB Indicator Pill */}
-                    <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200 text-xs font-bold shadow-xs">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>Live DB Synced</span>
-                    </div>
-
                     {/* Date Pill */}
                     <div className="flex items-center gap-2 px-3.5 py-2 bg-white rounded-xl border border-slate-200/90 text-xs font-semibold text-slate-700 shadow-sm">
                       <Calendar className="w-3.5 h-3.5 text-blue-600" />

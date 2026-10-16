@@ -431,10 +431,10 @@ export default function JobSeekersManager({
             <div className="flex items-center gap-1 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
               {[
                 { id: "ALL", label: "All Candidates" },
-                { id: "WITH_RESUME", label: `With Resume (${withResumeCount})` },
+                { id: "WITH_RESUME", label: "With Resume" },
                 { id: "NO_RESUME", label: "No Resume" },
-                { id: "FRESHER", label: `Freshers (${fresherCount})` },
-                { id: "EXPERIENCED", label: `Experienced (${experiencedCount})` },
+                { id: "FRESHER", label: "Freshers" },
+                { id: "EXPERIENCED", label: "Experienced" },
               ].map((tab) => {
                 const isActive = filter === tab.id;
                 return (
@@ -565,7 +565,7 @@ export default function JobSeekersManager({
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
-                  Active Filters ({activeFiltersCount}):
+                  Active Filters:
                 </span>
 
                 {search.trim() && (
@@ -662,14 +662,13 @@ export default function JobSeekersManager({
                 <th className="py-3.5 px-4">Experience & Location</th>
                 <th className="py-3.5 px-4">Skills</th>
                 <th className="py-3.5 px-4">Resume Status</th>
-                <th className="py-3.5 px-4">Registered</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredCandidates.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-14 text-center">
+                  <td colSpan={6} className="py-14 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
                         <Users className="w-6 h-6" />
@@ -714,15 +713,20 @@ export default function JobSeekersManager({
                             {c.avatarLetter || "CD"}
                           </div>
                           <div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-slate-900 group-hover:text-blue-600 transition">
                                 {c.name}
                               </span>
                               {c.userId && (
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 font-mono">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono font-bold">
                                   {c.userId}
                                 </span>
                               )}
+                              <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium whitespace-nowrap">
+                                <span>•</span>
+                                <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{c.registeredOn || "Recent"}</span>
+                              </span>
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
                               <span className="flex items-center gap-1">
@@ -823,14 +827,6 @@ export default function JobSeekersManager({
                         )}
                       </td>
 
-                      {/* Registered Date */}
-                      <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 text-[11px]">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-slate-400" />
-                          {c.registeredOn || "Recent"}
-                        </span>
-                      </td>
-
                       {/* Actions */}
                       <td
                         className="py-3.5 px-4 text-right whitespace-nowrap"
@@ -883,13 +879,19 @@ export default function JobSeekersManager({
                   {selectedCandidate.avatarLetter || "CD"}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-lg font-black text-white tracking-tight">
                       {selectedCandidate.name}
                     </h3>
                     {selectedCandidate.userId && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white font-mono border border-white/20">
                         {selectedCandidate.userId}
+                      </span>
+                    )}
+                    {selectedCandidate.registeredOn && (
+                      <span className="text-xs text-slate-300 flex items-center gap-1 font-medium ml-1">
+                        <Calendar className="w-3.5 h-3.5 text-blue-300 shrink-0" />
+                        <span>Registered: {selectedCandidate.registeredOn}</span>
                       </span>
                     )}
                   </div>

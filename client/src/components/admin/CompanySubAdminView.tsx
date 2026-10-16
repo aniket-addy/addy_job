@@ -179,8 +179,8 @@ export default function CompanySubAdminView({
           <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
             {[
               { id: "details" as const, label: "Company Details", badge: null },
-              { id: "resumes" as const, label: "Resumes", badge: companyResumes.length },
-              { id: "posts" as const, label: "Posts", badge: companyJobs.length },
+              { id: "resumes" as const, label: "Resumes", badge: null },
+              { id: "posts" as const, label: "Posts", badge: null },
               { id: "both" as const, label: "Both", badge: null },
             ].map((tab) => (
               <button
@@ -228,6 +228,11 @@ export default function CompanySubAdminView({
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <h3 className="text-lg font-black text-slate-900">{company.name}</h3>
+              {company.userId && (
+                <span className="text-xs px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 font-mono font-bold">
+                  {company.userId}
+                </span>
+              )}
               <span
                 className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                   company.status === "Approved"

@@ -45,7 +45,6 @@ export default function MetricCards({ onSelectTab, pendingCount, stats }: Metric
       id: "companies" as AdminTab,
       title: "Total Companies",
       value: totalComp.toLocaleString("en-IN"),
-      change: "Live DB",
       subtext: `${approvedComp} approved • ${pendComp} pending`,
       actionLabel: "Manage",
       icon: Building2,
@@ -56,7 +55,6 @@ export default function MetricCards({ onSelectTab, pendingCount, stats }: Metric
       id: "jobs" as AdminTab,
       title: "Total Job Postings",
       value: totalJobs.toLocaleString("en-IN"),
-      change: "Live DB",
       subtext: `Active: ${activeJobs} • Expired: ${expiredJobs}`,
       actionLabel: "View All",
       icon: Briefcase,
@@ -67,7 +65,6 @@ export default function MetricCards({ onSelectTab, pendingCount, stats }: Metric
       id: "applications" as AdminTab,
       title: "Total Applications",
       value: totalApps.toLocaleString("en-IN"),
-      change: "Live DB",
       subtext: `Candidate Submissions`,
       actionLabel: "View All",
       icon: FileCheck2,
@@ -78,7 +75,6 @@ export default function MetricCards({ onSelectTab, pendingCount, stats }: Metric
       id: "payments" as AdminTab,
       title: "Total Revenue",
       value: revenue,
-      change: "Platform",
       subtext: "Subscription & billing",
       actionLabel: "View Analytics",
       icon: CreditCard,
@@ -109,14 +105,16 @@ export default function MetricCards({ onSelectTab, pendingCount, stats }: Metric
                 </span>
               </div>
 
-              {/* Value + Growth Badge */}
+              {/* Value */}
               <div className="mt-4 flex items-baseline gap-2.5">
                 <h3 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">
                   {card.value}
                 </h3>
-                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  {card.change}
-                </span>
+                {(card as any).change && (
+                  <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    {(card as any).change}
+                  </span>
+                )}
               </div>
 
               {/* Subtext */}

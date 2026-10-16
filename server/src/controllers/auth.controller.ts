@@ -59,8 +59,8 @@ const getColorForName = (name: string): string => {
 const formatUser = (user: IUser) => {
   return {
     id: user._id,
-    userId: user.userId || user.customId || 'us01',
-    customId: user.customId || user.userId || 'us01',
+    userId: user.userId || user.customId || (user.role === 'company' ? 'C102600001' : 'JS102600001'),
+    customId: user.customId || user.userId || (user.role === 'company' ? 'C102600001' : 'JS102600001'),
     email: user.email,
     role: user.role,
     name: user.name || (user.role === 'company' ? user.companyName : user.userId || 'Candidate'),
@@ -191,8 +191,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Generate sequential user ID in format: us01, us02, us03...
-    const customUserId = await getNextCustomUserId();
+    // Generate sequential user ID in format: JS102600001 (Job Seeker) or C102600001 (Company)
+    const customUserId = await getNextCustomUserId(role);
 
     // Create user object based on role (clean data only, no default placeholder strings)
     const candidateName = fullName || name || '';
@@ -396,12 +396,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Find user in database by email OR customId / userId (e.g. us01)
+    // Find user in database by email OR customId / userId (e.g. JS102600001, C102600001, us01)
     const user = await User.findOne({
       $or: [
         { email: normalizedEmail },
+        { userId: normalizedEmail },
+        { customId: normalizedEmail },
         { userId: normalizedEmail.toLowerCase() },
         { customId: normalizedEmail.toLowerCase() },
+        { userId: normalizedEmail.toUpperCase() },
+        { customId: normalizedEmail.toUpperCase() },
       ],
     });
     if (!user) {
