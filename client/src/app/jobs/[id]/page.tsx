@@ -9,6 +9,7 @@ import {
   fetchPublicJobById,
   fetchPublicJobs,
   getStoredUser,
+  fetchCurrentUser,
   submitJobApplication,
   saveLocalAppliedJob,
   toggleLocalSavedJob,
@@ -104,21 +105,50 @@ function JobDetailPageContent() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [resumeFileName, setResumeFileName] = useState("");
-  const [resumeBase64, setResumeBase64] = useState("");
+
+  // Resume states: Profile Default vs Custom Upload
+  const [profileResumeName, setProfileResumeName] = useState("");
+  const [profileResumeUrl, setProfileResumeUrl] = useState("");
+  const [profileResumeDate, setProfileResumeDate] = useState("");
+  const [resumeChoice, setResumeChoice] = useState<"profile" | "custom">("profile");
+  const [customFileName, setCustomFileName] = useState("");
+  const [customBase64, setCustomBase64] = useState("");
   const [resumeError, setResumeError] = useState("");
   const resumeInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isApplyModalOpen) {
+      setResumeError("");
       const storedUser = getStoredUser();
       if (storedUser) {
-        if (!fullName && storedUser.name) setFullName(storedUser.name);
-        if (!email && storedUser.email) setEmail(storedUser.email);
-        if (!phone && storedUser.phone) setPhone(storedUser.phone);
-        if (!resumeFileName && storedUser.resumeName) setResumeFileName(storedUser.resumeName);
-        if (!resumeBase64 && storedUser.resumeUrl) setResumeBase64(storedUser.resumeUrl);
+        setFullName(storedUser.name || (storedUser as any).fullName || "");
+        setEmail(storedUser.email || "");
+        setPhone(storedUser.phone || (storedUser as any).mobileNumber || "");
+
+        const pName =
+          storedUser.resumeName ||
+          (storedUser.name
+            ? `${storedUser.name.replace(/\s+/g, "_")}_Resume.pdf`
+            : "Candidate_Resume.pdf");
+        setProfileResumeName(pName);
+        setProfileResumeUrl(storedUser.resumeUrl || "");
+        setProfileResumeDate(storedUser.resumeDate || "Saved in profile");
+        setResumeChoice("profile");
       }
+
+      // Fetch fresh data from backend
+      fetchCurrentUser()
+        .then((fresh) => {
+          if (fresh) {
+            if (fresh.name) setFullName(fresh.name);
+            if (fresh.email) setEmail(fresh.email);
+            if (fresh.phone) setPhone(fresh.phone);
+            if (fresh.resumeName) setProfileResumeName(fresh.resumeName);
+            if (fresh.resumeUrl) setProfileResumeUrl(fresh.resumeUrl);
+            if (fresh.resumeDate) setProfileResumeDate(fresh.resumeDate);
+          }
+        })
+        .catch(() => {});
     }
   }, [isApplyModalOpen]);
 
@@ -132,11 +162,12 @@ function JobDetailPageContent() {
       return;
     }
 
-    setResumeFileName(file.name);
+    setCustomFileName(file.name);
+    setResumeChoice("custom");
     const reader = new FileReader();
     reader.onload = (event) => {
       const res = event.target?.result as string;
-      setResumeBase64(res);
+      setCustomBase64(res);
     };
     reader.onerror = () => {
       setResumeError("Failed to read resume file");
@@ -192,11 +223,21 @@ function JobDetailPageContent() {
     e.preventDefault();
     if (!job) return;
 
+    if (resumeChoice === "custom" && !customFileName) {
+      setResumeError("Please choose a resume file to upload or switch to your profile resume.");
+      return;
+    }
+
     const storedUser = getStoredUser();
     const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
-    const finalResume = resumeBase64 || storedUser?.resumeUrl || "";
-    const finalFileName =
-      resumeFileName || storedUser?.resumeName || (finalResume ? `${(fullName || "Candidate").replace(/\s+/g, "_")}_Resume.pdf` : "");
+
+    const isUsingProfile = resumeChoice === "profile";
+    const finalResume = isUsingProfile
+      ? (profileResumeUrl || storedUser?.resumeUrl || "")
+      : customBase64;
+    const finalFileName = isUsingProfile
+      ? (profileResumeName || storedUser?.resumeName || `${(fullName || "Candidate").replace(/\s+/g, "_")}_Resume.pdf`)
+      : (customFileName || `${(fullName || "Candidate").replace(/\s+/g, "_")}_Resume.pdf`);
 
     const appData = {
       id: "app-" + Date.now(),
@@ -712,8 +753,8 @@ function JobDetailPageContent() {
 
       {/* ================= INTERACTIVE APPLICATION MODAL ================= */}
       {isApplyModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 relative animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsApplyModalOpen(false)}
               className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
@@ -789,11 +830,49 @@ function JobDetailPageContent() {
                     />
                   </div>
 
-                  {/* Resume Upload Box */}
+                  {/* Resume Section with Profile Default + Custom Upload */}
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">
-                      Upload Resume (PDF, DOCX)
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">
+                        Resume (PDF, DOCX) <span className="text-red-500">*</span>
+                      </label>
+                      {profileResumeName && (
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResumeChoice("profile");
+                              setResumeError("");
+                            }}
+                            className={`font-semibold px-2 py-0.5 rounded-md transition cursor-pointer ${
+                              resumeChoice === "profile"
+                                ? "bg-blue-100 text-blue-700 font-bold"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            Profile Resume
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResumeChoice("custom");
+                              setResumeError("");
+                              if (!customFileName) {
+                                resumeInputRef.current?.click();
+                              }
+                            }}
+                            className={`font-semibold px-2 py-0.5 rounded-md transition cursor-pointer ${
+                              resumeChoice === "custom"
+                                ? "bg-blue-100 text-blue-700 font-bold"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            Upload New
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     <input
                       type="file"
@@ -803,19 +882,61 @@ function JobDetailPageContent() {
                       className="hidden"
                     />
 
-                    {resumeFileName ? (
-                      <div className="flex items-center justify-between p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl">
-                        <div className="flex items-center gap-2.5 truncate">
-                          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
-                            <FileText className="w-4 h-4" />
+                    {/* Mode 1: Profile Resume Selected (Default) */}
+                    {resumeChoice === "profile" && profileResumeName ? (
+                      <div className="flex items-center justify-between p-3.5 bg-blue-50/70 border-2 border-blue-200 rounded-2xl transition">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <FileText className="w-5 h-5" />
                           </div>
-                          <div className="truncate">
-                            <p className="text-xs font-bold text-slate-900 truncate">
-                              {resumeFileName}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-bold text-slate-900 truncate">
+                                {profileResumeName}
+                              </p>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 shrink-0">
+                                Default (Profile)
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                              <CheckCircle2 className="w-3 h-3 shrink-0" />
+                              <span>Attached from your profile</span>
                             </p>
-                            <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Resume attached successfully</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResumeChoice("custom");
+                              resumeInputRef.current?.click();
+                            }}
+                            className="px-3 py-1.5 text-[11px] font-bold text-blue-700 bg-white hover:bg-blue-50 rounded-xl border border-blue-200 transition cursor-pointer shadow-2xs"
+                          >
+                            Upload Other
+                          </button>
+                        </div>
+                      </div>
+                    ) : customFileName ? (
+                      /* Mode 2: Custom Resume File Chosen */
+                      <div className="flex items-center justify-between p-3.5 bg-emerald-50/70 border-2 border-emerald-300 rounded-2xl transition">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-bold text-slate-900 truncate">
+                                {customFileName}
+                              </p>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
+                                New Upload
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                              <CheckCircle2 className="w-3 h-3 shrink-0" />
+                              <span>Custom resume attached</span>
                             </p>
                           </div>
                         </div>
@@ -824,33 +945,50 @@ function JobDetailPageContent() {
                           <button
                             type="button"
                             onClick={() => resumeInputRef.current?.click()}
-                            className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-white hover:bg-blue-100 rounded-lg border border-blue-200 transition cursor-pointer"
+                            className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition cursor-pointer shadow-2xs"
                           >
                             Change
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setResumeFileName("");
-                              setResumeBase64("");
-                            }}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                            title="Remove file"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {profileResumeName && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResumeChoice("profile");
+                                setCustomFileName("");
+                                setCustomBase64("");
+                              }}
+                              className="px-2.5 py-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline transition cursor-pointer"
+                              title="Revert to profile resume"
+                            >
+                              Use Default
+                            </button>
+                          )}
                         </div>
                       </div>
                     ) : (
-                      <div
-                        onClick={() => resumeInputRef.current?.click()}
-                        className="border border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 hover:border-blue-400 transition cursor-pointer flex flex-col items-center justify-center group"
-                      >
-                        <Upload className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition mb-1" />
-                        <span className="text-xs font-semibold text-blue-600 group-hover:underline">
-                          Attach Resume (Click to browse file)
-                        </span>
-                        <span className="text-[10px] text-slate-400">PDF, DOC, DOCX (Max 12MB)</span>
+                      /* Mode 3: Dropzone to browse a new resume file */
+                      <div className="space-y-2">
+                        <div
+                          onClick={() => resumeInputRef.current?.click()}
+                          className="border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-2xl p-4 text-center hover:bg-blue-50/30 transition cursor-pointer flex flex-col items-center justify-center group"
+                        >
+                          <Upload className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition mb-1" />
+                          <span className="text-xs font-bold text-blue-600 group-hover:underline">
+                            Attach New Resume (Click to browse file)
+                          </span>
+                          <span className="text-[10px] text-slate-400">PDF, DOC, DOCX (Max 12MB)</span>
+                        </div>
+                        {profileResumeName && (
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setResumeChoice("profile")}
+                              className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer flex items-center gap-1"
+                            >
+                              <span>← Use Profile Resume ({profileResumeName})</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -864,7 +1002,7 @@ function JobDetailPageContent() {
                   <button
                     type="button"
                     onClick={() => setIsApplyModalOpen(false)}
-                    className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                    className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                   >
                     Cancel
                   </button>

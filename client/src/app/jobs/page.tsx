@@ -34,6 +34,7 @@ function JobsContent() {
   const initialQ = searchParams?.get("q") || "";
   const initialLocation = searchParams?.get("location") || "";
   const initialType = searchParams?.get("type") || "All";
+  const initialFilter = searchParams?.get("filter") || "";
 
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,28 +43,42 @@ function JobsContent() {
   const [selectedJobType, setSelectedJobType] = useState(initialType);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [savedJobs, setSavedJobs] = useState<Record<string, boolean>>({});
+  const [onlySaved, setOnlySaved] = useState(initialFilter === "saved");
 
   useEffect(() => {
     let isMounted = true;
-    const storedUser = getStoredUser();
-    const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
-    const saved = getLocalSavedJobs(uid);
-    const map: Record<string, boolean> = {};
-    saved.forEach((s: any) => {
-      const id = s.id || s._id;
-      if (id) map[id] = true;
-    });
-    setSavedJobs(map);
+
+    const syncSavedMap = () => {
+      const storedUser = getStoredUser();
+      const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+      const saved = getLocalSavedJobs(uid);
+      const map: Record<string, boolean> = {};
+      saved.forEach((s: any) => {
+        const id = s.id || s._id || s.jobId;
+        if (id) map[id] = true;
+      });
+      setSavedJobs(map);
+    };
+
+    syncSavedMap();
 
     const loadJobs = () => {
       fetchPublicJobs()
         .then((data) => {
           if (isMounted) {
-            if (Array.isArray(data) && data.length > 0) {
-              setJobs(data);
-            } else {
-              setJobs(jobsList);
-            }
+            let combined = Array.isArray(data) && data.length > 0 ? data : jobsList;
+            const storedUser = getStoredUser();
+            const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+            const saved = getLocalSavedJobs(uid);
+            const existingIds = new Set(combined.map((j: any) => String(j.id || j._id || j.jobId)));
+            saved.forEach((s: any) => {
+              const sId = String(s.id || s._id || s.jobId);
+              if (sId && !existingIds.has(sId)) {
+                combined = [s, ...combined];
+                existingIds.add(sId);
+              }
+            });
+            setJobs(combined);
           }
         })
         .catch((err) => {
@@ -80,14 +95,20 @@ function JobsContent() {
     window.addEventListener("job_created", loadJobs);
     window.addEventListener("job_updated", loadJobs);
     window.addEventListener("applied_jobs_change", loadJobs);
-    window.addEventListener("storage", loadJobs);
+    window.addEventListener("saved_jobs_change", () => {
+      syncSavedMap();
+      loadJobs();
+    });
+    window.addEventListener("storage", () => {
+      syncSavedMap();
+      loadJobs();
+    });
 
     return () => {
       isMounted = false;
       window.removeEventListener("job_created", loadJobs);
       window.removeEventListener("job_updated", loadJobs);
       window.removeEventListener("applied_jobs_change", loadJobs);
-      window.removeEventListener("storage", loadJobs);
     };
   }, []);
 
@@ -133,15 +154,25 @@ function JobsContent() {
       const q = searchParams.get("q");
       const loc = searchParams.get("location");
       const typ = searchParams.get("type");
-      if (q) setSearchQuery(q);
-      if (loc) setLocationQuery(loc);
-      if (typ) setSelectedJobType(typ);
+      const filter = searchParams.get("filter");
+      if (q !== null) setSearchQuery(q);
+      if (loc !== null) setLocationQuery(loc);
+      if (typ !== null) setSelectedJobType(typ);
+      if (filter === "saved") {
+        setOnlySaved(true);
+      } else if (filter) {
+        setOnlySaved(false);
+      }
     }
   }, [searchParams]);
 
   const categories = ["ALL", "Engineering", "Design", "Marketing", "Product", "Finance", "HR"];
 
   const filteredJobs = jobs.filter((job) => {
+    const jId = String(job.id || job._id || job.jobId || "");
+    if (onlySaved && !savedJobs[jId]) {
+      return false;
+    }
     const jobCat = job.department || job.category || "";
     const matchesCategory =
       selectedCategory.toUpperCase() === "ALL" || jobCat.toLowerCase() === selectedCategory.toLowerCase();
@@ -172,7 +203,7 @@ function JobsContent() {
     e.stopPropagation();
     const storedUser = getStoredUser();
     const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
-    const targetJob = jobs.find((j) => (j.id || j._id) === id);
+    const targetJob = jobs.find((j) => String(j.id || j._id || j.jobId) === String(id));
     if (targetJob) {
       const res = toggleLocalSavedJob(uid, targetJob);
       setSavedJobs((prev) => ({ ...prev, [id]: res.saved }));
@@ -811,18 +842,55 @@ function JobsContent() {
             ))}
           </div>
         ) : filteredJobs.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs max-w-xl mx-auto my-8">
+          <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-slate-200/80 shadow-xs max-w-xl mx-auto my-8">
             <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
-              <Briefcase className="w-8 h-8" />
+              {onlySaved ? <Bookmark className="w-8 h-8 text-blue-600" /> : <Briefcase className="w-8 h-8" />}
             </div>
-            <h3 className="text-lg font-bold text-slate-800">No Jobs Found</h3>
+            <h3 className="text-lg font-bold text-slate-800">
+              {onlySaved ? "No Saved Jobs Yet" : "No Jobs Found"}
+            </h3>
             <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-              No matching jobs were found in the database. Try adjusting your search keywords or clear your filters.
+              {onlySaved
+                ? "You haven't bookmarked any jobs yet. Browse openings and tap the bookmark icon on any job to save it for quick access."
+                : "No matching jobs were found in the database. Try adjusting your search keywords or clear your filters."}
             </p>
+            {onlySaved && (
+              <button
+                type="button"
+                onClick={() => setOnlySaved(false)}
+                className="mt-5 inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer"
+              >
+                <span>Browse All Jobs</span>
+                <ArrowUpRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
         ) : (
           /* Jobs List Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            {onlySaved && (
+              <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200/70 rounded-2xl p-4 mb-6">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-2xs">
+                    <Bookmark className="w-4 h-4 fill-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Your Saved Jobs</h3>
+                    <p className="text-xs text-slate-500">
+                      Showing {filteredJobs.length} bookmarked position{filteredJobs.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOnlySaved(false)}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-white px-3 py-1.5 rounded-xl border border-blue-200 hover:border-blue-300 transition cursor-pointer shadow-2xs"
+                >
+                  View All Jobs
+                </button>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredJobs.map((job) => {
             const jId = job.id || job._id;
             const isSaved = !!savedJobs[jId];
@@ -911,6 +979,7 @@ function JobsContent() {
               </Link>
             );
           })}
+            </div>
           </div>
         )}
       </main>

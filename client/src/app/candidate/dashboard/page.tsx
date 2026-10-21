@@ -1615,6 +1615,20 @@ export default function CandidateDashboardPage() {
       populateFromUser(stored);
       loadAppliedAndSaved(stored);
 
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tab = urlParams.get("tab");
+        if (tab === "saved") {
+          setActiveSidebarTab("saved");
+        } else if (tab === "applied") {
+          setActiveSidebarTab("applied");
+        } else if (tab === "alerts") {
+          setActiveSidebarTab("alerts");
+        } else if (tab === "messages") {
+          setActiveSidebarTab("messages");
+        }
+      }
+
       try {
         const fresh = await fetchCurrentUser();
         if (fresh) {
@@ -2206,11 +2220,9 @@ export default function CandidateDashboardPage() {
                 id="overview-section"
                 className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-7 shadow-xs relative"
               >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-              {/* Left Column (Avatar + Info) */}
-              <div className="flex items-start gap-4 sm:gap-5 min-w-0 flex-1">
-                <div className="relative shrink-0">
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden ring-4 ring-slate-100 shadow-md bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-black text-2xl sm:text-3xl select-none">
+                <div className="flex items-start gap-4 sm:gap-5 min-w-0">
+                  <div className="relative shrink-0">
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden ring-4 ring-slate-100 shadow-md bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-black text-2xl sm:text-3xl select-none">
                     {profileImage ? (
                       <img
                         src={profileImage}
@@ -2274,18 +2286,6 @@ export default function CandidateDashboardPage() {
                       <span>{phone || "1234567890"}</span>
                     </span>
                   </div>
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <div className="shrink-0 flex items-center gap-3">
-                <button
-                  onClick={openEditModal}
-                  className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs transition flex items-center gap-2 border border-blue-100 cursor-pointer shadow-2xs"
-                >
-                  <Edit3 className="w-4 h-4" />
-                  <span>Edit Profile</span>
-                </button>
               </div>
             </div>
           </div>
@@ -2919,189 +2919,212 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL 1: EDIT PROFILE */}
       {editModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 my-8 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-3 sm:p-4">
+          {/* Backdrop click dismiss */}
+          <div className="fixed inset-0" onClick={() => setEditModalOpen(false)} />
+
+          <div className="relative bg-white rounded-2xl max-w-lg w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 z-10">
+            {/* Modal Header (Fixed) */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 bg-white">
               <div className="flex items-center gap-2">
-                <Edit3 className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-black text-slate-900">Edit Profile</h3>
+                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-900">Edit Profile</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setEditModalOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600"
+                className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                title="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} className="space-y-4 pt-4 text-xs">
-              {/* Profile Photo Uploader */}
-              <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                <div className="w-14 h-14 rounded-full overflow-hidden ring-2 ring-white shadow-xs bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-bold text-lg shrink-0 select-none">
-                  {profileImage ? (
-                    <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <span>{getInitials(name || currentUser?.userId || "U")}</span>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-800">Profile Photo</p>
-                  <div className="flex items-center gap-2">
-                    <label
-                      htmlFor="modal-profile-picture-upload"
-                      className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] cursor-pointer transition shadow-2xs"
-                    >
-                      Change Photo
-                      <input
-                        id="modal-profile-picture-upload"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProfileImageUpload}
-                      />
-                    </label>
-                    {profileImage && (
-                      <button
-                        type="button"
-                        onClick={handleRemoveProfileImage}
-                        className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-rose-50 text-slate-700 hover:text-rose-600 font-semibold text-[11px] transition cursor-pointer"
-                      >
-                        Remove
-                      </button>
+            <form onSubmit={handleSaveProfile} className="flex flex-col flex-1 min-h-0">
+              {/* Modal Body (Scrollable & Compact) */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-xs">
+                {/* Profile Photo Uploader */}
+                <div className="flex items-center gap-3 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100">
+                  <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-xs bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-bold text-base shrink-0 select-none">
+                    {profileImage ? (
+                      <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{getInitials(name || currentUser?.userId || "U")}</span>
                     )}
                   </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-bold text-slate-800">Profile Photo</p>
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="modal-profile-picture-upload"
+                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] cursor-pointer transition shadow-2xs"
+                      >
+                        Change Photo
+                        <input
+                          id="modal-profile-picture-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleProfileImageUpload}
+                        />
+                      </label>
+                      {profileImage && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveProfileImage}
+                          className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-rose-50 text-slate-700 hover:text-rose-600 font-semibold text-[11px] transition cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                      required
+                      placeholder="e.g. John Doe"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Target Role / Title</label>
+                    <input
+                      type="text"
+                      name="headline"
+                      value={editForm.headline}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, headline: e.target.value }))}
+                      required
+                      placeholder="e.g. Full Stack Developer"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Experience</label>
+                    <input
+                      type="text"
+                      name="experience"
+                      value={editForm.experience}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, experience: e.target.value }))}
+                      placeholder="e.g. Fresher / 2 Years"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Location</label>
+                    <input
+                      type="text"
+                      name="location"
+                      value={editForm.location}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, location: e.target.value }))}
+                      placeholder="e.g. Delhi NCR / Noida"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
+                      placeholder="e.g. user@gmail.com"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Phone</label>
+                    <input
+                      type="text"
+                      name="phone"
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
+                      placeholder="e.g. 9876543210"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Education</label>
+                    <input
+                      type="text"
+                      name="education"
+                      value={editForm.education}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, education: e.target.value }))}
+                      placeholder="e.g. B.Tech Computer Science"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Languages</label>
+                    <input
+                      type="text"
+                      name="languages"
+                      value={editForm.languages}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, languages: e.target.value }))}
+                      placeholder="e.g. English, Hindi"
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Full Name</label>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">
+                    Skills (comma separated)
+                  </label>
                   <input
                     type="text"
-                    name="name"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                    required
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                    name="skills"
+                    value={editForm.skills}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, skills: e.target.value }))}
+                    placeholder="e.g. React, Node.js, TypeScript, Tailwind"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
                   />
                 </div>
+
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Target Role / Title</label>
-                  <input
-                    type="text"
-                    name="headline"
-                    value={editForm.headline}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, headline: e.target.value }))}
-                    required
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">About Me (Bio)</label>
+                  <textarea
+                    name="bio"
+                    rows={2}
+                    value={editForm.bio}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, bio: e.target.value }))}
+                    placeholder="Write a brief professional summary about yourself..."
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden resize-none bg-slate-50/40 hover:bg-white focus:bg-white transition"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Experience</label>
-                  <input
-                    type="text"
-                    name="experience"
-                    value={editForm.experience}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, experience: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Location</label>
-                  <input
-                    type="text"
-                    name="location"
-                    value={editForm.location}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, location: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={editForm.email}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Phone</label>
-                  <input
-                    type="text"
-                    name="phone"
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Education</label>
-                <input
-                  type="text"
-                  name="education"
-                  value={editForm.education}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, education: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Languages</label>
-                <input
-                  type="text"
-                  name="languages"
-                  value={editForm.languages}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, languages: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">About Me (Bio)</label>
-                <textarea
-                  name="bio"
-                  rows={3}
-                  value={editForm.bio}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, bio: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  Skills (comma separated)
-                </label>
-                <input
-                  type="text"
-                  name="skills"
-                  value={editForm.skills}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, skills: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-3">
+              {/* Modal Footer (Fixed) */}
+              <div className="px-5 py-3 bg-slate-50/90 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 font-semibold text-xs text-slate-600 hover:bg-white hover:border-slate-300 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-500/20 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition shadow-xs shadow-blue-500/20 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                 >
                   {isSaving ? "Saving..." : "Save Changes"}
                 </button>
@@ -3113,7 +3136,7 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL: ADD / EDIT EDUCATION */}
       {addEducationModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -3207,7 +3230,7 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL: ADD / EDIT PROJECT */}
       {addProjectModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -3315,7 +3338,7 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL: ADD / EDIT LANGUAGE */}
       {addLanguageModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -3423,7 +3446,7 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL: ADD / EDIT EXPERIENCE */}
       {addExperienceModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -3521,7 +3544,7 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL: ADD SKILLS */}
       {addSkillModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -3646,7 +3669,7 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL 2: UPLOAD RESUME */}
       {uploadResumeModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -3698,7 +3721,7 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL 3: COMPLETE PROFILE */}
       {completeProfileModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -3770,97 +3793,105 @@ export default function CandidateDashboardPage() {
 
       {/* MODAL: EDIT PERSONAL DETAILS */}
       {editPersonalModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 my-8 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-3 sm:p-4">
+          <div className="fixed inset-0" onClick={() => setEditPersonalModalOpen(false)} />
+
+          <div className="relative bg-white rounded-2xl max-w-lg w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 z-10">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 bg-white">
               <div className="flex items-center gap-2">
-                <User className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-black text-slate-900">Edit Personal Details</h3>
+                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <User className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-900">Edit Personal Details</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setEditPersonalModalOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600"
+                className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                title="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSavePersonal} className="space-y-4 pt-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSavePersonal} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Date of Birth</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 15 Aug 1999"
+                      value={personalForm.dob}
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, dob: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Gender</label>
+                    <select
+                      value={personalForm.gender}
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, gender: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Marital Status</label>
+                    <select
+                      value={personalForm.maritalStatus}
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, maritalStatus: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    >
+                      <option value="">Select Status</option>
+                      <option value="Single / Unmarried">Single / Unmarried</option>
+                      <option value="Married">Married</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">Nationality</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Indian"
+                      value={personalForm.nationality}
+                      onChange={(e) => setPersonalForm((prev) => ({ ...prev, nationality: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Date of Birth</label>
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">Permanent Address / Location</label>
                   <input
                     type="text"
-                    placeholder="e.g. 15 Aug 1999"
-                    value={personalForm.dob}
-                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, dob: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Gender</label>
-                  <select
-                    value={personalForm.gender}
-                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, gender: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-white"
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Marital Status</label>
-                  <select
-                    value={personalForm.maritalStatus}
-                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, maritalStatus: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-white"
-                  >
-                    <option value="">Select Status</option>
-                    <option value="Single / Unmarried">Single / Unmarried</option>
-                    <option value="Married">Married</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Nationality</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Indian"
-                    value={personalForm.nationality}
-                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, nationality: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
+                    placeholder="e.g. Delhi NCR / Noida, India"
+                    value={personalForm.address}
+                    onChange={(e) => setPersonalForm((prev) => ({ ...prev, address: e.target.value }))}
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden bg-slate-50/40 hover:bg-white focus:bg-white transition"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Permanent Address / Location</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Delhi NCR / Noida, India"
-                  value={personalForm.address}
-                  onChange={(e) => setPersonalForm((prev) => ({ ...prev, address: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-hidden"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <div className="px-5 py-3 bg-slate-50/90 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setEditPersonalModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 font-bold text-slate-600 transition cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-white hover:border-slate-300 font-semibold text-xs text-slate-600 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-md shadow-blue-500/20 cursor-pointer"
+                  className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition shadow-xs shadow-blue-500/20 cursor-pointer"
                 >
                   Save Changes
                 </button>

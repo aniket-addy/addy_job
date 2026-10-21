@@ -2,23 +2,23 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  ShieldCheck,
-  KeyRound,
-  Check,
-  Sparkles,
+  Key,
   Zap,
-  Building2,
+  Lock,
+  RotateCcw,
+  Save,
+  Pencil,
+  LayoutGrid,
   Briefcase,
   Users,
-  FolderDown,
+  FileText,
   Settings,
-  LayoutDashboard,
-  CreditCard,
   Info,
-  Save,
   CheckCircle2,
-  Sliders,
+  ArrowRight,
+  X,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import {
   fetchAdminPermissionsSettings,
@@ -27,9 +27,12 @@ import {
   PLAN_AUTO_PERMISSIONS,
 } from "@/lib/api";
 
-interface PlanRule {
+export interface PlanRuleItem {
+  id: string;
   planName: string;
-  badgeColor: string;
+  badgeLabel: string;
+  badgeStyle: string; // Tailwind classes for badge
+  description: string;
   permissions: {
     dashboard: boolean;
     jobs: boolean;
@@ -39,21 +42,27 @@ interface PlanRule {
   };
 }
 
-const DEFAULT_PLAN_RULES: PlanRule[] = [
+const DEFAULT_PLAN_RULES: PlanRuleItem[] = [
   {
+    id: "basic",
     planName: "Basic Plan",
-    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+    badgeLabel: "Basic Plan",
+    badgeStyle: "bg-[#DBEAFE] text-[#1D4ED8] border-blue-200/60",
+    description: "Essentials for small companies",
     permissions: {
-      dashboard: false,
-      jobs: true,
-      applicants: true,
+      dashboard: true,
+      jobs: false,
+      applicants: false,
       resumes: false,
       settings: false,
     },
   },
   {
+    id: "pro",
     planName: "Pro Plan",
-    badgeColor: "bg-violet-50 text-violet-700 border-violet-200",
+    badgeLabel: "Pro Plan",
+    badgeStyle: "bg-[#EDE9FE] text-[#6D28D9] border-purple-200/60",
+    description: "Advanced features for growing teams",
     permissions: {
       dashboard: true,
       jobs: true,
@@ -63,8 +72,11 @@ const DEFAULT_PLAN_RULES: PlanRule[] = [
     },
   },
   {
+    id: "enterprise",
     planName: "Enterprise",
-    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    badgeLabel: "Enterprise",
+    badgeStyle: "bg-[#D1FAE5] text-[#047857] border-emerald-200/60",
+    description: "Full access with advanced controls",
     permissions: {
       dashboard: true,
       jobs: true,
@@ -75,60 +87,95 @@ const DEFAULT_PLAN_RULES: PlanRule[] = [
   },
 ];
 
-const normalizePlanRules = (rawRules: any): PlanRule[] => {
-  if (Array.isArray(rawRules) && rawRules.length > 0) {
-    return rawRules;
-  }
-  if (rawRules && typeof rawRules === "object") {
-    return Object.entries(rawRules).map(([planName, perms]: [string, any]) => ({
-      planName,
-      badgeColor:
-        planName.toLowerCase().includes("enterprise")
-          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-          : planName.toLowerCase().includes("pro")
-          ? "bg-violet-50 text-violet-700 border-violet-200"
-          : "bg-blue-50 text-blue-700 border-blue-200",
-      permissions: {
-        dashboard: Boolean(perms?.dashboard),
-        jobs: Boolean(perms?.jobs),
-        applicants: Boolean(perms?.applicants),
-        resumes: Boolean(perms?.resumes),
-        settings: Boolean(perms?.settings),
-      },
-    }));
-  }
-  return DEFAULT_PLAN_RULES;
+const DEFAULT_UNSUBSCRIBED_PERMS = {
+  dashboard: true,
+  jobs: false,
+  applicants: false,
+  resumes: false,
+  settings: false,
 };
 
 interface PermissionsSettingsManagerProps {
   onGoToCompanies?: () => void;
 }
 
+// Reusable iOS-style Switch Toggle matching screenshot
+function ToggleSwitch({
+  checked,
+  onChange,
+  disabled = false,
+  size = "md",
+  ariaLabel,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  size?: "sm" | "md" | "lg";
+  ariaLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(!checked);
+      }}
+      className={`relative inline-flex items-center rounded-full transition-colors duration-200 ease-in-out cursor-pointer select-none focus:outline-none ${
+        size === "sm"
+          ? "w-9 h-5"
+          : size === "lg"
+          ? "w-13 h-7"
+          : "w-11 h-6"
+      } ${
+        checked ? "bg-[#6D28D9]" : "bg-slate-200 hover:bg-slate-300"
+      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+    >
+      <span
+        className={`inline-block rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out ${
+          size === "sm"
+            ? `w-3.5 h-3.5 ${checked ? "translate-x-4.5" : "translate-x-1"}`
+            : size === "lg"
+            ? `w-5.5 h-5.5 ${checked ? "translate-x-6.5" : "translate-x-1"}`
+            : `w-4.5 h-4.5 ${checked ? "translate-x-5.5" : "translate-x-1"}`
+        }`}
+      />
+    </button>
+  );
+}
+
 export default function PermissionsSettingsManager({
   onGoToCompanies,
 }: PermissionsSettingsManagerProps) {
+  // 1. Subscription Plan Auto-Approval Engine
   const [autoApprovalEnabled, setAutoApprovalEnabled] = useState(true);
-  const [defaultNewCompanyPerms, setDefaultNewCompanyPerms] = useState<{
-    dashboard: boolean;
-    jobs: boolean;
-    applicants: boolean;
-    resumes: boolean;
-    settings: boolean;
-  }>({
-    dashboard: false,
-    jobs: false,
-    applicants: false,
-    resumes: false,
-    settings: false,
-  });
 
-  const [planRules, setPlanRules] = useState<PlanRule[]>(DEFAULT_PLAN_RULES);
+  // 2. Plan-Wise Rules
+  const [planRules, setPlanRules] = useState<PlanRuleItem[]>(DEFAULT_PLAN_RULES);
+
+  // 3. Default Permissions for Unsubscribed Companies
+  const [enableDefaultPerms, setEnableDefaultPerms] = useState(false);
+  const [unsubscribedPerms, setUnsubscribedPerms] = useState(DEFAULT_UNSUBSCRIBED_PERMS);
+
+  // UI state
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ type: "success" | "info"; text: string } | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingRules, setEditingRules] = useState<PlanRuleItem[]>([]);
 
+  // Show toast notification helper
+  const showToast = (text: string, type: "success" | "info" = "success") => {
+    setToastMessage({ type, text });
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
+
+  // Load from database / local storage on mount
   useEffect(() => {
-    // Load from backend or localStorage
     const loadSettings = async () => {
       try {
         const remote = await fetchAdminPermissionsSettings();
@@ -136,16 +183,43 @@ export default function PermissionsSettingsManager({
           if (typeof remote.autoApprovalEnabled === "boolean") {
             setAutoApprovalEnabled(remote.autoApprovalEnabled);
           }
-          if (remote.planRules) {
-            setPlanRules(normalizePlanRules(remote.planRules));
+          if (typeof remote.enableDefaultPermissions === "boolean") {
+            setEnableDefaultPerms(remote.enableDefaultPermissions);
           }
           if (remote.defaultNewCompanyPerms) {
-            setDefaultNewCompanyPerms(remote.defaultNewCompanyPerms);
+            setUnsubscribedPerms({
+              ...DEFAULT_UNSUBSCRIBED_PERMS,
+              ...remote.defaultNewCompanyPerms,
+            });
           }
-          return;
+          if (remote.planRulesDetails && Array.isArray(remote.planRulesDetails)) {
+            setPlanRules(remote.planRulesDetails);
+            return;
+          } else if (remote.planRules && typeof remote.planRules === "object") {
+            // Map object rules
+            setPlanRules((prev) =>
+              prev.map((pr) => {
+                const found = remote.planRules[pr.planName];
+                if (found) {
+                  return {
+                    ...pr,
+                    permissions: {
+                      dashboard: Boolean(found.dashboard),
+                      jobs: Boolean(found.jobs),
+                      applicants: Boolean(found.applicants),
+                      resumes: Boolean(found.resumes),
+                      settings: Boolean(found.settings),
+                    },
+                  };
+                }
+                return pr;
+              })
+            );
+            return;
+          }
         }
 
-        // LocalStorage fallback
+        // Local storage cache fallback
         if (typeof window !== "undefined") {
           const cached = localStorage.getItem("addyjob_permissions_settings");
           if (cached) {
@@ -153,224 +227,379 @@ export default function PermissionsSettingsManager({
             if (typeof parsed.autoApprovalEnabled === "boolean") {
               setAutoApprovalEnabled(parsed.autoApprovalEnabled);
             }
-            if (parsed.planRules) {
-              setPlanRules(normalizePlanRules(parsed.planRules));
+            if (typeof parsed.enableDefaultPermissions === "boolean") {
+              setEnableDefaultPerms(parsed.enableDefaultPermissions);
             }
             if (parsed.defaultNewCompanyPerms) {
-              setDefaultNewCompanyPerms(parsed.defaultNewCompanyPerms);
+              setUnsubscribedPerms({
+                ...DEFAULT_UNSUBSCRIBED_PERMS,
+                ...parsed.defaultNewCompanyPerms,
+              });
+            }
+            if (parsed.planRulesDetails && Array.isArray(parsed.planRulesDetails)) {
+              setPlanRules(parsed.planRulesDetails);
             }
           }
         }
-      } catch (e) {
-        console.error("Failed to load permissions settings:", e);
+      } catch (err) {
+        console.error("Failed to load permissions settings:", err);
       }
     };
 
     loadSettings();
   }, []);
 
-  const handleTogglePlanPerm = (planIndex: number, key: keyof PlanRule["permissions"]) => {
+  // Toggle module permission for a specific plan tier
+  const handleTogglePlanPermission = (
+    planIndex: number,
+    moduleKey: keyof PlanRuleItem["permissions"]
+  ) => {
     setPlanRules((prev) => {
-      const current = normalizePlanRules(prev);
-      const copy = [...current];
-      if (copy[planIndex]) {
-        copy[planIndex] = {
-          ...copy[planIndex],
+      const next = [...prev];
+      if (next[planIndex]) {
+        next[planIndex] = {
+          ...next[planIndex],
           permissions: {
-            ...copy[planIndex].permissions,
-            [key]: !copy[planIndex].permissions[key],
+            ...next[planIndex].permissions,
+            [moduleKey]: !next[planIndex].permissions[moduleKey],
           },
         };
       }
-      return copy;
+      return next;
     });
   };
 
-  const handleToggleDefaultPerm = (key: keyof typeof defaultNewCompanyPerms) => {
-    setDefaultNewCompanyPerms((prev) => ({
+  // Toggle unsubscribed company module permission
+  const handleToggleUnsubscribed = (key: keyof typeof unsubscribedPerms) => {
+    setUnsubscribedPerms((prev) => ({
       ...prev,
       [key]: !prev[key],
     }));
   };
 
+  // Reset to initial default state
+  const handleResetToDefault = () => {
+    setAutoApprovalEnabled(true);
+    setPlanRules(DEFAULT_PLAN_RULES);
+    setEnableDefaultPerms(false);
+    setUnsubscribedPerms(DEFAULT_UNSUBSCRIBED_PERMS);
+    showToast("Settings reset to default configuration", "info");
+  };
+
+  // Save full configuration
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const currentRules = normalizePlanRules(planRules);
       const planRulesMap: Record<string, any> = {};
-      currentRules.forEach((pr) => {
+      planRules.forEach((pr) => {
         planRulesMap[pr.planName] = pr.permissions;
       });
 
       const payload = {
         autoApprovalEnabled,
+        enableDefaultPermissions: enableDefaultPerms,
         planRules: planRulesMap,
-        defaultNewCompanyPerms,
+        planRulesDetails: planRules,
+        defaultNewCompanyPerms: unsubscribedPerms,
       };
 
+      // 1. Store in localStorage for instant front-end synchronicity
       if (typeof window !== "undefined") {
         localStorage.setItem("addyjob_permissions_settings", JSON.stringify(payload));
-        // Sync plan auto perms
-        currentRules.forEach((pr) => {
+        // Update in-memory PLAN_AUTO_PERMISSIONS
+        planRules.forEach((pr) => {
           PLAN_AUTO_PERMISSIONS[pr.planName] = pr.permissions;
         });
         window.dispatchEvent(new Event("company_permissions_updated"));
         window.dispatchEvent(new Event("storage"));
       }
 
+      // 2. Persist to MongoDB backend
       const res = await updateAdminPermissionsSettings(payload);
 
-      setSaveSuccess(true);
       const count = (res as any)?.updatedCompaniesCount;
       if (typeof count === "number" && count > 0) {
-        setSaveMessage(`Applied to ${count} active company subscription${count > 1 ? "s" : ""}!`);
+        showToast(`Configuration saved & applied to ${count} active company accounts!`);
       } else {
-        setSaveMessage("Applied to all company subscriptions!");
+        showToast("Configuration saved successfully!");
       }
-      setTimeout(() => {
-        setSaveSuccess(false);
-        setSaveMessage(null);
-      }, 4000);
-    } catch (e) {
-      console.error("Save error:", e);
+    } catch (err) {
+      console.error("Save error:", err);
+      showToast("Settings saved locally.", "info");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const moduleItems: { key: keyof PlanRule["permissions"]; label: string; icon: any }[] = [
-    { key: "dashboard", label: "Dashboard Overview", icon: LayoutDashboard },
-    { key: "jobs", label: "Job Postings", icon: Briefcase },
-    { key: "applicants", label: "Applications & Candidates", icon: Users },
-    { key: "resumes", label: "Candidate Resumes Purchased", icon: FolderDown },
-    { key: "settings", label: "Company Settings", icon: Settings },
-  ];
+  // Open Edit Plan Names Modal
+  const handleOpenEditModal = () => {
+    setEditingRules(JSON.parse(JSON.stringify(planRules)));
+    setIsEditModalOpen(true);
+  };
+
+  // Save changes from Edit Plan Names Modal
+  const handleSaveEditModal = () => {
+    setPlanRules(editingRules);
+    setIsEditModalOpen(false);
+    showToast("Plan details updated. Remember to click Save Configuration.");
+  };
 
   return (
-    <div className="space-y-6">
-      {/* 1. Header Card */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-8 h-8 rounded-xl bg-violet-50 text-[#7C3AED] flex items-center justify-center font-bold">
-              <Sliders className="w-4 h-4" />
-            </span>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">
-              Recruiter Permissions & Auto-Approval Settings
-            </h2>
+    <div className="space-y-6 pb-12">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div
+            className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl border text-xs sm:text-sm font-semibold backdrop-blur-md ${
+              toastMessage.type === "success"
+                ? "bg-slate-900 text-white border-slate-800"
+                : "bg-blue-600 text-white border-blue-500"
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{toastMessage.text}</span>
           </div>
-          <p className="text-xs text-slate-500 max-w-2xl mt-1">
-            Control which sidebar modules are visible to companies. Baseline access is limited to Company Profile and Subscription Details, while full features can be auto-unlocked by subscription plans or granted manually.
-          </p>
+        </div>
+      )}
+
+      {/* TOP: Breadcrumb & Title Header */}
+      <div className="flex flex-col gap-2">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+          <span className="hover:text-slate-600 transition">Settings</span>
+          <span className="text-slate-400 font-semibold">›</span>
+          <span className="text-slate-800 font-bold">Recruiter Permissions</span>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-xl text-xs font-bold shadow-md shadow-violet-200 active:scale-95 transition cursor-pointer disabled:opacity-50"
-          >
-            {isSaving ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : saveSuccess ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            <span>{saveSuccess ? (saveMessage || "Saved Successfully!") : isSaving ? "Saving..." : "Save Configuration"}</span>
-          </button>
+        {/* Title row with action buttons */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-0.5">
+          <div>
+            <h1 className="text-2xl sm:text-[28px] font-black text-slate-900 tracking-tight">
+              Recruiter Permissions & Auto-Approval Settings
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              Control which modules recruiters can access based on their subscription plan.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* Save Configuration Button */}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#6D28D9] hover:bg-[#5B21B6] text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm shadow-purple-500/20 active:scale-95 transition cursor-pointer disabled:opacity-60"
+            >
+              {isSaving ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-purple-200" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              <span>{isSaving ? "Saving..." : "Save Configuration"}</span>
+            </button>
+
+            {/* Reset to Default Button */}
+            <button
+              type="button"
+              onClick={handleResetToDefault}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold active:scale-95 transition cursor-pointer shadow-2xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Reset to Default</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 2. Global Auto-Approval Engine Banner */}
-      <div className="bg-linear-to-r from-violet-50 via-purple-50/50 to-white rounded-2xl p-6 border border-violet-200/80 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* SECTION 1: Subscription Plan Auto-Approval Engine Banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-50/60 via-purple-50/30 to-white border border-purple-100/90 p-5 sm:p-6 shadow-[0_2px_12px_rgba(109,40,217,0.03)]">
+        {/* Subtle decorative glow in background */}
+        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-purple-100/40 to-transparent pointer-events-none" />
+
+        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-violet-600 text-white flex items-center justify-center shrink-0 shadow-md">
-              <Zap className="w-6 h-6" />
+            {/* Lightning Zap Icon in purple squircle */}
+            <div className="w-12 h-12 rounded-2xl bg-[#6D28D9] text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-500/25">
+              <Zap className="w-6 h-6 fill-white" />
             </div>
+
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base font-black text-slate-900">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                   Subscription Plan Auto-Approval Engine
-                </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-[#7C3AED] border border-violet-200">
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#F3E8FF] text-[#6D28D9] border border-purple-200/50">
                   Automated
                 </span>
               </div>
-              <p className="text-xs text-slate-600 max-w-2xl leading-relaxed">
-                When enabled, companies who purchase or hold an active subscription tier will automatically receive the permissions designated below without requiring manual Super Admin intervention.
+              <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mt-1 leading-relaxed">
+                Automatically grant permissions to companies when they purchase or hold an active subscription plan, without requiring manual approval.
               </p>
             </div>
           </div>
 
-          <label className="relative inline-flex items-center cursor-pointer shrink-0">
-            <input
-              type="checkbox"
+          <div className="shrink-0 pl-16 sm:pl-0">
+            <ToggleSwitch
+              size="lg"
               checked={autoApprovalEnabled}
-              onChange={(e) => setAutoApprovalEnabled(e.target.checked)}
-              className="sr-only peer"
+              onChange={setAutoApprovalEnabled}
+              ariaLabel="Toggle Subscription Plan Auto-Approval Engine"
             />
-            <div className="w-12 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#7C3AED]"></div>
-          </label>
+          </div>
         </div>
       </div>
 
-      {/* 3. Plan-Wise Auto-Approval Matrix */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
-        <div>
-          <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-[#7C3AED]" />
-            <span>Plan-Wise Auto-Approval Rules</span>
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Choose which sidebar modules are automatically unlocked when a company holds each subscription tier.
-          </p>
+      {/* SECTION 2: Plan-Wise Auto-Approval Rules Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
+        {/* Header */}
+        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-lg text-[#6D28D9] flex items-center justify-center shrink-0 mt-0.5">
+              <Key className="w-5 h-5 text-[#6D28D9]" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-slate-900 tracking-tight">
+                Plan-Wise Auto-Approval Rules
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Choose which sidebar modules are automatically unlocked when a company holds each subscription tier.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenEditModal}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-50/70 hover:bg-purple-100/70 text-[#6D28D9] border border-purple-200/70 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs self-start sm:self-auto"
+          >
+            <Pencil className="w-3.5 h-3.5 text-[#6D28D9]" />
+            <span>Edit Plan Names</span>
+          </button>
         </div>
 
+        {/* Matrix Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[760px]">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                <th className="py-3 px-4">Subscription Plan</th>
-                {moduleItems.map((mod) => (
-                  <th key={mod.key} className="py-3 px-4 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <mod.icon className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{mod.label}</span>
-                    </div>
-                  </th>
-                ))}
+              <tr className="border-b border-slate-100 bg-slate-50/60 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <th className="py-4 px-6 text-left w-[280px]">
+                  SUBSCRIPTION PLAN
+                </th>
+                <th className="py-4 px-4 text-center">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <LayoutGrid className="w-4 h-4 text-slate-500" />
+                    <span className="font-bold text-slate-700 text-xs normal-case tracking-normal">
+                      Dashboard
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">
+                      Overview
+                    </span>
+                  </div>
+                </th>
+                <th className="py-4 px-4 text-center">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <Briefcase className="w-4 h-4 text-slate-500" />
+                    <span className="font-bold text-slate-700 text-xs normal-case tracking-normal">
+                      Job Postings
+                    </span>
+                  </div>
+                </th>
+                <th className="py-4 px-4 text-center">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <Users className="w-4 h-4 text-slate-500" />
+                    <span className="font-bold text-slate-700 text-xs normal-case tracking-normal">
+                      Applications &
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">
+                      Candidates
+                    </span>
+                  </div>
+                </th>
+                <th className="py-4 px-4 text-center">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-slate-500" />
+                    <span className="font-bold text-slate-700 text-xs normal-case tracking-normal">
+                      Candidate Resumes
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-normal lowercase">
+                      Purchased
+                    </span>
+                  </div>
+                </th>
+                <th className="py-4 px-4 text-center">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <Settings className="w-4 h-4 text-slate-500" />
+                    <span className="font-bold text-slate-700 text-xs normal-case tracking-normal">
+                      Company Settings
+                    </span>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {normalizePlanRules(planRules).map((plan, planIdx) => (
-                <tr key={plan.planName} className="hover:bg-slate-50/50 transition">
-                  <td className="py-4 px-4 font-bold text-slate-900 whitespace-nowrap">
-                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${plan.badgeColor}`}>
-                      {plan.planName}
-                    </span>
+              {planRules.map((plan, planIdx) => (
+                <tr
+                  key={plan.id}
+                  className="hover:bg-slate-50/40 transition-colors"
+                >
+                  {/* Plan Badge & Description */}
+                  <td className="py-5 px-6">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${plan.badgeStyle}`}
+                      >
+                        {plan.badgeLabel}
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">
+                        {plan.description}
+                      </span>
+                    </div>
                   </td>
-                  {moduleItems.map((mod) => {
-                    const isChecked = plan.permissions[mod.key];
-                    return (
-                      <td key={mod.key} className="py-4 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePlanPerm(planIdx, mod.key)}
-                          className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition cursor-pointer border ${
-                            isChecked
-                              ? "bg-emerald-500 border-emerald-600 text-white shadow-xs"
-                              : "bg-slate-100 border-slate-200 text-slate-400 hover:bg-slate-200"
-                          }`}
-                          title={`Toggle ${mod.label} for ${plan.planName}`}
-                        >
-                          {isChecked ? <Check className="w-4 h-4 stroke-[3]" /> : <span className="text-[10px]">—</span>}
-                        </button>
-                      </td>
-                    );
-                  })}
+
+                  {/* Dashboard Overview Toggle */}
+                  <td className="py-5 px-4 text-center">
+                    <ToggleSwitch
+                      checked={plan.permissions.dashboard}
+                      onChange={() => handleTogglePlanPermission(planIdx, "dashboard")}
+                      ariaLabel={`Toggle Dashboard Overview for ${plan.planName}`}
+                    />
+                  </td>
+
+                  {/* Job Postings Toggle */}
+                  <td className="py-5 px-4 text-center">
+                    <ToggleSwitch
+                      checked={plan.permissions.jobs}
+                      onChange={() => handleTogglePlanPermission(planIdx, "jobs")}
+                      ariaLabel={`Toggle Job Postings for ${plan.planName}`}
+                    />
+                  </td>
+
+                  {/* Applications & Candidates Toggle */}
+                  <td className="py-5 px-4 text-center">
+                    <ToggleSwitch
+                      checked={plan.permissions.applicants}
+                      onChange={() => handleTogglePlanPermission(planIdx, "applicants")}
+                      ariaLabel={`Toggle Applications & Candidates for ${plan.planName}`}
+                    />
+                  </td>
+
+                  {/* Candidate Resumes Purchased Toggle */}
+                  <td className="py-5 px-4 text-center">
+                    <ToggleSwitch
+                      checked={plan.permissions.resumes}
+                      onChange={() => handleTogglePlanPermission(planIdx, "resumes")}
+                      ariaLabel={`Toggle Candidate Resumes Purchased for ${plan.planName}`}
+                    />
+                  </td>
+
+                  {/* Company Settings Toggle */}
+                  <td className="py-5 px-4 text-center">
+                    <ToggleSwitch
+                      checked={plan.permissions.settings}
+                      onChange={() => handleTogglePlanPermission(planIdx, "settings")}
+                      ariaLabel={`Toggle Company Settings for ${plan.planName}`}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -378,77 +607,315 @@ export default function PermissionsSettingsManager({
         </div>
       </div>
 
-      {/* 5. Default Permissions for New / Unsubscribed Companies */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-        <div>
-          <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-blue-600" />
-            <span>Default Permissions for Unsubscribed Companies</span>
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Extra features to grant companies before they purchase a plan (in addition to Profile & Subscription).
-          </p>
+      {/* SECTION 3: Default Permissions for Unsubscribed Companies */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
+        {/* Card Header with Master Toggle */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+              <Lock className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-slate-900 tracking-tight">
+                Default Permissions for Unsubscribed Companies
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Extra features to grant companies before they purchase a plan (in addition to Profile & Subscription).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start sm:self-auto shrink-0">
+            <span className="text-xs font-semibold text-slate-600">
+              Enable default permissions
+            </span>
+            <ToggleSwitch
+              size="sm"
+              checked={enableDefaultPerms}
+              onChange={setEnableDefaultPerms}
+              ariaLabel="Enable default permissions for unsubscribed companies"
+            />
+            <div
+              className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              title="When enabled, these baseline permissions are granted to newly registered companies prior to purchasing any subscription plan."
+            >
+              <Info className="w-4 h-4" />
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
-          {moduleItems.map((mod) => {
-            const isChecked = defaultNewCompanyPerms[mod.key];
-            return (
-              <div
-                key={mod.key}
-                onClick={() => handleToggleDefaultPerm(mod.key)}
-                className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-3 ${
-                  isChecked
-                    ? "bg-violet-50/50 border-[#7C3AED] shadow-2xs"
-                    : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <mod.icon className={`w-4 h-4 ${isChecked ? "text-[#7C3AED]" : "text-slate-400"}`} />
-                  <div
-                    className={`w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold border ${
-                      isChecked
-                        ? "bg-[#7C3AED] text-white border-[#7C3AED]"
-                        : "bg-white text-transparent border-slate-300"
-                    }`}
-                  >
-                    ✓
-                  </div>
-                </div>
-                <div>
-                  <p className="font-bold text-xs text-slate-900">{mod.label}</p>
-                  <p className="text-[10px] text-slate-400">{isChecked ? "Enabled by default" : "Disabled by default"}</p>
-                </div>
+        {/* 5 Feature Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 pt-2">
+          {/* Card 1: Dashboard Overview */}
+          <div
+            onClick={() => handleToggleUnsubscribed("dashboard")}
+            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <LayoutGrid className="w-4 h-4" />
               </div>
-            );
-          })}
+              <ToggleSwitch
+                size="sm"
+                checked={unsubscribedPerms.dashboard}
+                onChange={() => handleToggleUnsubscribed("dashboard")}
+                ariaLabel="Toggle Dashboard Overview default"
+              />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900">
+                Dashboard Overview
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                Allow access to dashboard for unsubscribed companies
+              </p>
+            </div>
+          </div>
+
+          {/* Card 2: Job Postings */}
+          <div
+            onClick={() => handleToggleUnsubscribed("jobs")}
+            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                <Briefcase className="w-4 h-4" />
+              </div>
+              <ToggleSwitch
+                size="sm"
+                checked={unsubscribedPerms.jobs}
+                onChange={() => handleToggleUnsubscribed("jobs")}
+                ariaLabel="Toggle Job Postings default"
+              />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900">
+                Job Postings
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                Allow posting jobs without an active plan
+              </p>
+            </div>
+          </div>
+
+          {/* Card 3: Applications & Candidates */}
+          <div
+            onClick={() => handleToggleUnsubscribed("applicants")}
+            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <Users className="w-4 h-4" />
+              </div>
+              <ToggleSwitch
+                size="sm"
+                checked={unsubscribedPerms.applicants}
+                onChange={() => handleToggleUnsubscribed("applicants")}
+                ariaLabel="Toggle Applications & Candidates default"
+              />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900">
+                Applications & Candidates
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                Allow viewing applications and candidate details
+              </p>
+            </div>
+          </div>
+
+          {/* Card 4: Candidate Resumes Purchased */}
+          <div
+            onClick={() => handleToggleUnsubscribed("resumes")}
+            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                <FileText className="w-4 h-4" />
+              </div>
+              <ToggleSwitch
+                size="sm"
+                checked={unsubscribedPerms.resumes}
+                onChange={() => handleToggleUnsubscribed("resumes")}
+                ariaLabel="Toggle Candidate Resumes Purchased default"
+              />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900">
+                Candidate Resumes Purchased
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                Allow purchasing and viewing candidate resumes
+              </p>
+            </div>
+          </div>
+
+          {/* Card 5: Company Settings */}
+          <div
+            onClick={() => handleToggleUnsubscribed("settings")}
+            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                <Settings className="w-4 h-4" />
+              </div>
+              <ToggleSwitch
+                size="sm"
+                checked={unsubscribedPerms.settings}
+                onChange={() => handleToggleUnsubscribed("settings")}
+                ariaLabel="Toggle Company Settings default"
+              />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900">
+                Company Settings
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                Allow basic company settings access
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 6. Manual Override Quick Action Banner */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-amber-600" />
-            <span>Individual Company Manual Override</span>
-          </h4>
-          <p className="text-xs text-slate-500 max-w-xl">
-            Need to grant specific permissions to a partner company without a subscription? Use the dedicated{" "}
-            <span className="font-bold text-amber-700">"Permissions"</span> button next to any company in the Company Management table or Sub-Admin portal.
-          </p>
+      {/* SECTION 4: Individual Company Manual Override Banner */}
+      <div className="bg-gradient-to-r from-[#FFF8F0] to-[#FFF3E6] rounded-2xl p-5 sm:p-6 border border-amber-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="flex items-start gap-4">
+          <div className="w-11 h-11 rounded-2xl bg-amber-100/90 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/50">
+            <Key className="w-5 h-5 text-amber-600 rotate-90" />
+          </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+              Individual Company Manual Override
+            </h3>
+            <p className="text-xs text-slate-600 max-w-2xl mt-1 leading-relaxed">
+              Need to grant specific permissions to a partner company without a subscription? Use the dedicated{" "}
+              <span className="font-bold text-amber-800">"Permissions"</span> button next to any company in the Company Management table or Sub-Admin portal.
+            </p>
+          </div>
         </div>
 
         {onGoToCompanies && (
           <button
             type="button"
             onClick={onGoToCompanies}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[#7C3AED] bg-[#EDE9FE] hover:bg-[#DDD6FE] rounded-xl transition cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm shadow-orange-500/20 active:scale-95 transition cursor-pointer self-start md:self-auto shrink-0"
           >
             <span>Open Company Management</span>
-            <span className="text-sm">→</span>
+            <ArrowRight className="w-4 h-4 ml-0.5" />
           </button>
         )}
       </div>
+
+      {/* MODAL: Edit Plan Names */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-[#6D28D9] flex items-center justify-center font-bold">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    Edit Subscription Plan Details
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Customize display labels and descriptions for each tier
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form list */}
+            <div className="space-y-4 py-4">
+              {editingRules.map((plan, idx) => (
+                <div
+                  key={plan.id}
+                  className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Tier {idx + 1}
+                    </span>
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${plan.badgeStyle}`}
+                    >
+                      {plan.badgeLabel}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                        Plan Display Name
+                      </label>
+                      <input
+                        type="text"
+                        value={plan.badgeLabel}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingRules((prev) => {
+                            const next = [...prev];
+                            next[idx] = { ...next[idx], badgeLabel: val, planName: val };
+                            return next;
+                          });
+                        }}
+                        className="w-full px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                        Description / Subtext
+                      </label>
+                      <input
+                        type="text"
+                        value={plan.description}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingRules((prev) => {
+                            const next = [...prev];
+                            next[idx] = { ...next[idx], description: val };
+                            return next;
+                          });
+                        }}
+                        className="w-full px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-600 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditModal}
+                className="px-5 py-2 rounded-xl bg-[#6D28D9] hover:bg-[#5B21B6] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                Apply Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

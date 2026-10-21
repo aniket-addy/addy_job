@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   MapPin,
-  Heart,
+  Bookmark,
   ArrowRight,
   Briefcase,
   Layers,
@@ -14,7 +14,12 @@ import {
   Boxes,
   Triangle,
 } from "lucide-react";
-import { fetchPublicJobs } from "@/lib/api";
+import {
+  fetchPublicJobs,
+  getStoredUser,
+  getLocalSavedJobs,
+  toggleLocalSavedJob,
+} from "@/lib/api";
 
 export default function RecommendedJobs() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -35,25 +40,45 @@ export default function RecommendedJobs() {
       });
   };
 
+  const syncSavedJobs = () => {
+    const storedUser = getStoredUser();
+    const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+    const saved = getLocalSavedJobs(uid);
+    const map: Record<string, boolean> = {};
+    saved.forEach((s: any) => {
+      const id = s.id || s._id || s.jobId;
+      if (id) map[id] = true;
+    });
+    setSavedJobs(map);
+  };
+
   useEffect(() => {
     loadJobs();
+    syncSavedJobs();
 
     const handleSync = () => {
       loadJobs();
+      syncSavedJobs();
     };
 
     window.addEventListener("applied_jobs_change", handleSync);
+    window.addEventListener("saved_jobs_change", handleSync);
     window.addEventListener("storage", handleSync);
     return () => {
       window.removeEventListener("applied_jobs_change", handleSync);
+      window.removeEventListener("saved_jobs_change", handleSync);
       window.removeEventListener("storage", handleSync);
     };
   }, []);
 
-  const toggleSave = (id: string, e: React.MouseEvent) => {
+  const toggleSave = (job: any, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    setSavedJobs((prev) => ({ ...prev, [id]: !prev[id] }));
+    const storedUser = getStoredUser();
+    const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+    const jId = job.id || job._id;
+    const res = toggleLocalSavedJob(uid, job);
+    setSavedJobs((prev) => ({ ...prev, [jId]: res.saved }));
   };
 
   return (
@@ -110,79 +135,62 @@ export default function RecommendedJobs() {
               const title = job.title || job.role || "Job Opportunity";
               const comp = job.company || "Company";
               const loc = job.location || "Remote";
-              const salary = job.salary
-                ? String(job.salary).includes("₹")
-                  ? String(job.salary)
-                  : `₹ ${job.salary}`
-                : "Competitive";
               const badges = [job.type || "Full-time", job.workplace || "Remote"];
 
               return (
                 <Link
                   key={jId}
                   href={`/jobs/${jId}`}
-                  className="w-[270px] sm:w-[310px] shrink-0 snap-start bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.08)] hover:border-blue-300 transition-all duration-200 flex flex-col justify-between group cursor-pointer"
+                  className="w-[270px] sm:w-[310px] shrink-0 snap-start bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.08)] hover:border-blue-300 transition-all duration-200 flex flex-col group cursor-pointer"
                 >
-                  <div>
-                    {/* Company Row: Logo + Company Name + Heart Save Icon */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100 overflow-hidden">
-                          {job.logo || job.companyLogo ? (
-                            <img
-                              src={job.logo || job.companyLogo}
-                              alt={comp}
-                              className="w-full h-full object-contain p-1"
-                            />
-                          ) : (
-                            comp.charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <span className="font-bold text-slate-900 text-sm truncate">
-                          {comp}
-                        </span>
+                  {/* Company Row: Logo + Company Name + Heart Save Icon */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100 overflow-hidden">
+                        {job.logo || job.companyLogo ? (
+                          <img
+                            src={job.logo || job.companyLogo}
+                            alt={comp}
+                            className="w-full h-full object-contain p-1"
+                          />
+                        ) : (
+                          comp.charAt(0).toUpperCase()
+                        )}
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => toggleSave(jId, e)}
-                        aria-label={isSaved ? "Unsave job" : "Save job"}
-                        title={isSaved ? "Saved" : "Save Job"}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <Heart
-                          className={`w-4 h-4 transition-colors ${
-                            isSaved ? "fill-rose-500 text-rose-500" : ""
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Job Title */}
-                    <h3 className="font-bold text-slate-900 text-base sm:text-lg mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                      {title}
-                    </h3>
-
-                    {/* Location & Tags Meta Row */}
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">
-                        {loc} • {badges.filter(Boolean).join(" • ")}
+                      <span className="font-bold text-slate-900 text-sm truncate">
+                        {comp}
                       </span>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => toggleSave(job, e)}
+                      aria-label={isSaved ? "Unsave job" : "Save job"}
+                      title={isSaved ? "Saved" : "Save Job"}
+                      className={`p-1.5 rounded-xl transition cursor-pointer shrink-0 ${
+                        isSaved
+                          ? "bg-blue-50 text-blue-600"
+                          : "text-slate-400 hover:text-blue-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Bookmark
+                        className={`w-4 h-4 transition-colors ${
+                          isSaved ? "fill-blue-600 text-blue-600" : ""
+                        }`}
+                      />
+                    </button>
                   </div>
 
-                  {/* Salary Row (at the bottom of card) */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <span className="text-[11px] text-slate-400 block font-medium">Offered Salary</span>
-                      <span className="text-sm sm:text-base font-extrabold text-slate-900">
-                        {salary}
-                      </span>
-                    </div>
-                    <span className="text-xs font-semibold text-blue-600 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5">
-                      View
-                      <ArrowRight className="w-3 h-3" />
+                  {/* Job Title */}
+                  <h3 className="font-bold text-slate-900 text-base sm:text-lg mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                    {title}
+                  </h3>
+
+                  {/* Location & Tags Meta Row */}
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">
+                      {loc} • {badges.filter(Boolean).join(" • ")}
                     </span>
                   </div>
                 </Link>

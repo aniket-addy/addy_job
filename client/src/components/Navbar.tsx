@@ -16,7 +16,6 @@ import {
   LogOut,
   ShieldCheck,
   Home,
-  Heart,
   Eye,
   Star,
   Calendar,
@@ -251,6 +250,17 @@ export default function Navbar({
   };
 
   const markAsRead = (id: string) => {
+    // Check if item is already read to prevent duplicate decrement
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.read) {
+      return;
+    }
+
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+
     const user = getStoredUser();
     const uid = user?.id || user?.userId || user?.email || "candidate";
     const readMapKey = `candidate_notifications_read_${uid}`;
@@ -258,11 +268,12 @@ export default function Navbar({
       const readMap = JSON.parse(localStorage.getItem(readMapKey) || "{}");
       readMap[id] = true;
       localStorage.setItem(readMapKey, JSON.stringify(readMap));
+      if (uid !== "candidate") {
+        const fallbackMap = JSON.parse(localStorage.getItem("candidate_notifications_read_candidate") || "{}");
+        fallbackMap[id] = true;
+        localStorage.setItem("candidate_notifications_read_candidate", JSON.stringify(fallbackMap));
+      }
     } catch {}
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
   };
 
   useEffect(() => {
@@ -460,9 +471,13 @@ export default function Navbar({
                       <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-black text-slate-900">Notifications</span>
-                          {unreadCount > 0 && (
+                          {unreadCount > 0 ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100">
                               {unreadCount} new
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                              All caught up
                             </span>
                           )}
                         </div>
@@ -487,17 +502,18 @@ export default function Navbar({
                       <div className="py-2 overflow-y-auto space-y-2 flex-1 no-scrollbar divide-y divide-slate-50">
                         {notifications.length > 0 ? (
                           notifications.map((n) => (
-                            <Link
+                            <div
                               key={n.id}
-                              href="/candidate/dashboard"
-                              onClick={() => {
-                                setNotificationsOpen(false);
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 markAsRead(n.id);
                               }}
-                              className={`p-3 rounded-2xl flex items-start gap-3 transition-colors cursor-pointer border ${
+                              className={`p-3 rounded-2xl flex items-start gap-3 transition-all cursor-pointer border select-none ${
                                 !n.read
-                                  ? "bg-blue-50/40 border-blue-100 hover:bg-blue-50/70"
-                                  : "bg-white border-transparent hover:bg-slate-50"
+                                  ? "bg-blue-50/70 hover:bg-blue-50 border-blue-100 shadow-2xs"
+                                  : "bg-white hover:bg-slate-50 border-slate-100/80"
                               }`}
                             >
                               <div
@@ -531,14 +547,21 @@ export default function Navbar({
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-1">
-                                  <p className="text-xs font-bold text-slate-900 truncate">{n.title}</p>
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    {!n.read && (
+                                      <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" title="Unread" />
+                                    )}
+                                    <p className={`text-xs truncate ${!n.read ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
+                                      {n.title}
+                                    </p>
+                                  </div>
                                   <span className="text-[10px] text-slate-400 shrink-0">{n.time}</span>
                                 </div>
                                 <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
                                   {n.message}
                                 </p>
                               </div>
-                            </Link>
+                            </div>
                           ))
                         ) : (
                           <div className="py-8 text-center space-y-2">
@@ -697,15 +720,23 @@ export default function Navbar({
           </div>
 
           {/* Mobile Right: Bell (when logged in) + Hamburger Menu */}
-          <div className="flex md:hidden items-center gap-2">
+          <div className="flex md:hidden items-center gap-1.5 sm:gap-2">
             {mounted && currentUser && (
               <button
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                type="button"
+                onClick={() => {
+                  setNotificationsOpen(!notificationsOpen);
+                  setMobileMenuOpen(false);
+                }}
                 aria-label="Notifications"
                 className="relative p-2 text-slate-700 hover:text-blue-600 rounded-full transition-colors cursor-pointer"
               >
                 <Bell className="w-5 h-5 stroke-[2]" />
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white shadow-xs select-none">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </button>
             )}
             <button
@@ -848,10 +879,140 @@ export default function Navbar({
       )}
     </nav>
 
+    {/* Mobile Notification Popover / Dropdown (Positioned at Top under Navbar) */}
+    {notificationsOpen && (
+      <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-start pt-14 pb-6 px-3 bg-slate-950/40 backdrop-blur-xs animate-in fade-in duration-200">
+        <div
+          className="absolute inset-0"
+          onClick={() => setNotificationsOpen(false)}
+        />
+        <div className="relative bg-white rounded-3xl shadow-2xl border border-slate-200/90 w-full max-w-sm ml-auto p-4 flex flex-col max-h-[78vh] animate-in slide-in-from-top-3 duration-200 z-10">
+          {/* Drawer Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-base font-black text-slate-900">Notifications</span>
+              {unreadCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100">
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2.5">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={markAllAsRead}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-bold cursor-pointer"
+                >
+                  Mark all read
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Notification items list */}
+          <div className="py-2 overflow-y-auto space-y-2 flex-1 divide-y divide-slate-50">
+            {notifications.length > 0 ? (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    markAsRead(n.id);
+                  }}
+                  className={`p-3 rounded-2xl flex items-start gap-3 transition-all cursor-pointer border select-none active:scale-[0.99] ${
+                    !n.read
+                      ? "bg-blue-50/70 hover:bg-blue-50 border-blue-100 shadow-2xs"
+                      : "bg-white hover:bg-slate-50 border-slate-100/80"
+                  }`}
+                >
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      n.type === "hired"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : n.type === "interview"
+                        ? "bg-indigo-100 text-indigo-700"
+                        : n.type === "shortlisted"
+                        ? "bg-amber-100 text-amber-700"
+                        : n.type === "resume_viewed"
+                        ? "bg-blue-100 text-blue-700"
+                        : n.type === "rejected"
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    {n.type === "hired" ? (
+                      <Award className="w-4 h-4" />
+                    ) : n.type === "interview" ? (
+                      <Calendar className="w-4 h-4" />
+                    ) : n.type === "shortlisted" ? (
+                      <Star className="w-4 h-4 fill-amber-500" />
+                    ) : n.type === "resume_viewed" ? (
+                      <Eye className="w-4 h-4" />
+                    ) : n.type === "rejected" ? (
+                      <AlertCircle className="w-4 h-4" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {!n.read && (
+                          <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" title="Unread" />
+                        )}
+                        <p className={`text-xs truncate ${!n.read ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>
+                          {n.title}
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 shrink-0">{n.time}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
+                      {n.message}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-10 text-center space-y-2">
+                <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                  <Bell className="w-6 h-6 stroke-[1.5]" />
+                </div>
+                <p className="text-sm font-bold text-slate-800">No notifications yet</p>
+                <p className="text-xs text-slate-500 max-w-[240px] mx-auto leading-relaxed">
+                  When companies view your resume or update your applications, alerts will appear here.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="pt-3 border-t border-slate-100 shrink-0 text-center">
+            <Link
+              href="/candidate/dashboard"
+              onClick={() => setNotificationsOpen(false)}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 block py-1.5"
+            >
+              View All Applications →
+            </Link>
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* Mobile Bottom Navigation Bar (Fixed at bottom on all mobile screens) */}
     <nav
       aria-label="Mobile Bottom Navigation"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-slate-200/90 px-3 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] shadow-[0_-4px_25px_rgba(0,0,0,0.06)]"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200/90 px-3 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] shadow-[0_-4px_25px_rgba(0,0,0,0.06)]"
     >
       <div className="flex items-center justify-around max-w-md mx-auto">
         {/* 1. Home */}
@@ -884,33 +1045,16 @@ export default function Navbar({
         <Link
           href="/jobs?filter=saved"
           className={`flex flex-col items-center justify-center py-1 px-2 min-w-[54px] rounded-xl transition-all ${
-            pathname.includes("saved")
+            pathname.includes("saved") || (pathname === "/jobs" && (typeof window !== "undefined" && window.location.search.includes("saved")))
               ? "text-blue-600 font-bold"
               : "text-slate-500 hover:text-slate-800 font-medium"
           }`}
         >
-          <Heart className={`w-5 h-5 transition-transform ${pathname.includes("saved") ? "fill-blue-600/20 stroke-[2.2]" : "stroke-[1.8]"}`} />
+          <Bookmark className={`w-5 h-5 transition-transform ${pathname.includes("saved") || (pathname === "/jobs" && (typeof window !== "undefined" && window.location.search.includes("saved"))) ? "fill-blue-600/20 stroke-[2.2]" : "stroke-[1.8]"}`} />
           <span className="text-[11px] mt-1 tracking-tight">Saved</span>
         </Link>
 
-        {/* 4. Alerts */}
-        <button
-          type="button"
-          onClick={() => setNotificationsOpen(true)}
-          className={`flex flex-col items-center justify-center py-1 px-2 min-w-[54px] rounded-xl transition-all cursor-pointer ${
-            notificationsOpen
-              ? "text-blue-600 font-bold"
-              : "text-slate-500 hover:text-slate-800 font-medium"
-          }`}
-        >
-          <div className="relative">
-            <Bell className="w-5 h-5 stroke-[1.8]" />
-            <span className="absolute -top-0.5 -right-1 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white" />
-          </div>
-          <span className="text-[11px] mt-1 tracking-tight">Alerts</span>
-        </button>
-
-        {/* 5. Profile */}
+        {/* 4. Profile */}
         <button
           type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
