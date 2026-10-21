@@ -363,8 +363,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Dedicated Super Admin check for sadmin@gmail.com
-    if (normalizedEmail === 'sadmin@gmail.com' || (role === 'admin' && normalizedEmail === 'admin@careerconnect.com')) {
+    // Dedicated Super Admin check for sadmin@gmail.com or admin@careerconnect.com
+    if (normalizedEmail === 'sadmin@gmail.com' || normalizedEmail === 'admin@careerconnect.com') {
       if (password !== 'Sadmin123') {
         res.status(401).json({
           success: false,
@@ -422,16 +422,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(401).json({
         success: false,
         message: 'Invalid password. Please check and try again.',
-      });
-      return;
-    }
-
-    // If role was selected in frontend tabs, check for match
-    if (role && user.role !== role && user.role !== 'admin') {
-      const roleDisplay = user.role === 'company' ? 'Company' : 'Job Seeker';
-      res.status(400).json({
-        success: false,
-        message: `This account is registered as a ${roleDisplay}. Please switch to the ${roleDisplay} tab.`,
       });
       return;
     }

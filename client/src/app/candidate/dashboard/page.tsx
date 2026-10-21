@@ -371,7 +371,7 @@ export default function CandidateDashboardPage() {
 
   // Navigation / Tab States
   const [activeSidebarTab, setActiveSidebarTab] = useState<
-    "profile" | "applied" | "saved" | "alerts" | "messages"
+    "profile" | "applied" | "saved" | "messages"
   >("profile");
 
   // Dynamic candidate collections
@@ -1622,8 +1622,6 @@ export default function CandidateDashboardPage() {
           setActiveSidebarTab("saved");
         } else if (tab === "applied") {
           setActiveSidebarTab("applied");
-        } else if (tab === "alerts") {
-          setActiveSidebarTab("alerts");
         } else if (tab === "messages") {
           setActiveSidebarTab("messages");
         }
@@ -2015,21 +2013,6 @@ export default function CandidateDashboardPage() {
                 <Bookmark className="w-4 h-4 text-slate-500" />
                 <span>Saved Jobs</span>
               </button>
-
-              <button
-                onClick={() => {
-                  setActiveSidebarTab("alerts");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeSidebarTab === "alerts"
-                    ? "bg-blue-50 text-blue-600 font-extrabold"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <Bell className="w-4 h-4 text-slate-500" />
-                <span>Job Alerts</span>
-              </button>
             </div>
 
             {/* Footer */}
@@ -2111,18 +2094,6 @@ export default function CandidateDashboardPage() {
                 </span>
               )}
             </button>
-
-            <button
-              onClick={() => setActiveSidebarTab("alerts")}
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                activeSidebarTab === "alerts"
-                  ? "bg-blue-50 text-blue-600 font-extrabold"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <Bell className="w-4 h-4 text-slate-500" />
-              <span>Job Alerts</span>
-            </button>
           </div>
         </aside>
 
@@ -2163,17 +2134,6 @@ export default function CandidateDashboardPage() {
               <Bookmark className="w-3.5 h-3.5" />
               <span>Saved {savedJobsCount > 0 ? `(${savedJobsCount})` : ""}</span>
             </button>
-            <button
-              onClick={() => setActiveSidebarTab("alerts")}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition ${
-                activeSidebarTab === "alerts"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-white text-slate-600 border border-slate-200"
-              }`}
-            >
-              <Bell className="w-3.5 h-3.5" />
-              <span>Alerts</span>
-            </button>
           </div>
 
           {/* TAB 1: APPLIED JOBS (Exact Match to Reference Image 2) */}
@@ -2194,17 +2154,7 @@ export default function CandidateDashboardPage() {
             />
           )}
 
-          {/* TAB 3: JOB ALERTS */}
-          {activeSidebarTab === "alerts" && (
-            <JobAlertsView
-              alerts={jobAlerts}
-              onCreateAlert={handleCreateAlert}
-              onDeleteAlert={handleDeleteAlert}
-              onToggleAlert={handleToggleAlert}
-            />
-          )}
-
-          {/* TAB 4: RECRUITER & COMPANY MESSAGES */}
+          {/* TAB 3: RECRUITER & COMPANY MESSAGES */}
           {activeSidebarTab === "messages" && (
             <CandidateMessagesView
               threads={messageThreads}
@@ -3941,16 +3891,6 @@ export default function CandidateDashboardPage() {
             </span>
           )}
           <span className="text-[10px] mt-0.5">Saved</span>
-        </button>
-
-        <button
-          onClick={() => setActiveSidebarTab("alerts")}
-          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
-            activeSidebarTab === "alerts" ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Bell className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Alerts</span>
         </button>
 
         <button

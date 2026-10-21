@@ -286,6 +286,49 @@ export default function CompanyDashboardPage() {
       ? (yearlyDbPlans.length > 0 ? yearlyDbPlans : (monthlyDbPlans.length > 0 ? monthlyDbPlans : fallbackSubscriptionPlans))
       : (monthlyDbPlans.length > 0 ? monthlyDbPlans : fallbackSubscriptionPlans);
 
+  // Uniquely determine which single plan card is currently active (prevents multiple plans from activating simultaneously)
+  const activePlanIndex = (() => {
+    if (!currentPlan || currentPlan === "No Active Plan") return -1;
+    const curLower = currentPlan.trim().toLowerCase();
+
+    // 1. Direct exact name match (highest priority)
+    const exactIdx = activePlansToDisplay.findIndex(
+      (p) => (p.name || "").trim().toLowerCase() === curLower
+    );
+    if (exactIdx !== -1) return exactIdx;
+
+    // 2. Specific tier matching only if exact name match wasn't found
+    if (curLower.includes("enterprise") || curLower.includes("scaled")) {
+      const entIdx = activePlansToDisplay.findIndex((p) => {
+        const pName = (p.name || "").toLowerCase();
+        return pName.includes("enterprise") || pName.includes("scaled");
+      });
+      if (entIdx !== -1) return entIdx;
+    }
+
+    if (curLower.includes("pro") || curLower.includes("growth")) {
+      const proIdx = activePlansToDisplay.findIndex((p) => {
+        const pName = (p.name || "").toLowerCase();
+        return pName.includes("pro") || pName.includes("growth");
+      });
+      if (proIdx !== -1) return proIdx;
+    }
+
+    if (curLower.includes("starter") || curLower.includes("basic") || curLower.includes("testy")) {
+      const starterIdx = activePlansToDisplay.findIndex((p) => {
+        const pName = (p.name || "").toLowerCase();
+        return (
+          pName.includes("starter") ||
+          pName.includes("basic") ||
+          (pName.includes("testy") && !pName.includes("pro") && !pName.includes("enterprise"))
+        );
+      });
+      if (starterIdx !== -1) return starterIdx;
+    }
+
+    return -1;
+  })();
+
   // Sync plans from Super Admin in real-time
   useEffect(() => {
     let isMounted = true;
@@ -760,22 +803,17 @@ export default function CompanyDashboardPage() {
         // Subscription plan strictly from real user database record
         const planName = u.plan || "";
         if (planName) {
-          if (planName.toLowerCase().includes("enterprise")) {
-            setCurrentPlan("Enterprise Scaled");
+          setCurrentPlan(planName);
+          const lower = planName.toLowerCase();
+          if (lower.includes("enterprise") || lower.includes("scaled")) {
             setActivePlanCard("enterprise");
-            setPlanValidity("Valid for 1 Year");
-          } else if (planName.toLowerCase().includes("pro")) {
-            setCurrentPlan("Professional Growth");
+          } else if (lower.includes("pro")) {
             setActivePlanCard("pro");
-            setPlanValidity("Valid for 1 Year");
-          } else if (
-            planName.toLowerCase().includes("basic") ||
-            planName.toLowerCase().includes("starter")
-          ) {
-            setCurrentPlan("Starter Recruiter");
+          } else {
             setActivePlanCard("starter");
-            setPlanValidity("Valid for 1 Year");
           }
+          const savedValidity = localStorage.getItem("company_plan_validity");
+          setPlanValidity(savedValidity || "Valid for 1 Year");
         } else {
           setCurrentPlan("No Active Plan");
           setActivePlanCard(null);
@@ -3342,12 +3380,7 @@ export default function CompanyDashboardPage() {
                         : "Best for small businesses & startups");
 
                     const priceInfo = getCardPriceInfo(plan, subscriptionBillingCycle);
-                    const isCurrentPlanActive =
-                      currentPlan &&
-                      currentPlan !== "No Active Plan" &&
-                      (currentPlan.toLowerCase() === plan.name.toLowerCase() ||
-                        currentPlan.toLowerCase().includes(plan.name.toLowerCase()) ||
-                        plan.name.toLowerCase().includes(currentPlan.toLowerCase()));
+                    const isCurrentPlanActive = index === activePlanIndex;
 
                     // ---------------- CARD 2 THEME: PROFESSIONAL / MOST POPULAR (PURPLE BORDER) ----------------
                     if (isPopular) {

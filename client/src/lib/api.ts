@@ -846,18 +846,27 @@ export function getMatchingPlanRule(planName?: string): Partial<CompanyPermissio
   if (!planName) return undefined;
   const p = planName.trim().toLowerCase();
 
-  // 1. Direct key match or substring match from PLAN_AUTO_PERMISSIONS
+  // 1. Direct exact key match first
   for (const [key, rule] of Object.entries(PLAN_AUTO_PERMISSIONS)) {
     const k = key.trim().toLowerCase();
-    if (p === k || p.includes(k) || k.includes(p)) {
+    if (p === k) {
       return rule;
     }
   }
 
   // 2. Fallbacks based on standard tiers
-  if (p.includes('starter') || p.includes('basic')) return PLAN_AUTO_PERMISSIONS['Basic Plan'];
-  if (p.includes('growth') || p.includes('pro')) return PLAN_AUTO_PERMISSIONS['Pro Plan'];
-  if (p.includes('enterprise')) return PLAN_AUTO_PERMISSIONS['Enterprise'];
+  if (p.includes('enterprise')) return PLAN_AUTO_PERMISSIONS['Enterprise'] || PLAN_AUTO_PERMISSIONS['Tier 3'];
+  if (p.includes('growth') || p.includes('pro')) return PLAN_AUTO_PERMISSIONS['Pro Plan'] || PLAN_AUTO_PERMISSIONS['Tier 2'];
+  if (p.includes('starter') || p.includes('basic') || p.includes('testy')) return PLAN_AUTO_PERMISSIONS['Basic Plan'] || PLAN_AUTO_PERMISSIONS['Tier 1'];
+
+  // 3. Last fallback
+  for (const [key, rule] of Object.entries(PLAN_AUTO_PERMISSIONS)) {
+    const k = key.trim().toLowerCase();
+    if (k && (p === k || (k.length > 5 && p.includes(k)))) {
+      return rule;
+    }
+  }
+
   return undefined;
 }
 

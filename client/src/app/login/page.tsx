@@ -4,15 +4,11 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  User,
-  Building2,
   Mail,
   Lock,
   Eye,
   EyeOff,
   ArrowRight,
-  ShieldCheck,
-  Sparkles,
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
@@ -21,7 +17,6 @@ import { loginUser, setAuthSession } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [role, setRole] = useState<"job_seeker" | "company" | "admin">("job_seeker");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -39,7 +34,6 @@ export default function LoginPage() {
       const res = await loginUser({
         email: email.trim(),
         password,
-        role,
       });
 
       if (!res.success || !res.token || !res.user) {
@@ -52,7 +46,7 @@ export default function LoginPage() {
       setAuthSession(res.token, res.user);
 
       setTimeout(() => {
-        if (res.user?.role === "admin" || role === "admin") {
+        if (res.user?.role === "admin") {
           router.push("/admin");
         } else if (res.user?.role === "company") {
           router.push("/company/dashboard");
@@ -81,55 +75,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Role selector */}
-          <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl mb-4 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => {
-                setRole("job_seeker");
-                setErrorMsg(null);
-                setSuccessMsg(null);
-              }}
-              className={`py-2 rounded-lg transition-all cursor-pointer ${
-                role === "job_seeker"
-                  ? "bg-white text-blue-600 shadow-sm font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Candidate
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRole("company");
-                setErrorMsg(null);
-                setSuccessMsg(null);
-              }}
-              className={`py-2 rounded-lg transition-all cursor-pointer ${
-                role === "company"
-                  ? "bg-white text-indigo-600 shadow-sm font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Company
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRole("admin");
-                setErrorMsg(null);
-                setSuccessMsg(null);
-              }}
-              className={`py-2 rounded-lg transition-all cursor-pointer ${
-                role === "admin"
-                  ? "bg-white text-slate-900 shadow-sm font-bold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Super Admin
-            </button>
-          </div>
-
           {/* Feedback Banners */}
           {errorMsg && (
             <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2 animate-in fade-in duration-150">
@@ -144,25 +89,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Super Admin Quick Credentials Helper */}
-          {role === "admin" && (
-            <div className="mb-3 px-3 py-2 rounded-xl bg-amber-50/80 border border-amber-200/70 text-amber-900 text-[11px] flex items-center justify-between animate-in fade-in duration-150">
-              <span>
-                Admin: <b>sadmin@gmail.com</b> | Pass: <b>Sadmin123</b>
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("sadmin@gmail.com");
-                  setPassword("Sadmin123");
-                }}
-                className="font-bold text-amber-700 hover:text-amber-800 hover:underline cursor-pointer bg-amber-100/70 px-2 py-0.5 rounded-lg"
-              >
-                Auto-fill
-              </button>
-            </div>
-          )}
-
           <form onSubmit={handleLogin} className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -173,16 +99,10 @@ export default function LoginPage() {
                 <input
                   type="text"
                   required
-                  placeholder={
-                    role === "admin"
-                      ? "sadmin@gmail.com"
-                      : role === "company"
-                      ? "recruiter@company.com"
-                      : "Email or User ID (e.g. us01)"
-                  }
+                  placeholder="Email Address or User ID"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-blue-600 focus:bg-white"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
                 />
               </div>
             </div>
@@ -204,7 +124,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-blue-600 focus:bg-white"
+                  className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
                 />
                 <button
                   type="button"
@@ -220,20 +140,13 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.01]"
+                className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.01] disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <span>Signing in...</span>
                 ) : (
                   <>
-                    <span>
-                      Sign In as{" "}
-                      {role === "admin"
-                        ? "Super Admin"
-                        : role === "company"
-                        ? "Company"
-                        : "Job Seeker"}
-                    </span>
+                    <span>Sign In</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

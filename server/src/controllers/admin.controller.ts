@@ -1125,15 +1125,28 @@ let globalPermissionsSettings = {
 export const findMatchingPlanRule = (planName?: string, planRules: Record<string, any> = globalPermissionsSettings.planRules) => {
   if (!planName) return null;
   const p = planName.trim().toLowerCase();
+
+  // 1. Direct exact key match first
   for (const [key, rule] of Object.entries(planRules)) {
     const k = key.trim().toLowerCase();
-    if (p === k || p.includes(k) || k.includes(p)) {
+    if (p === k) {
       return rule;
     }
   }
-  if (p.includes('starter') || p.includes('basic')) return planRules['Basic Plan'] || null;
-  if (p.includes('growth') || p.includes('pro')) return planRules['Pro Plan'] || null;
-  if (p.includes('enterprise')) return planRules['Enterprise'] || null;
+
+  // 2. Specific tier matching
+  if (p.includes('enterprise')) return planRules['Enterprise'] || planRules['Tier 3'] || null;
+  if (p.includes('growth') || p.includes('pro')) return planRules['Pro Plan'] || planRules['Tier 2'] || null;
+  if (p.includes('starter') || p.includes('basic') || p.includes('testy')) return planRules['Basic Plan'] || planRules['Tier 1'] || null;
+
+  // 3. Last fallback
+  for (const [key, rule] of Object.entries(planRules)) {
+    const k = key.trim().toLowerCase();
+    if (k && (p === k || (k.length > 5 && p.includes(k)))) {
+      return rule;
+    }
+  }
+
   return null;
 };
 
