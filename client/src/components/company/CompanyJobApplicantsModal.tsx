@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   X,
   Users,
@@ -19,6 +19,8 @@ import {
   Layers,
   Sparkles,
   UserCheck,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import ResumeDetailModal from "../admin/ResumeDetailModal";
 import { markResumeViewedAPI, notifyApplicationSync } from "@/lib/api";
@@ -70,6 +72,158 @@ interface CompanyJobApplicantsModalProps {
   onUpdateStatus?: (id: string, newStatus: string) => void;
   onViewResume?: (applicant: CompanyCandidateApplicant) => void;
   onNavigateToApplications?: () => void;
+}
+
+const STATUS_OPTIONS = [
+  {
+    value: "Applied",
+    label: "Status: Applied",
+    dotColor: "bg-blue-500",
+    badgeBg: "bg-blue-50/80",
+    badgeText: "text-blue-700",
+    badgeBorder: "border-blue-200/80",
+    hoverBg: "hover:bg-blue-50/70",
+  },
+  {
+    value: "Reviewing",
+    label: "Status: Reviewing",
+    dotColor: "bg-amber-500",
+    badgeBg: "bg-amber-50/80",
+    badgeText: "text-amber-700",
+    badgeBorder: "border-amber-200/80",
+    hoverBg: "hover:bg-amber-50/70",
+  },
+  {
+    value: "Shortlisted",
+    label: "Status: Shortlisted",
+    dotColor: "bg-teal-500",
+    badgeBg: "bg-teal-50/80",
+    badgeText: "text-teal-700",
+    badgeBorder: "border-teal-200/80",
+    hoverBg: "hover:bg-teal-50/70",
+  },
+  {
+    value: "Interview",
+    label: "Status: Interview",
+    dotColor: "bg-purple-500",
+    badgeBg: "bg-purple-50/80",
+    badgeText: "text-purple-700",
+    badgeBorder: "border-purple-200/80",
+    hoverBg: "hover:bg-purple-50/70",
+  },
+  {
+    value: "Hired",
+    label: "Status: Hired",
+    dotColor: "bg-emerald-500",
+    badgeBg: "bg-emerald-50/80",
+    badgeText: "text-emerald-700",
+    badgeBorder: "border-emerald-200/80",
+    hoverBg: "hover:bg-emerald-50/60",
+  },
+  {
+    value: "Rejected",
+    label: "Status: Rejected",
+    dotColor: "bg-rose-500",
+    badgeBg: "bg-rose-50/80",
+    badgeText: "text-rose-700",
+    badgeBorder: "border-rose-200/80",
+    hoverBg: "hover:bg-rose-50/70",
+  },
+];
+
+function ApplicantStatusDropdown({
+  currentStatus,
+  onSelect,
+}: {
+  currentStatus: string;
+  onSelect: (newStatus: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const activeOption =
+    STATUS_OPTIONS.find(
+      (opt) => opt.value.toLowerCase() === (currentStatus || "").toLowerCase()
+    ) || STATUS_OPTIONS[0];
+
+  return (
+    <div ref={dropdownRef} className="relative inline-block text-left">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-2 cursor-pointer shadow-2xs select-none ${activeOption.badgeBg} ${activeOption.badgeText} ${activeOption.badgeBorder} hover:brightness-95 active:scale-98`}
+      >
+        <span className={`w-2 h-2 rounded-full ${activeOption.dotColor} shrink-0`} />
+        <span className="whitespace-nowrap">{activeOption.label}</span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">
+            Select Status
+          </div>
+          <div className="space-y-0.5 mt-0.5">
+            {STATUS_OPTIONS.map((opt) => {
+              const isSelected =
+                opt.value.toLowerCase() === (currentStatus || "").toLowerCase();
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onSelect(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer text-left select-none ${
+                    isSelected
+                      ? `${opt.badgeBg} ${opt.badgeText} font-bold shadow-2xs`
+                      : `text-slate-700 hover:bg-slate-50 ${opt.hoverBg}`
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${opt.dotColor} shrink-0`} />
+                    <span>{opt.label}</span>
+                  </div>
+                  {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-current" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CompanyJobApplicantsModal({
@@ -426,19 +580,10 @@ export default function CompanyJobApplicantsModal({
                     <div className="flex items-center gap-2 justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0 flex-wrap">
                       {/* Recruiter Status Dropdown */}
                       {onUpdateStatus && (
-                        <select
-                          aria-label="Change candidate status"
-                          value={app.status}
-                          onChange={(e) => onUpdateStatus(app.id, e.target.value)}
-                          className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-100 cursor-pointer transition"
-                        >
-                          <option value="Applied">Status: Applied</option>
-                          <option value="Reviewing">Status: Reviewing</option>
-                          <option value="Shortlisted">Status: Shortlisted</option>
-                          <option value="Interview">Status: Interview</option>
-                          <option value="Hired">Status: Hired</option>
-                          <option value="Rejected">Status: Rejected</option>
-                        </select>
+                        <ApplicantStatusDropdown
+                          currentStatus={app.status}
+                          onSelect={(newStatus) => onUpdateStatus(app.id, newStatus)}
+                        />
                       )}
 
                       {/* View Resume Button - Always accessible for every candidate */}

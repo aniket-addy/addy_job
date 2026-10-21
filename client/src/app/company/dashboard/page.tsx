@@ -25,6 +25,7 @@ import {
   Download,
   Crown,
   ChevronRight,
+  ChevronDown,
   LogOut,
   Mail,
   Phone,
@@ -165,15 +166,44 @@ export default function CompanyDashboardPage() {
     autoApproveFromSubscription: true,
   });
 
-  // Mobile sidebar drawer state
+  // Mobile sidebar drawer state & Navbar Profile Dropdown state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
 
   const handleTabSwitch = (
     tab: "dashboard" | "profile" | "jobs" | "applicants" | "resumes" | "subscription" | "settings"
   ) => {
     setActiveTab(tab);
     setIsMobileSidebarOpen(false);
+    setIsProfileDropdownOpen(false);
   };
+
+  // Close profile dropdown on outside click or Escape key
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        profileDropdownRef.current &&
+        !profileDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+
+    if (isProfileDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isProfileDropdownOpen]);
 
   // Company Profile Info (Initialized with real user data or clean empty defaults)
   const [companyName, setCompanyName] = useState("");
@@ -1813,29 +1843,6 @@ export default function CompanyDashboardPage() {
             </div>
           </div>
         </div>
-
-        {/* Sidebar Footer: Logged in company & Logout (Light Lavender RA Avatar Badge) */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/60">
-          <div className="flex items-center gap-3">
-            <div
-              style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
-              className="w-10 h-10 rounded-2xl border flex items-center justify-center font-black text-sm shrink-0 shadow-xs"
-            >
-              {companyName.slice(0, 2).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-slate-900 truncate">{companyName}</p>
-              <p className="text-[10px] text-slate-500 truncate">{contactEmail}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
       </aside>
 
       {/* RIGHT CONTENT WRAPPER */}
@@ -1871,25 +1878,112 @@ export default function CompanyDashboardPage() {
             </div>
           </div>
 
-          {/* Right Action Buttons (Hidden on mobile & tablet per user request, visible only on desktop lg+) */}
-          <div className="hidden lg:flex items-center gap-2 sm:gap-4 shrink-0">
-            {/* Post Job Quick Action Button */}
+          {/* Top Bar Right: Company Profile & Account Menu */}
+          <div ref={profileDropdownRef} className="relative shrink-0">
             <button
-              onClick={() => setIsPostJobModalOpen(true)}
-              className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center gap-1.5 sm:gap-2 cursor-pointer transition hover:scale-102 whitespace-nowrap shrink-0"
+              onClick={() => setIsProfileDropdownOpen((prev) => !prev)}
+              aria-expanded={isProfileDropdownOpen}
+              className="flex items-center gap-2 sm:gap-2.5 p-1 sm:px-3 sm:py-1.5 rounded-2xl hover:bg-slate-100/90 border border-slate-200/80 transition cursor-pointer select-none group bg-white shadow-2xs"
             >
-              <PlusCircle className="w-4 h-4 shrink-0" />
-              <span className="whitespace-nowrap">Post a New Job</span>
+              {/* Company Logo / Initials Badge */}
+              <div
+                style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl border flex items-center justify-center font-black text-xs sm:text-sm shrink-0 shadow-2xs group-hover:scale-105 transition-transform overflow-hidden"
+              >
+                {profileImage ? (
+                  <img src={profileImage} alt={companyName} className="w-full h-full object-cover" />
+                ) : (
+                  (companyName || "CO").slice(0, 2).toUpperCase()
+                )}
+              </div>
+
+              {/* Company Name & Role Info */}
+              <div className="hidden sm:block text-left min-w-0 max-w-[120px] lg:max-w-[160px]">
+                <p className="text-xs font-bold text-slate-900 truncate">
+                  {companyName || "Company"}
+                </p>
+                <p className="text-[10px] font-semibold text-[#7C3AED] truncate flex items-center gap-1">
+                  <span>Company Admin</span>
+                </p>
+              </div>
+
+              <ChevronDown
+                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${
+                  isProfileDropdownOpen ? "rotate-180 text-[#7C3AED]" : ""
+                }`}
+              />
             </button>
 
-            {/* Resume Credit Indicator */}
-            <button
-              onClick={() => setIsBuyCreditsModalOpen(true)}
-              className="px-2.5 sm:px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1.5 sm:gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <FolderDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span className="whitespace-nowrap">{remainingCredits} Credits</span>
-            </button>
+            {/* Profile Dropdown Menu */}
+            {isProfileDropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-3xl shadow-2xl border border-slate-200/90 p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                {/* Header Profile Card */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#FAF5FF] to-[#EDE9FE]/50 border border-[#DDD6FE]/60 mb-2">
+                  <div className="flex items-center gap-3">
+                    <div
+                      style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
+                      className="w-11 h-11 rounded-2xl border flex items-center justify-center font-black text-sm shrink-0 shadow-xs overflow-hidden"
+                    >
+                      {profileImage ? (
+                        <img src={profileImage} alt={companyName} className="w-full h-full object-cover" />
+                      ) : (
+                        (companyName || "CO").slice(0, 2).toUpperCase()
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate">
+                        {companyName || "Company"}
+                      </p>
+                      <p className="text-[11px] text-slate-500 truncate">{contactEmail || "Company Portal"}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
+                          {currentPlan && currentPlan !== "No Active Plan" ? currentPlan.split(" ")[0] : "Admin"}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                          {remainingCredits} Credits
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dropdown Navigation Links */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => {
+                      handleTabSwitch("profile");
+                      setIsProfileDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition text-left cursor-pointer ${
+                      activeTab === "profile"
+                        ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold"
+                        : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4 text-[#7C3AED] shrink-0" />
+                    <div className="flex-1">
+                      <span>Company Profile</span>
+                      <p className="text-[10px] text-slate-400 font-normal">Edit details, branding & info</p>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  </button>
+                </div>
+
+                {/* Logout Divider & Button */}
+                <div className="mt-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => {
+                      setIsProfileDropdownOpen(false);
+                      handleLogout();
+                    }}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition text-left cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span className="flex-1">Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 

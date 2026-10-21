@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   FileText,
@@ -29,6 +29,7 @@ import {
   MapPin,
   ShieldCheck,
   Maximize2,
+  ChevronDown,
 } from "lucide-react";
 import { ApplicationItem } from "./RecentApplications";
 
@@ -37,6 +38,165 @@ interface ResumeDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateStatus?: (id: string, status: ApplicationItem["status"]) => void;
+}
+
+const RESUME_STATUS_OPTIONS = [
+  {
+    value: "New",
+    label: "Status: Applied",
+    dotColor: "bg-blue-500",
+    badgeBg: "bg-blue-50/80",
+    badgeText: "text-blue-700",
+    badgeBorder: "border-blue-200/80",
+    hoverBg: "hover:bg-blue-50/70",
+  },
+  {
+    value: "Reviewed",
+    label: "Status: Reviewing",
+    dotColor: "bg-amber-500",
+    badgeBg: "bg-amber-50/80",
+    badgeText: "text-amber-700",
+    badgeBorder: "border-amber-200/80",
+    hoverBg: "hover:bg-amber-50/70",
+  },
+  {
+    value: "Shortlisted",
+    label: "Status: Shortlisted",
+    dotColor: "bg-teal-500",
+    badgeBg: "bg-teal-50/80",
+    badgeText: "text-teal-700",
+    badgeBorder: "border-teal-200/80",
+    hoverBg: "hover:bg-teal-50/70",
+  },
+  {
+    value: "Interview",
+    label: "Status: Interview",
+    dotColor: "bg-purple-500",
+    badgeBg: "bg-purple-50/80",
+    badgeText: "text-purple-700",
+    badgeBorder: "border-purple-200/80",
+    hoverBg: "hover:bg-purple-50/70",
+  },
+  {
+    value: "Hired",
+    label: "Status: Hired",
+    dotColor: "bg-emerald-500",
+    badgeBg: "bg-emerald-50/80",
+    badgeText: "text-emerald-700",
+    badgeBorder: "border-emerald-200/80",
+    hoverBg: "hover:bg-emerald-50/70",
+  },
+  {
+    value: "Rejected",
+    label: "Status: Rejected",
+    dotColor: "bg-rose-500",
+    badgeBg: "bg-rose-50/80",
+    badgeText: "text-rose-700",
+    badgeBorder: "border-rose-200/80",
+    hoverBg: "hover:bg-rose-50/70",
+  },
+];
+
+function ResumeStatusDropdown({
+  currentStatus,
+  onSelect,
+}: {
+  currentStatus: string;
+  onSelect: (newStatus: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const activeOption =
+    RESUME_STATUS_OPTIONS.find((opt) => {
+      const cur = (currentStatus || "").toLowerCase();
+      const val = opt.value.toLowerCase();
+      if (cur === val) return true;
+      if (cur === "applied" && val === "new") return true;
+      if (cur === "reviewing" && val === "reviewed") return true;
+      return false;
+    }) || RESUME_STATUS_OPTIONS[0];
+
+  return (
+    <div ref={dropdownRef} className="relative inline-block text-left">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-2 cursor-pointer shadow-2xs select-none ${activeOption.badgeBg} ${activeOption.badgeText} ${activeOption.badgeBorder} hover:brightness-95 active:scale-98`}
+      >
+        <span className={`w-2 h-2 rounded-full ${activeOption.dotColor} shrink-0`} />
+        <span className="whitespace-nowrap">{activeOption.label}</span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 sm:left-auto sm:right-0 bottom-full mb-1.5 w-48 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">
+            Update Status
+          </div>
+          <div className="space-y-0.5 mt-0.5">
+            {RESUME_STATUS_OPTIONS.map((opt) => {
+              const isSelected =
+                opt.value.toLowerCase() === (currentStatus || "").toLowerCase() ||
+                ((currentStatus || "").toLowerCase() === "applied" && opt.value === "New") ||
+                ((currentStatus || "").toLowerCase() === "reviewing" && opt.value === "Reviewed");
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onSelect(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer text-left select-none ${
+                    isSelected
+                      ? `${opt.badgeBg} ${opt.badgeText} font-bold shadow-2xs`
+                      : `text-slate-700 hover:bg-slate-50 ${opt.hoverBg}`
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${opt.dotColor} shrink-0`} />
+                    <span>{opt.label}</span>
+                  </div>
+                  {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-current" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function ResumeDetailModal({
@@ -492,20 +652,12 @@ export default function ResumeDetailModal({
             {onUpdateStatus ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-600">Update Status:</span>
-                <select
-                  value={application.status}
-                  onChange={(e) =>
-                    onUpdateStatus(application.id, e.target.value as ApplicationItem["status"])
+                <ResumeStatusDropdown
+                  currentStatus={application.status}
+                  onSelect={(newStatus) =>
+                    onUpdateStatus(application.id, newStatus as ApplicationItem["status"])
                   }
-                  className="text-xs font-bold bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
-                >
-                  <option value="New">New / Applied</option>
-                  <option value="Reviewed">Reviewed / Reviewing</option>
-                  <option value="Shortlisted">Shortlisted</option>
-                  <option value="Interview">Interview</option>
-                  <option value="Hired">Hired</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
+                />
               </div>
             ) : (
               <div className="flex items-center gap-1.5 text-xs text-slate-500">
