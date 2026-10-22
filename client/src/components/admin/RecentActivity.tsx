@@ -54,7 +54,7 @@ export default function RecentActivity({
       time: a.appliedOn || "Recently",
       icon: User,
       iconColor: "text-blue-500 bg-blue-50 ring-blue-100",
-      tab: "applications" as AdminTab,
+      tab: "resumes" as AdminTab,
     })),
   ].slice(0, 5);
 

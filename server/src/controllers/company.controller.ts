@@ -364,6 +364,7 @@ export const updateCompanyById = async (req: Request, res: Response) => {
 
     const {
       companyName,
+      name,
       tagline,
       industry,
       companySize,
@@ -382,11 +383,17 @@ export const updateCompanyById = async (req: Request, res: Response) => {
       bannerImage,
       culture,
       perks,
+      status,
+      rejectionReason,
     } = req.body;
 
     const oldCompanyName = companyUser.companyName || companyUser.name || '';
 
-    if (companyName !== undefined) companyUser.companyName = companyName;
+    if (companyName !== undefined) {
+      companyUser.companyName = companyName;
+      if (!name) companyUser.name = companyName;
+    }
+    if (name !== undefined) companyUser.name = name;
     if (tagline !== undefined) companyUser.tagline = tagline;
     if (industry !== undefined) companyUser.industry = industry;
     if (companySize !== undefined) companyUser.companySize = companySize;
@@ -423,6 +430,17 @@ export const updateCompanyById = async (req: Request, res: Response) => {
         : typeof perks === 'string'
         ? perks.split('\n').map((s: string) => s.trim()).filter(Boolean)
         : [];
+    }
+
+    if (status !== undefined) {
+      companyUser.status = status;
+      if (status === 'Pending') companyUser.rejectionReason = '';
+    } else if (companyUser.status === 'Rejected') {
+      companyUser.status = 'Pending';
+      companyUser.rejectionReason = '';
+    }
+    if (rejectionReason !== undefined) {
+      companyUser.rejectionReason = rejectionReason;
     }
 
     await companyUser.save();

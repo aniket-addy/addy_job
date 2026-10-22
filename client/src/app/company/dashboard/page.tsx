@@ -44,6 +44,8 @@ import {
   Menu,
   Clock,
   AlertCircle,
+  AlertOctagon,
+  XCircle,
   Send,
   Star,
   Lock,
@@ -51,9 +53,20 @@ import {
   KeyRound,
   HeartHandshake,
   Gift,
+  Code2,
+  Palette,
+  Layers,
+  Compass,
+  Megaphone,
+  TrendingUp,
+  BarChart3,
+  GraduationCap,
+  Award,
 } from "lucide-react";
 import {
   getStoredUser,
+  setStoredUser,
+  safeSetLocalStorage,
   clearAuthSession,
   getEffectiveCompanyPermissions,
   CompanyPermissions,
@@ -81,6 +94,222 @@ import {
 import CompanyJobApplicantsModal, {
   CompanyCandidateApplicant,
 } from "@/components/company/CompanyJobApplicantsModal";
+import {
+  CustomJobDropdown,
+  DropdownOption,
+} from "@/components/company/CustomJobDropdown";
+
+const JOB_DEPARTMENT_OPTIONS: DropdownOption[] = [
+  {
+    value: "Engineering",
+    label: "Engineering",
+    description: "Software, Frontend, Backend & Full-Stack",
+    badge: "Tech",
+    badgeColor: "bg-violet-50 text-violet-700 border-violet-200",
+    icon: Code2,
+    iconBg: "bg-violet-100",
+    iconColor: "text-violet-600",
+  },
+  {
+    value: "Product Design",
+    label: "Product Design (UI/UX)",
+    description: "UI/UX, Visual Design, Systems & Research",
+    badge: "Design",
+    badgeColor: "bg-pink-50 text-pink-700 border-pink-200",
+    icon: Palette,
+    iconBg: "bg-pink-100",
+    iconColor: "text-pink-600",
+  },
+  {
+    value: "Platform Eng",
+    label: "Platform Eng / DevOps",
+    description: "Cloud, SRE, Kubernetes, CI/CD & Security",
+    badge: "Infra",
+    badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
+    icon: Layers,
+    iconBg: "bg-cyan-100",
+    iconColor: "text-cyan-600",
+  },
+  {
+    value: "Product Management",
+    label: "Product Management",
+    description: "Roadmaps, Product Strategy & Feature Delivery",
+    badge: "Strategy",
+    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+    icon: Compass,
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
+  },
+  {
+    value: "Marketing & Growth",
+    label: "Marketing & Growth",
+    description: "Performance Marketing, SEO, Social & Content",
+    badge: "Growth",
+    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: Megaphone,
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-600",
+  },
+  {
+    value: "Sales & BD",
+    label: "Sales & BD",
+    description: "Enterprise Sales, Partnerships & Account Exec",
+    badge: "Sales",
+    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    icon: TrendingUp,
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-600",
+  },
+  {
+    value: "Data & Analytics",
+    label: "Data & Analytics",
+    description: "Data Science, AI/ML Pipelines & Business BI",
+    badge: "AI/Data",
+    badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    icon: BarChart3,
+    iconBg: "bg-indigo-100",
+    iconColor: "text-indigo-600",
+  },
+  {
+    value: "Human Resources",
+    label: "Human Resources",
+    description: "Talent Acquisition, People Operations & Culture",
+    badge: "HR",
+    badgeColor: "bg-rose-50 text-rose-700 border-rose-200",
+    icon: Users,
+    iconBg: "bg-rose-100",
+    iconColor: "text-rose-600",
+  },
+];
+
+const JOB_WORKPLACE_OPTIONS: DropdownOption[] = [
+  {
+    value: "Remote",
+    label: "Remote",
+    description: "Work from anywhere without geographic boundaries",
+    badge: "Anywhere",
+    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    icon: Globe,
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-600",
+  },
+  {
+    value: "Hybrid",
+    label: "Hybrid",
+    description: "Balanced home & office schedule (2-3 days)",
+    badge: "Flexible",
+    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+    icon: Building2,
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
+  },
+  {
+    value: "On-site",
+    label: "On-site (In-office)",
+    description: "Full in-office presence required at workspace",
+    badge: "In-Office",
+    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: MapPin,
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-600",
+  },
+];
+
+const JOB_EMPLOYMENT_TYPE_OPTIONS: DropdownOption[] = [
+  {
+    value: "Full-time",
+    label: "Full-time",
+    description: "Standard 40h/week with standard perks",
+    badge: "Permanent",
+    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
+    icon: Briefcase,
+    iconBg: "bg-purple-100",
+    iconColor: "text-purple-600",
+  },
+  {
+    value: "Part-time",
+    label: "Part-time",
+    description: "Flexible working hours under 30h/week",
+    badge: "Part-Time",
+    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+    icon: Clock,
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
+  },
+  {
+    value: "Contract",
+    label: "Contract",
+    description: "Fixed duration project or consulting",
+    badge: "Contract",
+    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    icon: FileText,
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-600",
+  },
+  {
+    value: "Internship",
+    label: "Internship",
+    description: "Mentorship & student learning opportunity",
+    badge: "Student",
+    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: GraduationCap,
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-600",
+  },
+];
+
+const JOB_EXPERIENCE_OPTIONS: DropdownOption[] = [
+  {
+    value: "0-1 years",
+    label: "0 - 1 years (Fresher)",
+    description: "Entry level, college grads & early career",
+    badge: "Fresher",
+    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    icon: Sparkles,
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-600",
+  },
+  {
+    value: "1-3 years",
+    label: "1 - 3 years (Junior)",
+    description: "Solid basics with 1-3 years practical experience",
+    badge: "Junior",
+    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+    icon: Award,
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
+  },
+  {
+    value: "3-5 years",
+    label: "3 - 5 years (Mid-Level)",
+    description: "Independent contributor with solid track record",
+    badge: "Mid-Level",
+    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
+    icon: Briefcase,
+    iconBg: "bg-purple-100",
+    iconColor: "text-purple-600",
+  },
+  {
+    value: "5-8 years",
+    label: "5 - 8 years (Senior)",
+    description: "Deep domain expertise & project leadership",
+    badge: "Senior",
+    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: TrendingUp,
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-600",
+  },
+  {
+    value: "8+ years",
+    label: "8+ years (Lead / Architect)",
+    description: "High-level system design & team direction",
+    badge: "Lead",
+    badgeColor: "bg-rose-50 text-rose-700 border-rose-200",
+    icon: Crown,
+    iconBg: "bg-rose-100",
+    iconColor: "text-rose-600",
+  },
+];
 
 // Types
 interface PostedJob {
@@ -238,6 +467,8 @@ export default function CompanyDashboardPage() {
   const [resumesUsed, setResumesUsed] = useState(0);
   const [activePlanCard, setActivePlanCard] = useState<"starter" | "pro" | "enterprise" | null>(null);
   const [companyStatus, setCompanyStatus] = useState<"Pending" | "Approved" | "Rejected">("Pending");
+  const [rejectionReason, setRejectionReason] = useState<string>("");
+  const [isApprovalRequiredModalOpen, setIsApprovalRequiredModalOpen] = useState(false);
 
   // Dynamic Plans from Super Admin Database & Monthly/Yearly toggle
   const [adminPlans, setAdminPlans] = useState<any[]>([]);
@@ -464,6 +695,13 @@ export default function CompanyDashboardPage() {
     plan: any,
     cycle: "monthly" | "yearly"
   ) => {
+    // Guard: Company must be approved to purchase or activate subscriptions
+    if (companyStatus !== "Approved") {
+      showToast("without approval you dont buy subscription");
+      setIsApprovalRequiredModalOpen(true);
+      return;
+    }
+
     const planName = plan.name || "Custom Plan";
     const credits = Number(plan.credits) || (cycle === "yearly" ? 360 : 50);
     const validityText = cycle === "yearly" ? "Valid for 1 Year" : "Valid for 1 Month";
@@ -518,14 +756,14 @@ export default function CompanyDashboardPage() {
           plan: planName,
           permissions: newPerms,
         };
-        localStorage.setItem("career_user", JSON.stringify(updatedUser));
+        setStoredUser(updatedUser);
         if (storedUser.id) {
-          localStorage.setItem(`company_permissions_${storedUser.id}`, JSON.stringify(newPerms));
+          safeSetLocalStorage(`company_permissions_${storedUser.id}`, JSON.stringify(newPerms));
         }
       }
-      localStorage.setItem("company_active_plan", planName);
-      localStorage.setItem("company_plan_validity", validityText);
-      localStorage.setItem("company_permissions_active", JSON.stringify(newPerms));
+      safeSetLocalStorage("company_active_plan", planName);
+      safeSetLocalStorage("company_plan_validity", validityText);
+      safeSetLocalStorage("company_permissions_active", JSON.stringify(newPerms));
       window.dispatchEvent(new Event("company_permissions_updated"));
       window.dispatchEvent(new Event("storage"));
     }
@@ -551,6 +789,13 @@ export default function CompanyDashboardPage() {
     planTitle: string,
     credits: number
   ) => {
+    // Guard: Company must be approved to purchase or activate subscriptions
+    if (companyStatus !== "Approved") {
+      showToast("without approval you dont buy subscription");
+      setIsApprovalRequiredModalOpen(true);
+      return;
+    }
+
     // 1. Map to standard Plan name for auto-approval system
     const standardPlanName =
       planKey === "enterprise"
@@ -588,8 +833,8 @@ export default function CompanyDashboardPage() {
       const storedUser = getStoredUser();
       const uid = (storedUser as any)?._id || storedUser?.id || (storedUser as any)?.userId || storedUser?.email;
       if (uid) {
-        localStorage.setItem(`company_total_credits_${uid}`, String(credits));
-        localStorage.setItem(`company_resumes_used_${uid}`, "0");
+        safeSetLocalStorage(`company_total_credits_${uid}`, String(credits));
+        safeSetLocalStorage(`company_resumes_used_${uid}`, "0");
       }
       if (storedUser) {
         const updatedUser = {
@@ -597,13 +842,13 @@ export default function CompanyDashboardPage() {
           plan: standardPlanName,
           permissions: newPerms,
         };
-        localStorage.setItem("career_user", JSON.stringify(updatedUser));
+        setStoredUser(updatedUser);
         if (storedUser.id) {
-          localStorage.setItem(`company_permissions_${storedUser.id}`, JSON.stringify(newPerms));
+          safeSetLocalStorage(`company_permissions_${storedUser.id}`, JSON.stringify(newPerms));
         }
       }
-      localStorage.setItem("company_active_plan", standardPlanName);
-      localStorage.setItem("company_permissions_active", JSON.stringify(newPerms));
+      safeSetLocalStorage("company_active_plan", standardPlanName);
+      safeSetLocalStorage("company_permissions_active", JSON.stringify(newPerms));
       window.dispatchEvent(new Event("company_permissions_updated"));
       window.dispatchEvent(new Event("storage"));
     }
@@ -809,26 +1054,66 @@ export default function CompanyDashboardPage() {
   // Load user data from localStorage & database session
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // 1. Purge legacy global un-scoped items that leaked across companies
-      localStorage.removeItem("company_profile_data");
-      localStorage.removeItem("company_active_plan");
-      localStorage.removeItem("company_posted_jobs");
-      localStorage.removeItem("company_applicants_data");
-      localStorage.removeItem("company_purchased_resumes");
-      localStorage.removeItem("company_permissions_active");
-
       const applyUserData = (u: any) => {
         if (!u) return;
         const uid = u._id || u.id || u.userId || u.email;
-        setCompanyName(u.companyName || u.name || "");
-        setContactEmail(u.workEmail || u.email || "");
-        setIndustry(u.industry || "");
-        setHeadquarters(u.location || "");
-        setContactPhone(u.phone || "");
-        setGstNumber(u.gstNumber || "");
-        setCompanySize(u.companySize || "");
-        setAboutCompany(u.bio || "");
-        setCompanyStatus(u.status || "Pending");
+        const cName = u.companyName || u.name || "";
+
+        // Read stored profile data with fallbacks (scoped by user ID, email, name, or global)
+        let parsed: any = {};
+        if (typeof window !== "undefined") {
+          const keys = [
+            uid ? `company_profile_data_${uid}` : null,
+            u.id ? `company_profile_data_${u.id}` : null,
+            u._id ? `company_profile_data_${u._id}` : null,
+            u.email ? `company_profile_data_${u.email}` : null,
+            cName ? `company_profile_data_${cName.toLowerCase().trim()}` : null,
+            cName ? `company_profile_data_${cName.toLowerCase().replace(/\s+/g, "-")}` : null,
+            "company_profile_data",
+          ].filter(Boolean) as string[];
+
+          for (const k of keys) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              try {
+                parsed = { ...JSON.parse(raw), ...parsed };
+              } catch (e) {}
+            }
+          }
+        }
+
+        const resolvedCompanyName = parsed.companyName || u.companyName || u.name || "";
+        const resolvedEmail = parsed.contactEmail || u.workEmail || u.contactEmail || u.email || "";
+        const resolvedIndustry = parsed.industry || u.industry || "";
+        const resolvedHq = parsed.headquarters || u.headquarters || u.location || "";
+        const resolvedPhone = parsed.contactPhone || u.contactPhone || u.phone || "";
+        const resolvedGst = parsed.gstNumber || u.gstNumber || "";
+        const resolvedSize = parsed.companySize || u.companySize || "";
+        const resolvedAbout = parsed.aboutCompany || u.aboutCompany || u.bio || "";
+        const resolvedTagline = parsed.tagline || (u as any).tagline || "";
+        const resolvedWebsite = parsed.website || (u as any).website || "";
+        const resolvedProfileImage = parsed.profileImage || (u as any).profileImage || (u as any).logo || null;
+        const resolvedBannerImage = parsed.bannerImage || (u as any).bannerImage || null;
+
+        setCompanyName(resolvedCompanyName);
+        setContactEmail(resolvedEmail);
+        setIndustry(resolvedIndustry);
+        setHeadquarters(resolvedHq);
+        setContactPhone(resolvedPhone);
+        setGstNumber(resolvedGst);
+        setCompanySize(resolvedSize);
+        setAboutCompany(resolvedAbout);
+        if (u.status === "Rejected") {
+          setCompanyStatus("Rejected");
+          setRejectionReason(u.rejectionReason || parsed.rejectionReason || "");
+        } else {
+          setCompanyStatus(u.status || "Pending");
+          setRejectionReason("");
+        }
+        setTagline(resolvedTagline);
+        setWebsite(resolvedWebsite);
+        setProfileImage(resolvedProfileImage);
+        setBannerImage(resolvedBannerImage);
 
         // Subscription plan strictly from real user database record
         const planName = u.plan || "";
@@ -852,41 +1137,25 @@ export default function CompanyDashboardPage() {
           setResumesUsed(0);
         }
 
-        // Custom branding (combines saved localStorage and database user session)
+        const storedCulture = parsed.culture || (u as any).culture;
+        if (Array.isArray(storedCulture) && storedCulture.length > 0) {
+          setCultureText(storedCulture.join("\n"));
+        } else if (typeof storedCulture === "string" && storedCulture.trim()) {
+          setCultureText(storedCulture);
+        } else {
+          setCultureText("");
+        }
+
+        const storedPerks = parsed.perks || (u as any).perks;
+        if (Array.isArray(storedPerks) && storedPerks.length > 0) {
+          setPerksText(storedPerks.join("\n"));
+        } else if (typeof storedPerks === "string" && storedPerks.trim()) {
+          setPerksText(storedPerks);
+        } else {
+          setPerksText("");
+        }
+
         if (uid) {
-          const userProfileStr = localStorage.getItem(`company_profile_data_${uid}`);
-          let parsed: any = {};
-          if (userProfileStr) {
-            try {
-              parsed = JSON.parse(userProfileStr);
-            } catch (e) {
-              console.error(e);
-            }
-          }
-          setTagline(parsed.tagline || (u as any).tagline || "");
-          setWebsite(parsed.website || (u as any).website || "");
-          setProfileImage(parsed.profileImage || (u as any).profileImage || (u as any).logo || null);
-          setBannerImage(parsed.bannerImage || (u as any).bannerImage || null);
-          setAboutCompany(parsed.aboutCompany || (u as any).aboutCompany || u.bio || "");
-
-          const storedCulture = parsed.culture || (u as any).culture;
-          if (Array.isArray(storedCulture) && storedCulture.length > 0) {
-            setCultureText(storedCulture.join("\n"));
-          } else if (typeof storedCulture === "string" && storedCulture.trim()) {
-            setCultureText(storedCulture);
-          } else {
-            setCultureText("");
-          }
-
-          const storedPerks = parsed.perks || (u as any).perks;
-          if (Array.isArray(storedPerks) && storedPerks.length > 0) {
-            setPerksText(storedPerks.join("\n"));
-          } else if (typeof storedPerks === "string" && storedPerks.trim()) {
-            setPerksText(storedPerks);
-          } else {
-            setPerksText("");
-          }
-
           const savedJobs = localStorage.getItem(`company_posted_jobs_${uid}`);
           if (savedJobs) {
             try {
@@ -980,7 +1249,11 @@ export default function CompanyDashboardPage() {
             currentVault = u.purchasedResumes;
             setPurchasedResumes(u.purchasedResumes);
             try {
-              localStorage.setItem(`company_purchased_resumes_${uid}`, JSON.stringify(u.purchasedResumes));
+              const cleanVault = u.purchasedResumes.map((r: any) => ({
+                ...r,
+                pdfData: undefined,
+              }));
+              safeSetLocalStorage(`company_purchased_resumes_${uid}`, JSON.stringify(cleanVault));
             } catch (e) {}
           } else {
             const savedPurchasedResumes = localStorage.getItem(`company_purchased_resumes_${uid}`);
@@ -1075,18 +1348,27 @@ export default function CompanyDashboardPage() {
         }
       };
 
+      const handleUserSync = () => {
+        const u = getStoredUser();
+        if (u) applyUserData(u);
+      };
+
       window.addEventListener("purchased_resumes_updated", handleVaultSync);
       window.addEventListener("job_created", handleJobSync);
       window.addEventListener("job_updated", handleJobSync);
+      window.addEventListener("auth_change", handleUserSync);
       window.addEventListener("storage", handleVaultSync);
       window.addEventListener("storage", handleJobSync);
+      window.addEventListener("storage", handleUserSync);
 
       return () => {
         window.removeEventListener("purchased_resumes_updated", handleVaultSync);
         window.removeEventListener("job_created", handleJobSync);
         window.removeEventListener("job_updated", handleJobSync);
+        window.removeEventListener("auth_change", handleUserSync);
         window.removeEventListener("storage", handleVaultSync);
         window.removeEventListener("storage", handleJobSync);
+        window.removeEventListener("storage", handleUserSync);
       };
     }
   }, []);
@@ -1146,9 +1428,13 @@ export default function CompanyDashboardPage() {
 
     // 3. Persist locally for instant reactivity
     if (uid && typeof window !== "undefined") {
-      localStorage.setItem(`company_purchased_resumes_${uid}`, JSON.stringify(updatedVault));
-      localStorage.setItem(`company_resumes_used_${uid}`, String(newUsed));
-      localStorage.setItem(`company_total_credits_${uid}`, String(totalResumesPurchased));
+      const cleanVault = updatedVault.map((r: any) => ({
+        ...r,
+        pdfData: undefined,
+      }));
+      safeSetLocalStorage(`company_purchased_resumes_${uid}`, JSON.stringify(cleanVault));
+      safeSetLocalStorage(`company_resumes_used_${uid}`, String(newUsed));
+      safeSetLocalStorage(`company_total_credits_${uid}`, String(totalResumesPurchased));
       window.dispatchEvent(new Event("purchased_resumes_updated"));
       window.dispatchEvent(new Event("storage"));
     }
@@ -1167,24 +1453,63 @@ export default function CompanyDashboardPage() {
     showToast(`🎉 ${resume.candidateName}'s contact details unlocked! 1 Credit used. (${availableCredits - 1} credits left)`);
   };
 
+  // Helper to compress uploaded image before storing/sending
+  const compressImageFile = (
+    file: File,
+    maxWidth: number,
+    maxHeight: number,
+    quality = 0.8
+  ): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const raw = e.target?.result as string;
+        if (!raw) return resolve("");
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(raw);
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = () => resolve(raw);
+        img.src = raw;
+      };
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Image Upload & Removal Handlers (See, Update, Remove)
-  const handleProfileImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast("File size too large. Please select an image under 5MB.");
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("File size too large. Please select an image under 10MB.");
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
+      try {
+        const base64 = await compressImageFile(file, 400, 400, 0.85);
+        if (!base64) return;
         setProfileImage(base64);
         const user = getStoredUser();
         const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
         if (uid) {
           try {
             const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
-            localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify({ ...prev, profileImage: base64, logo: base64 }));
+            safeSetLocalStorage(`company_profile_data_${uid}`, JSON.stringify({ ...prev, profileImage: base64, logo: base64 }));
           } catch (err) {}
         }
         updateUserProfile({ profileImage: base64, logo: base64 }).catch((err) =>
@@ -1193,28 +1518,29 @@ export default function CompanyDashboardPage() {
         notifyApplicationSync();
         showToast("Company profile image updated successfully!");
         setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        showToast("Failed to process image.");
+      }
     }
   };
 
-  const handleBannerImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 8 * 1024 * 1024) {
-        showToast("File size too large. Please select a banner under 8MB.");
+      if (file.size > 15 * 1024 * 1024) {
+        showToast("File size too large. Please select a banner under 15MB.");
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
+      try {
+        const base64 = await compressImageFile(file, 1400, 480, 0.78);
+        if (!base64) return;
         setBannerImage(base64);
         const user = getStoredUser();
         const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
         if (uid) {
           try {
             const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
-            localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify({ ...prev, bannerImage: base64 }));
+            safeSetLocalStorage(`company_profile_data_${uid}`, JSON.stringify({ ...prev, bannerImage: base64 }));
           } catch (err) {}
         }
         updateUserProfile({ bannerImage: base64 }).catch((err) =>
@@ -1223,8 +1549,9 @@ export default function CompanyDashboardPage() {
         notifyApplicationSync();
         showToast("Company cover banner updated successfully!");
         setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        showToast("Failed to process banner.");
+      }
     }
   };
 
@@ -1238,7 +1565,7 @@ export default function CompanyDashboardPage() {
           const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
           delete prev.profileImage;
           delete prev.logo;
-          localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify(prev));
+          safeSetLocalStorage(`company_profile_data_${uid}`, JSON.stringify(prev));
         } catch (err) {}
       }
       updateUserProfile({ profileImage: "", logo: "" }).catch((err) =>
@@ -1252,7 +1579,7 @@ export default function CompanyDashboardPage() {
         try {
           const prev = JSON.parse(localStorage.getItem(`company_profile_data_${uid}`) || "{}");
           delete prev.bannerImage;
-          localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify(prev));
+          safeSetLocalStorage(`company_profile_data_${uid}`, JSON.stringify(prev));
         } catch (err) {}
       }
       updateUserProfile({ bannerImage: "" }).catch((err) =>
@@ -1475,6 +1802,12 @@ export default function CompanyDashboardPage() {
 
   // Action: Buy More Resume Credits
   const handleBuyCredits = (credits: number, price: string) => {
+    if (companyStatus !== "Approved") {
+      showToast("without approval you dont buy subscription");
+      setIsApprovalRequiredModalOpen(true);
+      return;
+    }
+
     const nextTotal = totalResumesPurchased + credits;
     setTotalResumesPurchased(nextTotal);
     if (typeof window !== "undefined") {
@@ -1530,6 +1863,15 @@ export default function CompanyDashboardPage() {
     const user = getStoredUser();
     const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
 
+    const isResubmitting = companyStatus === "Rejected";
+    const nextStatus = isResubmitting ? "Pending" : companyStatus;
+    const nextRejectionReason = isResubmitting ? "" : rejectionReason;
+
+    if (isResubmitting) {
+      setCompanyStatus("Pending");
+      setRejectionReason("");
+    }
+
     const profileData = {
       companyName: cName,
       tagline: cTagline,
@@ -1545,33 +1887,63 @@ export default function CompanyDashboardPage() {
       bannerImage,
       culture: cultureArr,
       perks: perksArr,
+      status: nextStatus,
+      rejectionReason: nextRejectionReason,
     };
 
     if (uid && typeof window !== "undefined") {
-      localStorage.setItem(`company_profile_data_${uid}`, JSON.stringify(profileData));
-      if (user?.id) localStorage.setItem(`company_profile_data_${user.id}`, JSON.stringify(profileData));
-      if (user?.email) localStorage.setItem(`company_profile_data_${user.email}`, JSON.stringify(profileData));
-      if (cName) {
-        localStorage.setItem(`company_profile_data_${cName.toLowerCase().trim()}`, JSON.stringify(profileData));
-        localStorage.setItem(`company_profile_data_${cName.toLowerCase().replace(/\s+/g, "-")}`, JSON.stringify(profileData));
-      }
+      safeSetLocalStorage(`company_profile_data_${uid}`, JSON.stringify(profileData));
+    }
+
+    if (user) {
+      setStoredUser({
+        ...user,
+        companyName: cName,
+        name: cName,
+        tagline: cTagline,
+        industry: cIndustry,
+        companySize: cSize,
+        location: cHq,
+        headquarters: cHq,
+        website: cWeb,
+        workEmail: cEmail,
+        contactEmail: cEmail,
+        phone: cPhone,
+        contactPhone: cPhone,
+        gstNumber: cGst,
+        bio: cAbout,
+        aboutCompany: cAbout,
+        profileImage,
+        logo: profileImage,
+        bannerImage,
+        culture: cultureArr,
+        perks: perksArr,
+        status: nextStatus,
+        rejectionReason: nextRejectionReason,
+      } as any);
     }
 
     // Persist real changes to MongoDB backend
     const updatePayload: any = {
       companyName: cName,
+      name: cName,
       tagline: cTagline,
       industry: cIndustry,
       companySize: cSize,
       location: cHq,
+      headquarters: cHq,
       website: cWeb,
       workEmail: cEmail,
+      contactEmail: cEmail,
       phone: cPhone,
+      contactPhone: cPhone,
       gstNumber: cGst,
       bio: cAbout,
       aboutCompany: cAbout,
       culture: cultureArr,
       perks: perksArr,
+      status: nextStatus,
+      rejectionReason: nextRejectionReason,
     };
     if (profileImage) {
       updatePayload.profileImage = profileImage;
@@ -1584,14 +1956,29 @@ export default function CompanyDashboardPage() {
     updateUserProfile(updatePayload)
       .then((res) => {
         if (res && res.success) {
+          if (res.user) {
+            setStoredUser(res.user);
+            if (res.user.status) setCompanyStatus(res.user.status as any);
+            if (res.user.rejectionReason !== undefined) {
+              setRejectionReason(res.user.rejectionReason);
+            }
+          }
           notifyApplicationSync();
+          window.dispatchEvent(new Event("auth_change"));
+          window.dispatchEvent(new Event("company_profile_updated"));
         }
       })
       .catch((err) => console.warn("Backend profile sync error:", err));
 
     notifyApplicationSync();
+    window.dispatchEvent(new Event("auth_change"));
+    window.dispatchEvent(new Event("company_profile_updated"));
 
-    showToast("Company profile updated successfully!");
+    if (isResubmitting) {
+      showToast("Company profile updated & re-submitted for Super Admin approval!");
+    } else {
+      showToast("Company profile updated successfully!");
+    }
   };
 
   // Logout
@@ -1989,6 +2376,62 @@ export default function CompanyDashboardPage() {
 
         {/* MAIN BODY PER TAB */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl w-full mx-auto pb-24 md:pb-8">
+          {/* REJECTION ALERT BANNER (Displayed in RED color on company screen) */}
+          {companyStatus === "Rejected" && (
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-rose-50 via-red-50 to-rose-100 border-2 border-rose-400 p-5 sm:p-7 shadow-lg shadow-rose-500/10 animate-in slide-in-from-top-3 duration-300">
+              <div className="flex flex-col md:flex-row items-start gap-4 sm:gap-5">
+                <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-600/30">
+                  <AlertOctagon className="w-6 h-6 animate-pulse" />
+                </div>
+                <div className="flex-1 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-rose-600 text-white shadow-xs">
+                        Verification Rejected
+                      </span>
+                      <h2 className="text-base sm:text-lg font-black text-rose-950">
+                        Super Admin has rejected your company verification request
+                      </h2>
+                    </div>
+                    <span className="text-[11px] font-bold text-rose-700 bg-white/80 border border-rose-300 px-3 py-1 rounded-full shadow-2xs">
+                      Status: Action Required
+                    </span>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-rose-800 font-medium leading-relaxed">
+                    Your company verification request has been rejected by the Super Admin. Below is the official reason message sent to your registered email:
+                  </p>
+
+                  {/* Red Reason Box */}
+                  <div className="p-4 rounded-2xl bg-white border-2 border-rose-300/80 shadow-xs space-y-1">
+                    <div className="flex items-center gap-1.5 text-rose-600 font-bold text-xs uppercase tracking-wider">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Message / Reason from Super Admin:</span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-semibold text-rose-950 whitespace-pre-wrap leading-relaxed">
+                      {rejectionReason || "Verification criteria were not met. Please verify your company details, GSTIN, and official contact information."}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div className="flex items-center gap-2 text-xs text-rose-700 font-medium">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>Note: Without approval you cannot buy subscription or post live jobs.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleTabSwitch("profile")}
+                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition cursor-pointer flex items-center gap-1.5 active:scale-98"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Update Company Profile &amp; Re-submit</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: DASHBOARD OVERVIEW */}
           {activeTab === "dashboard" && (
             <div className="space-y-8 animate-in fade-in duration-200">
@@ -2345,21 +2788,46 @@ export default function CompanyDashboardPage() {
                   </p>
                 </div>
                 {companyStatus === "Approved" ? (
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
-                    <ShieldCheck className="w-4 h-4" />
-                    Verified Employer
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 flex items-center gap-1.5 self-start sm:self-auto shadow-2xs">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                    <span>Company Approved by Super Admin</span>
                   </span>
                 ) : companyStatus === "Pending" ? (
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5 self-start sm:self-auto">
                     <Clock className="w-4 h-4 text-amber-500" />
-                    Pending Verification
+                    <span>Pending Verification</span>
                   </span>
                 ) : (
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 self-start sm:self-auto">
-                    Verification Rejected
+                    <AlertCircle className="w-4 h-4 text-rose-500" />
+                    <span>Verification Rejected</span>
                   </span>
                 )}
               </div>
+
+              {companyStatus === "Rejected" && (
+                <div className="rounded-2xl bg-rose-50 border-2 border-rose-300 p-4 sm:p-5 text-rose-950 shadow-xs flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-rose-600/30">
+                    <XCircle className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white">
+                        Rejected
+                      </span>
+                      <h3 className="font-extrabold text-rose-950 text-sm">
+                        Verification Rejected by Super Admin
+                      </h3>
+                    </div>
+                    <p className="text-xs text-rose-800 leading-relaxed font-medium">
+                      Official Rejection Reason: <span className="font-bold text-rose-950">{rejectionReason || "Verification criteria were not met. Please verify your company details, GSTIN, and official contact information."}</span>
+                    </p>
+                    <p className="text-[11px] text-rose-600">
+                      Please make necessary corrections to the fields below and click &quot;Save Company Profile&quot; to re-submit your profile for review.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={handleSaveCompanyProfile} className="space-y-6">
                 {/* Brand Header Banner & Profile Avatar (Matching 1st image) */}
@@ -2393,9 +2861,9 @@ export default function CompanyDashboardPage() {
                     {/* Top Right Header Controls */}
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-6 flex items-center gap-2 z-10">
                       {companyStatus === "Approved" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/15 text-white text-[11px] sm:text-xs font-semibold shadow-sm">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="hidden xs:inline">Verified Employer</span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-emerald-400/30 text-emerald-300 text-[11px] sm:text-xs font-semibold shadow-sm">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="hidden xs:inline">Company Approved by Super Admin</span>
                         </span>
                       ) : companyStatus === "Rejected" ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-rose-950/70 backdrop-blur-md border border-rose-500/30 text-rose-200 text-[11px] sm:text-xs font-semibold shadow-sm">
@@ -2507,9 +2975,9 @@ export default function CompanyDashboardPage() {
                           {companyName || "My Company"}
                         </h1>
                         {companyStatus === "Approved" ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#7C3AED] fill-[#EDE9FE]" />
-                            <span>Verified</span>
+                          <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                            <span>Company Approved by Super Admin</span>
                           </span>
                         ) : companyStatus === "Rejected" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
@@ -2569,7 +3037,22 @@ export default function CompanyDashboardPage() {
                             </span>
                           </>
                         )}
+                        {contactEmail && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="flex items-center gap-1">
+                              <Mail className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{contactEmail}</span>
+                            </span>
+                          </>
+                        )}
                       </div>
+
+                      {aboutCompany && (
+                        <p className="text-xs text-slate-600 line-clamp-2 pt-2 border-t border-slate-100 mt-2">
+                          {aboutCompany}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2588,7 +3071,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="text"
                         name="companyName"
-                        defaultValue={companyName}
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
                         required
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
@@ -2599,7 +3083,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="text"
                         name="tagline"
-                        defaultValue={tagline}
+                        value={tagline}
+                        onChange={(e) => setTagline(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
@@ -2609,7 +3094,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="text"
                         name="industry"
-                        defaultValue={industry}
+                        value={industry}
+                        onChange={(e) => setIndustry(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
@@ -2619,7 +3105,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="text"
                         name="companySize"
-                        defaultValue={companySize}
+                        value={companySize}
+                        onChange={(e) => setCompanySize(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
@@ -2629,7 +3116,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="text"
                         name="headquarters"
-                        defaultValue={headquarters}
+                        value={headquarters}
+                        onChange={(e) => setHeadquarters(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
@@ -2639,7 +3127,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="url"
                         name="website"
-                        defaultValue={website}
+                        value={website}
+                        onChange={(e) => setWebsite(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
@@ -2649,7 +3138,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="email"
                         name="contactEmail"
-                        defaultValue={contactEmail}
+                        value={contactEmail}
+                        onChange={(e) => setContactEmail(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
@@ -2659,7 +3149,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="text"
                         name="contactPhone"
-                        defaultValue={contactPhone}
+                        value={contactPhone}
+                        onChange={(e) => setContactPhone(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
@@ -2669,7 +3160,8 @@ export default function CompanyDashboardPage() {
                       <input
                         type="text"
                         name="gstNumber"
-                        defaultValue={gstNumber}
+                        value={gstNumber}
+                        onChange={(e) => setGstNumber(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono uppercase tracking-wider focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden"
                       />
                     </div>
@@ -2690,7 +3182,8 @@ export default function CompanyDashboardPage() {
                     <textarea
                       name="aboutCompany"
                       rows={4}
-                      defaultValue={aboutCompany}
+                      value={aboutCompany}
+                      onChange={(e) => setAboutCompany(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden resize-none"
                     />
                   </div>
@@ -3901,60 +4394,40 @@ export default function CompanyDashboardPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Category / Department</label>
-                    <select
-                      value={jobDepartment}
-                      onChange={(e) => setJobDepartment(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden cursor-pointer font-medium"
-                    >
-                      <option value="Engineering">Engineering</option>
-                      <option value="Product Design">Product Design (UI/UX)</option>
-                      <option value="Platform Eng">Platform Eng / DevOps</option>
-                      <option value="Product Management">Product Management</option>
-                      <option value="Marketing">Marketing & Growth</option>
-                      <option value="Sales & BD">Sales & BD</option>
-                      <option value="Data & Analytics">Data & Analytics</option>
-                      <option value="Human Resources">Human Resources</option>
-                    </select>
-                  </div>
+                  <CustomJobDropdown
+                    label="Category / Department"
+                    value={jobDepartment}
+                    onChange={setJobDepartment}
+                    options={JOB_DEPARTMENT_OPTIONS}
+                    placeholder="Select Department"
+                  />
 
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Workplace Policy</label>
-                    <select
-                      value={jobWorkplace}
-                      onChange={(e) => setJobWorkplace(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden cursor-pointer font-medium"
-                    >
-                      <option value="Remote">Remote</option>
-                      <option value="Hybrid">Hybrid</option>
-                      <option value="On-site">On-site (In-office)</option>
-                    </select>
-                  </div>
+                  <CustomJobDropdown
+                    label="Workplace Policy"
+                    value={jobWorkplace}
+                    onChange={setJobWorkplace}
+                    options={JOB_WORKPLACE_OPTIONS}
+                    placeholder="Select Workplace Policy"
+                  />
 
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Employment Type</label>
-                    <select
-                      value={jobType}
-                      onChange={(e) => setJobType(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden cursor-pointer font-medium"
-                    >
-                      <option value="Full-time">Full-time</option>
-                      <option value="Part-time">Part-time</option>
-                      <option value="Contract">Contract</option>
-                      <option value="Internship">Internship</option>
-                    </select>
-                  </div>
+                  <CustomJobDropdown
+                    label="Employment Type"
+                    value={jobType}
+                    onChange={setJobType}
+                    options={JOB_EMPLOYMENT_TYPE_OPTIONS}
+                    placeholder="Select Employment Type"
+                  />
 
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Experience Required</label>
-                    <input
-                      type="text"
-                      value={jobExperience}
-                      onChange={(e) => setJobExperience(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:border-[#8B5CF6] focus:ring-4 focus:ring-[#EDE9FE] outline-hidden font-medium"
-                    />
-                  </div>
+                  <CustomJobDropdown
+                    label="Experience Required"
+                    value={jobExperience}
+                    onChange={setJobExperience}
+                    options={JOB_EXPERIENCE_OPTIONS}
+                    placeholder="Select experience or type below"
+                    allowCustomInput={true}
+                    customInputPlaceholder="Type custom experience (e.g. 2+ years)"
+                    quickPills={["0-1 yrs", "1-3 yrs", "3-5 yrs", "5+ yrs", "8+ yrs"]}
+                  />
                 </div>
               </div>
 
@@ -4590,6 +5063,95 @@ export default function CompanyDashboardPage() {
           }
         }}
       />
+
+      {/* Verification Approval Required Modal (without approval you dont buy subscription) */}
+      {isApprovalRequiredModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-gradient-to-r from-rose-50 via-red-50 to-rose-100 p-6 border-b border-rose-200/80 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-rose-600/30">
+                <AlertOctagon className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-600 bg-rose-200/60 px-2 py-0.5 rounded-full">
+                    Action Blocked
+                  </span>
+                  <button
+                    onClick={() => setIsApprovalRequiredModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-white/60 transition cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <h3 className="text-lg font-black text-rose-950 mt-1">
+                  Approval Required
+                </h3>
+                <p className="text-xs font-semibold text-rose-700 mt-0.5">
+                  without approval you dont buy subscription
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="p-3.5 rounded-2xl bg-rose-50/80 border border-rose-200 text-rose-900 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold">Current Verification Status:</span>
+                  <span className={`px-2 py-0.5 rounded-md font-bold text-[11px] ${
+                    companyStatus === "Rejected"
+                      ? "bg-rose-600 text-white"
+                      : "bg-amber-100 text-amber-800 border border-amber-300"
+                  }`}>
+                    {companyStatus}
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed text-rose-800">
+                  Your company account must be verified and approved by the Super Admin before purchasing subscriptions or activating recruitment plans.
+                </p>
+              </div>
+
+              {companyStatus === "Rejected" && rejectionReason && (
+                <div className="p-3.5 rounded-2xl bg-white border border-rose-300 shadow-2xs space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 block">
+                    Super Admin Rejection Reason:
+                  </span>
+                  <p className="text-xs font-medium text-rose-950">
+                    {rejectionReason}
+                  </p>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Please update your company profile (including official GSTIN, website, and contact information) so the Super Admin can approve your account.
+              </p>
+            </div>
+
+            <div className="p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsApprovalRequiredModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsApprovalRequiredModalOpen(false);
+                  handleTabSwitch("profile");
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/25 transition cursor-pointer flex items-center gap-1.5"
+              >
+                <span>Go to Company Profile</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

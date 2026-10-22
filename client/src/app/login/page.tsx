@@ -43,7 +43,11 @@ export default function LoginPage() {
       }
 
       setSuccessMsg(res.message || "Login successful! Opening dashboard...");
-      setAuthSession(res.token, res.user);
+      try {
+        setAuthSession(res.token, res.user);
+      } catch (storageErr) {
+        console.warn("Storage warning during login:", storageErr);
+      }
 
       setTimeout(() => {
         if (res.user?.role === "admin") {
@@ -53,7 +57,7 @@ export default function LoginPage() {
         } else {
           router.push("/candidate/dashboard");
         }
-      }, 700);
+      }, 500);
     } catch (err: any) {
       setErrorMsg(err.message || "Failed to sign in. Please verify your connection.");
       setIsLoading(false);

@@ -50,6 +50,7 @@ export interface IUser extends Document {
   culture?: string[];
   perks?: string[];
   status?: 'Pending' | 'Approved' | 'Rejected';
+  rejectionReason?: string;
   plan?: string;
   permissions?: {
     dashboard?: boolean;
@@ -314,6 +315,10 @@ const userSchema = new Schema<IUser>(
       type: String,
       enum: ['Pending', 'Approved', 'Rejected'],
       default: 'Approved',
+    },
+    rejectionReason: {
+      type: String,
+      default: '',
     },
     plan: {
       type: String,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -8,64 +8,217 @@ import {
   Search,
   Bell,
   ChevronDown,
-  Calendar,
   ExternalLink,
-  ShieldAlert,
-  User,
   Settings,
   LogOut,
   Building2,
-  Briefcase,
-  CheckCircle2,
+  UserCheck,
   MoreVertical,
+  CheckCheck,
 } from "lucide-react";
-import { clearAuthSession } from "@/lib/api";
+import {
+  clearAuthSession,
+  fetchAdminNotifications,
+  fetchAdminCompanies,
+  fetchAdminJobSeekers,
+  AdminNotificationItem,
+} from "@/lib/api";
 
 interface AdminHeaderProps {
   onToggleSidebar: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  onSelectTab?: (tab: any) => void;
+}
+
+function formatRelativeTime(dateInput: string | Date | undefined): string {
+  if (!dateInput) return "Recently";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "Recently";
+
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs <= 0) return "Just now";
+
+  const diffSecs = Math.floor(diffMs / 1000);
+  if (diffSecs < 60) return "Just now";
+
+  const diffMins = Math.floor(diffSecs / 60);
+  if (diffMins < 60) return `${diffMins}m ago`;
+
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export default function AdminHeader({
   onToggleSidebar,
   searchQuery,
   setSearchQuery,
+  onSelectTab,
 }: AdminHeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [notifications, setNotifications] = useState<AdminNotificationItem[]>([]);
+  const [readIds, setReadIds] = useState<string[]>([]);
+
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Initialize read IDs from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("admin_read_notification_ids");
+      if (stored) {
+        setReadIds(JSON.parse(stored));
+      }
+    } catch {}
+  }, []);
 
   const handleLogout = () => {
     clearAuthSession();
     window.location.href = "/";
   };
 
-  const notifications = [
-    {
-      id: 1,
-      title: "New Company Registered",
-      desc: "TechVision Solutions applied for approval",
-      time: "2 hours ago",
-      icon: Building2,
-      color: "text-emerald-600 bg-emerald-50",
-    },
-    {
-      id: 2,
-      title: "New Job Application",
-      desc: "Rahul Sharma applied for Frontend Developer",
-      time: "3 hours ago",
-      icon: Briefcase,
-      color: "text-blue-600 bg-blue-50",
-    },
-    {
-      id: 3,
-      title: "Payment Received",
-      desc: "Acme Corp renewed Pro Plan (₹9,999)",
-      time: "5 hours ago",
-      icon: CheckCircle2,
-      color: "text-amber-600 bg-amber-50",
-    },
-  ];
+  const loadNotifications = async () => {
+    try {
+      const items = await fetchAdminNotifications();
+      if (Array.isArray(items) && items.length > 0) {
+        setNotifications(items);
+      } else {
+        // Fallback: build real notifications directly from companies and jobseekers data
+        const [comps, seekers] = await Promise.all([
+          fetchAdminCompanies().catch(() => []),
+          fetchAdminJobSeekers().catch(() => []),
+        ]);
+        const fallbackList: AdminNotificationItem[] = [];
+        (comps || []).forEach((c: any) => {
+          const isPending = c.status === "Pending";
+          fallbackList.push({
+            id: `comp-${c.id || c._id}`,
+            type: "company_registered",
+            title: "New Company Registered",
+            desc: isPending
+              ? `${c.name || "Company"} applied for approval`
+              : `${c.name || "Company"} registered as employer`,
+            createdAt: c.createdAt || new Date(),
+            targetTab: isPending ? "approvals" : "companies",
+            entityId: c.id || c._id,
+            iconType: "company",
+          });
+        });
+        (seekers || []).forEach((s: any) => {
+          fallbackList.push({
+            id: `seeker-${s.id || s._id}`,
+            type: "jobseeker_registered",
+            title: "New Jobseeker Registered",
+            desc: `${s.name || "Candidate"} registered (${s.targetRole || s.headline || "Job Seeker"})`,
+            createdAt: s.createdAt || new Date(),
+            targetTab: "jobseekers",
+            entityId: s.id || s._id,
+            iconType: "jobseeker",
+          });
+        });
+        fallbackList.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setNotifications(fallbackList);
+      }
+    } catch (err) {
+      console.warn("Could not load real admin notifications:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+
+    const handleUpdate = () => loadNotifications();
+    window.addEventListener("storage", handleUpdate);
+    window.addEventListener("companies_updated", handleUpdate);
+    window.addEventListener("plans_updated", handleUpdate);
+
+    // Refresh every 6 seconds to keep notifications real-time
+    const interval = setInterval(loadNotifications, 6000);
+    return () => {
+      window.removeEventListener("storage", handleUpdate);
+      window.removeEventListener("companies_updated", handleUpdate);
+      window.removeEventListener("plans_updated", handleUpdate);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Dismiss dropdown when clicking anywhere outside
+  useEffect(() => {
+    if (!showNotifications) return;
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(e.target as Node)
+      ) {
+        setShowNotifications(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowNotifications(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showNotifications]);
+
+  // Dismiss profile dropdown on outside click
+  useEffect(() => {
+    if (!showProfileMenu) return;
+
+    const handleProfileOutsideClick = (e: MouseEvent) => {
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleProfileOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleProfileOutsideClick);
+    };
+  }, [showProfileMenu]);
+
+  const markAllAsRead = () => {
+    const allIds = notifications.map((n) => n.id);
+    setReadIds(allIds);
+    try {
+      localStorage.setItem("admin_read_notification_ids", JSON.stringify(allIds));
+    } catch {}
+  };
+
+  const markAsRead = (id: string) => {
+    if (!readIds.includes(id)) {
+      const updated = [...readIds, id];
+      setReadIds(updated);
+      try {
+        localStorage.setItem("admin_read_notification_ids", JSON.stringify(updated));
+      } catch {}
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !readIds.includes(n.id)).length;
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-2 sm:gap-4">
@@ -104,8 +257,9 @@ export default function AdminHeader({
         >
           <MoreVertical className="w-5 h-5" />
         </button>
+
         {/* Notifications Dropdown */}
-        <div className="relative">
+        <div ref={notificationRef} className="relative">
           <button
             onClick={() => {
               setShowNotifications(!showNotifications);
@@ -115,51 +269,105 @@ export default function AdminHeader({
             className="relative p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
-              3
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-88 bg-white rounded-2xl shadow-xl border border-slate-100 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 mt-2 w-80 sm:w-92 bg-white rounded-2xl shadow-xl border border-slate-100 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-900">Notifications</h4>
-                <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                  3 unread
-                </span>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-slate-900">Notifications</h4>
+                  {unreadCount > 0 ? (
+                    <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                      {unreadCount} unread
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                      All caught up
+                    </span>
+                  )}
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markAllAsRead();
+                    }}
+                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition cursor-pointer flex items-center gap-1"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    <span>Mark all read</span>
+                  </button>
+                )}
               </div>
-              <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto">
-                {notifications.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={item.id}
-                      className="p-3 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer"
-                    >
-                      <div className={`p-2 rounded-xl ${item.color}`}>
-                        <Icon className="w-4 h-4" />
+
+              <div className="divide-y divide-slate-50 max-h-80 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="py-8 px-4 text-center text-slate-400">
+                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-xs font-semibold text-slate-600">No notifications yet</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Company registrations and candidate signups will appear here in real-time.
+                    </p>
+                  </div>
+                ) : (
+                  notifications.map((item) => {
+                    const isCompany = item.type === "company_registered" || item.iconType === "company";
+                    const Icon = isCompany ? Building2 : UserCheck;
+                    const colorClass = isCompany
+                      ? "text-emerald-600 bg-emerald-50"
+                      : "text-blue-600 bg-blue-50";
+                    const isUnread = !readIds.includes(item.id);
+
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          markAsRead(item.id);
+                          setShowNotifications(false);
+                          if (onSelectTab && item.targetTab) {
+                            onSelectTab(item.targetTab);
+                          }
+                        }}
+                        className={`p-3.5 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer ${
+                          isUnread ? "bg-blue-50/20" : ""
+                        }`}
+                      >
+                        <div className={`p-2 rounded-xl shrink-0 ${colorClass}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="text-xs font-semibold text-slate-900 truncate">
+                              {item.title}
+                            </p>
+                            {isUnread && (
+                              <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" title="Unread" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">
+                            {item.desc}
+                          </p>
+                          <span className="text-[10px] text-slate-400 mt-1 block">
+                            {formatRelativeTime(item.createdAt)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-900 truncate">
-                          {item.title}
-                        </p>
-                        <p className="text-[11px] text-slate-500 line-clamp-1">
-                          {item.desc}
-                        </p>
-                        <span className="text-[10px] text-slate-400 mt-1 block">
-                          {item.time}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           )}
         </div>
 
         {/* Super Admin Profile */}
-        <div className="relative">
+        <div ref={profileMenuRef} className="relative">
           <button
             onClick={() => {
               setShowProfileMenu(!showProfileMenu);

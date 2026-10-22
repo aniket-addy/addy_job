@@ -220,11 +220,19 @@ export default function CompanySubAdminView({
       {/* ================= 2. COMPANY IDENTITY & VERIFICATION BANNER ================= */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div
-            className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shrink-0 shadow-md ${company.logoBg}`}
-          >
-            {company.logoLetter}
-          </div>
+          {company.logo || company.profileImage ? (
+            <img
+              src={company.logo || company.profileImage}
+              alt={company.name}
+              className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-slate-200 shadow-md"
+            />
+          ) : (
+            <div
+              className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shrink-0 shadow-md ${company.logoBg}`}
+            >
+              {company.logoLetter}
+            </div>
+          )}
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <h3 className="text-lg font-black text-slate-900">{company.name}</h3>
@@ -452,7 +460,7 @@ export default function CompanySubAdminView({
                   Company Mission & Bio
                 </span>
                 <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
-                  {(company as any)?.bio || `${company.name} profile registered on Addy Job platform.`}
+                  {(company as any)?.aboutCompany || (company as any)?.bio || `${company.name} profile registered on Addy Job platform.`}
                 </p>
               </div>
             </div>
@@ -538,6 +546,12 @@ export default function CompanySubAdminView({
                     )}
                     <span>Current Access: {company.status} Recruiter</span>
                   </div>
+                  {company.status === "Rejected" && company.rejectionReason && (
+                    <div className="p-3 rounded-xl bg-rose-100/70 border border-rose-200 text-rose-950 text-xs leading-relaxed space-y-1">
+                      <span className="font-bold text-rose-900 block">Official Rejection Reason:</span>
+                      <p>{company.rejectionReason}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

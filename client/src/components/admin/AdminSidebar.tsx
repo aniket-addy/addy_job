@@ -90,11 +90,6 @@ export default function AdminSidebar({
       icon: Briefcase,
     },
     {
-      id: "applications" as AdminTab,
-      label: "Applications",
-      icon: FileCheck2,
-    },
-    {
       id: "resumes" as AdminTab,
       label: "Resumes",
       icon: FileText,

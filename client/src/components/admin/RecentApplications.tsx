@@ -32,6 +32,9 @@ export interface ApplicationItem {
   languages?: string;
   location?: string;
   workStatus?: string;
+  isProfileResume?: boolean;
+  isApplicationResume?: boolean;
+  resumeType?: string;
 }
 
 interface RecentApplicationsProps {

@@ -106,6 +106,7 @@ const formatUser = (user: IUser) => {
     culture: user.culture || [],
     perks: user.perks || [],
     status: user.status || 'Pending',
+    rejectionReason: user.rejectionReason || '',
     plan: user.plan || '',
     permissions: user.permissions || {
       dashboard: false,
@@ -115,7 +116,24 @@ const formatUser = (user: IUser) => {
       settings: false,
       autoApproveFromSubscription: true,
     },
-    purchasedResumes: user.purchasedResumes || [],
+    purchasedResumes: Array.isArray(user.purchasedResumes)
+      ? user.purchasedResumes.map((r: any) => ({
+          id: r.id,
+          candidateName: r.candidateName,
+          title: r.title,
+          experience: r.experience,
+          location: r.location,
+          purchasedDate: r.purchasedDate,
+          fileSize: r.fileSize,
+          downloadUrl: r.downloadUrl,
+          email: r.email,
+          phone: r.phone,
+          domain: r.domain,
+          skills: r.skills,
+          isUnlocked: r.isUnlocked,
+          unlockedAt: r.unlockedAt,
+        }))
+      : [],
     resumeCredits: user.resumeCredits ?? 0,
     resumesUsed: user.resumesUsed ?? 0,
     createdAt: user.createdAt,
@@ -563,8 +581,11 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       // Company profile fields
       companyName,
       workEmail,
+      contactEmail,
       industry,
       companySize,
+      headquarters,
+      contactPhone,
       gstNumber,
       tagline,
       website,
@@ -574,18 +595,29 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       bannerImage,
       culture,
       perks,
+      status,
+      rejectionReason,
     } = req.body;
 
     if (name !== undefined) user.name = name;
     if (fullName !== undefined) user.name = fullName;
-    if (companyName !== undefined) user.companyName = companyName;
+    if (companyName !== undefined) {
+      user.companyName = companyName;
+      if (user.role === 'company' && !name && !fullName) {
+        user.name = companyName;
+      }
+    }
     if (workEmail !== undefined) user.workEmail = workEmail;
+    if (contactEmail !== undefined && workEmail === undefined) user.workEmail = contactEmail;
     if (industry !== undefined) user.industry = industry;
     if (companySize !== undefined) user.companySize = companySize;
     if (gstNumber !== undefined) user.gstNumber = gstNumber;
     if (tagline !== undefined) user.tagline = tagline;
     if (website !== undefined) user.website = website;
-    if (aboutCompany !== undefined) user.aboutCompany = aboutCompany;
+    if (aboutCompany !== undefined) {
+      user.aboutCompany = aboutCompany;
+      if (!user.bio) user.bio = aboutCompany;
+    }
     if (logo !== undefined) user.logo = logo;
     if (profileImage !== undefined) {
       user.profileImage = profileImage;
@@ -606,13 +638,30 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         ? perks.split('\n').map((s: string) => s.trim()).filter(Boolean)
         : [];
     }
+    if (status !== undefined) {
+      user.status = status;
+      if (status === 'Pending') {
+        user.rejectionReason = '';
+      }
+    } else if (user.role === 'company' && user.status === 'Rejected') {
+      user.status = 'Pending';
+      user.rejectionReason = '';
+    }
+    if (rejectionReason !== undefined) {
+      user.rejectionReason = rejectionReason;
+    }
     if (headline !== undefined) user.headline = headline;
     if (targetRole !== undefined) user.targetRole = targetRole;
     if (experience !== undefined) user.experience = experience;
     if (location !== undefined) user.location = location;
+    if (headquarters !== undefined && location === undefined) user.location = headquarters;
     if (phone !== undefined) user.phone = phone;
-    if (mobile !== undefined) user.phone = mobile;
-    if (bio !== undefined) user.bio = bio;
+    if (contactPhone !== undefined && phone === undefined) user.phone = contactPhone;
+    if (mobile !== undefined && phone === undefined) user.phone = mobile;
+    if (bio !== undefined) {
+      user.bio = bio;
+      if (!user.aboutCompany && user.role === 'company') user.aboutCompany = bio;
+    }
     if (education !== undefined) {
       user.education = education;
       user.course = education;

@@ -5,7 +5,7 @@ import {
   LayoutDashboard,
   Building2,
   Briefcase,
-  FileCheck2,
+  FileText,
   MoreHorizontal,
 } from "lucide-react";
 import { AdminTab } from "./AdminSidebar";
@@ -41,9 +41,9 @@ export default function MobileBottomNav({
       icon: Briefcase,
     },
     {
-      id: "applications" as AdminTab,
-      label: "Apps",
-      icon: FileCheck2,
+      id: "resumes" as AdminTab,
+      label: "Resumes",
+      icon: FileText,
     },
   ];
 

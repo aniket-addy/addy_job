@@ -71,6 +71,8 @@ import {
   fetchCandidateApplicationsFromDB,
   getLocalSavedJobs,
   toggleLocalSavedJob,
+  safeSetLocalStorage,
+  fetchPublicCompanies,
   getLocalCandidateMessages,
   saveLocalCandidateMessages,
 } from "@/lib/api";
@@ -1248,6 +1250,36 @@ export default function CandidateDashboardPage() {
       }
     }
 
+    // Fetch registered/active companies to verify existence
+    let activeCompanies: any[] = [];
+    try {
+      activeCompanies = await fetchPublicCompanies();
+    } catch (e) {
+      console.warn("Could not fetch public companies:", e);
+    }
+
+    const validCompanyIds = new Set<string>();
+    const validCompanyNames = new Set<string>();
+    const hasCompanyVerificationData = Array.isArray(activeCompanies) && activeCompanies.length > 0;
+
+    if (hasCompanyVerificationData) {
+      activeCompanies.forEach((comp: any) => {
+        if (comp._id) validCompanyIds.add(String(comp._id).trim().toLowerCase());
+        if (comp.id) validCompanyIds.add(String(comp.id).trim().toLowerCase());
+        if (comp.userId) validCompanyIds.add(String(comp.userId).trim().toLowerCase());
+        if (comp.customId) validCompanyIds.add(String(comp.customId).trim().toLowerCase());
+        const cName = (comp.companyName || comp.name || "").trim().toLowerCase();
+        if (cName) validCompanyNames.add(cName);
+      });
+    }
+
+    const isCompanyValid = (cName?: string, cId?: string): boolean => {
+      if (!hasCompanyVerificationData) return true;
+      const normName = (cName || "").trim().toLowerCase();
+      const normId = (cId || "").trim().toLowerCase();
+      return Boolean((normId && validCompanyIds.has(normId)) || (normName && validCompanyNames.has(normName)));
+    };
+
     // Merge DB & Local applications (no hardcoded fallback)
     const mergedAppliedMap = new Map<string, AppliedJobItem>();
 
@@ -1258,10 +1290,17 @@ export default function CandidateDashboardPage() {
         return;
       }
 
+      const jComp = (typeof app.jobId === "object" ? app.jobId?.company : "") || app.company || "Company";
+      const jCompId = app.companyId || (typeof app.jobId === "object" ? app.jobId?.companyId : undefined);
+
+      // Skip applications for non-existent companies
+      if (!isCompanyValid(jComp, jCompId)) {
+        return;
+      }
+
       const rawJobId = typeof app.jobId === "object" ? (app.jobId?._id || app.jobId?.id) : app.jobId;
       const jId = String(rawJobId || app._id || "");
       const jTitle = (typeof app.jobId === "object" ? app.jobId?.title : "") || app.position || app.jobTitle || app.title || "Applied Role";
-      const jComp = (typeof app.jobId === "object" ? app.jobId?.company : "") || app.company || "Company";
       const jLoc = (typeof app.jobId === "object" ? app.jobId?.location : "") || app.location || "Remote";
       const jSal = (typeof app.jobId === "object" ? app.jobId?.salary : "") || app.salary || "Competitive";
       const jApplicantsCount = app.totalApplicants || (typeof app.jobId === "object" ? app.jobId?.applicantsCount : 0) || 1;
@@ -1302,7 +1341,7 @@ export default function CandidateDashboardPage() {
           jobId: jId,
           title: jTitle,
           company: jComp,
-          companyId: app.companyId || (typeof app.jobId === "object" ? app.jobId?.companyId : undefined),
+          companyId: jCompId,
           logo: (typeof app.jobId === "object" ? app.jobId?.logo : "") || app.logo || (typeof app.jobId === "object" ? app.jobId?.companyLogo : "") || "",
           location: jLoc,
           salary: jSal,
@@ -1328,6 +1367,11 @@ export default function CandidateDashboardPage() {
 
     // Add local applied jobs (merges matching DB entries using String comparisons)
     cleanLocalApplied.forEach((item: any) => {
+      // Skip local applied jobs if company does not exist
+      if (!isCompanyValid(item.company, item.companyId)) {
+        return;
+      }
+
       const itemJobId = String(item.jobId || "");
       const itemId = String(item.id || "");
       const itemTitle = (item.title || "").trim().toLowerCase();
@@ -1384,26 +1428,53 @@ export default function CandidateDashboardPage() {
       }
     });
 
-    const finalApplied = Array.from(mergedAppliedMap.values());
+    const finalApplied = Array.from(mergedAppliedMap.values()).filter((item) =>
+      isCompanyValid(item.company, item.companyId)
+    );
     setAppliedList(finalApplied);
     setAppliedJobsCount(finalApplied.length);
 
     try {
-      localStorage.setItem(`candidate_applied_jobs_${uid}`, JSON.stringify(finalApplied));
+      safeSetLocalStorage(`candidate_applied_jobs_${uid}`, JSON.stringify(finalApplied));
+      if (typeof window !== "undefined") {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("candidate_applied_jobs_") && k !== `candidate_applied_jobs_${uid}`) {
+            try {
+              const raw = localStorage.getItem(k);
+              if (raw) {
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                  const cleaned = list.filter((it: any) => isCompanyValid(it.company, it.companyId));
+                  safeSetLocalStorage(k, JSON.stringify(cleaned));
+                }
+              }
+            } catch {}
+          }
+        }
+      }
     } catch (e) {}
 
     // 3. Load Saved Jobs
     const localSaved = getLocalSavedJobs(uid);
-    setSavedList(localSaved);
-    setSavedJobsCount(localSaved.length);
+    const validSaved = localSaved.filter((item: any) => isCompanyValid(item.company, item.companyId));
+    setSavedList(validSaved);
+    setSavedJobsCount(validSaved.length);
+    if (validSaved.length !== localSaved.length) {
+      try {
+        safeSetLocalStorage(`candidate_saved_jobs_${uid}`, JSON.stringify(validSaved));
+      } catch {}
+    }
 
     // 4. Load Messages
     const localMessages = getLocalCandidateMessages(uid);
+    let messagesToUse = (localMessages && localMessages.length > 0) ? localMessages : DEFAULT_INITIAL_THREADS;
+    if (hasCompanyVerificationData) {
+      messagesToUse = messagesToUse.filter((t: ConversationThread) => isCompanyValid(t.companyName, t.companyId));
+    }
+    setMessageThreads(messagesToUse);
     if (localMessages && localMessages.length > 0) {
-      setMessageThreads(localMessages);
-    } else {
-      setMessageThreads(DEFAULT_INITIAL_THREADS);
-      saveLocalCandidateMessages(uid, DEFAULT_INITIAL_THREADS);
+      saveLocalCandidateMessages(uid, messagesToUse);
     }
 
     // 5. Load Alerts

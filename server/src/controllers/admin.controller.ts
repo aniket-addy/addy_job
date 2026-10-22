@@ -8,6 +8,7 @@ import { Application } from '../models/application.model.js';
 import { Plan } from '../models/plan.model.js';
 import { Settings } from '../models/settings.model.js';
 import { ensureDBConnection } from '../config/db.js';
+import { sendCompanyRejectionEmail } from '../utils/email.service.js';
 
 // Helper to generate initials & color
 const getInitials = (name: string): string => {
@@ -132,8 +133,9 @@ export const getAdminCompanies = async (req: Request, res: Response) => {
         email: u.workEmail || u.email,
         location: u.location || 'India',
         activeJobs,
-        plan: activeJobs > 15 ? 'Enterprise' : activeJobs > 5 ? 'Pro Plan' : 'Basic Plan',
+        plan: (u.plan && String(u.plan).trim()) ? String(u.plan).trim() : 'Basic Plan',
         status: (u.status || 'Pending') as 'Approved' | 'Pending' | 'Rejected',
+        createdAt: u.createdAt,
         submittedOn: u.createdAt
           ? new Date(u.createdAt).toLocaleDateString('en-US', {
             month: 'short',
@@ -148,6 +150,15 @@ export const getAdminCompanies = async (req: Request, res: Response) => {
         industry: u.industry || '',
         companySize: u.companySize || '',
         website: (u as any).website || '',
+        tagline: u.tagline || '',
+        aboutCompany: u.aboutCompany || u.bio || '',
+        bio: u.aboutCompany || u.bio || '',
+        culture: u.culture || [],
+        perks: u.perks || [],
+        logo: u.logo || u.profileImage || '',
+        profileImage: u.profileImage || u.logo || '',
+        bannerImage: u.bannerImage || '',
+        rejectionReason: u.rejectionReason || '',
         permissions: u.permissions || {
           dashboard: false,
           jobs: false,
@@ -172,21 +183,80 @@ export const updateCompanyStatus = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
     const id = String(req.params.id);
-    const { status } = req.body;
+    const { status, reason, rejectionReason } = req.body;
 
     if (!['Approved', 'Rejected', 'Pending'].includes(status)) {
       res.status(400).json({ success: false, message: 'Invalid status value' });
       return;
     }
 
+    const finalReason = reason || rejectionReason || '';
+    const updateData: any = { status };
+    if (status === 'Rejected') {
+      updateData.rejectionReason = finalReason || 'Verification requirements were not met. Please review your company profile, GSTIN, and contact details.';
+    } else if (status === 'Approved' || status === 'Pending') {
+      updateData.rejectionReason = '';
+      if (status === 'Approved') {
+        try {
+          const doc = await Settings.findOne({ key: 'global_permissions' });
+          if (doc && doc.value) {
+            globalPermissionsSettings = { ...globalPermissionsSettings, ...doc.value };
+          }
+        } catch (e) {}
+
+        let existingComp = null;
+        if (mongoose.isValidObjectId(id)) {
+          existingComp = await User.findById(id);
+        } else {
+          const mappedCoId = id.replace(/^c(\d+)$/i, 'co0$1');
+          existingComp = await User.findOne({
+            $or: [{ userId: id }, { customId: id }, { userId: mappedCoId }, { customId: mappedCoId }],
+          });
+        }
+
+        if (existingComp) {
+          const compPlan = existingComp.plan || '';
+          const planRules = globalPermissionsSettings.planRules || {};
+          const matchedRule = findMatchingPlanRule(compPlan, planRules);
+
+          if (matchedRule) {
+            updateData.permissions = {
+              dashboard: false,
+              jobs: false,
+              applicants: false,
+              resumes: false,
+              settings: false,
+              ...(existingComp.permissions || {}),
+              ...matchedRule,
+              autoApproveFromSubscription: true,
+            };
+          } else if (
+            globalPermissionsSettings.enableDefaultPermissions &&
+            (globalPermissionsSettings as any).defaultNewCompanyPerms
+          ) {
+            updateData.permissions = {
+              dashboard: false,
+              jobs: false,
+              applicants: false,
+              resumes: false,
+              settings: false,
+              ...(existingComp.permissions || {}),
+              ...(globalPermissionsSettings as any).defaultNewCompanyPerms,
+              autoApproveFromSubscription: true,
+            };
+          }
+        }
+      }
+    }
+
     let company = null;
     if (mongoose.isValidObjectId(id)) {
-      company = await User.findByIdAndUpdate(id, { status }, { new: true });
+      company = await User.findByIdAndUpdate(id, updateData, { new: true });
     } else {
       const mappedCoId = id.replace(/^c(\d+)$/i, 'co0$1');
       company = await User.findOneAndUpdate(
         { $or: [{ userId: id }, { customId: id }, { userId: mappedCoId }, { customId: mappedCoId }] },
-        { status },
+        updateData,
         { new: true }
       );
     }
@@ -196,6 +266,19 @@ export const updateCompanyStatus = async (req: Request, res: Response) => {
       return;
     }
 
+    // Send email to company admin on rejection
+    if (status === 'Rejected') {
+      const recipientEmail = company.workEmail || company.email;
+      const compName = company.companyName || company.name || 'Company';
+      if (recipientEmail) {
+        sendCompanyRejectionEmail({
+          toEmail: recipientEmail,
+          companyName: compName,
+          rejectionReason: updateData.rejectionReason,
+        }).catch((err) => console.warn('Company rejection email delivery warning:', err));
+      }
+    }
+
     res.json({
       success: true,
       message: `Company status updated to ${status}`,
@@ -203,6 +286,7 @@ export const updateCompanyStatus = async (req: Request, res: Response) => {
         id: company._id.toString(),
         name: company.companyName || company.name,
         status: company.status,
+        rejectionReason: company.rejectionReason || '',
       },
     });
   } catch (error: any) {
@@ -232,11 +316,34 @@ export const deleteCompany = async (req: Request, res: Response) => {
       return;
     }
 
-    // Also remove company's jobs
+    // Also remove company's jobs and associated candidate applications
     const companyName = deleted.companyName || deleted.name;
-    if (companyName) {
-      await Job.deleteMany({ company: companyName });
-    }
+    const companyIdStr = deleted._id.toString();
+    const customIdStr = deleted.userId || deleted.customId;
+
+    const jobOrConditions: any[] = [
+      { companyId: deleted._id },
+      { companyId: companyIdStr },
+    ];
+    if (customIdStr) jobOrConditions.push({ companyId: customIdStr });
+    if (companyName) jobOrConditions.push({ company: new RegExp(`^${companyName}$`, 'i') });
+
+    const companyJobs = await Job.find({ $or: jobOrConditions });
+    const jobIds = companyJobs.map((j) => j._id);
+
+    await Job.deleteMany({ $or: jobOrConditions });
+
+    // Cascade delete candidate applications for this company and its jobs
+    const { Application } = await import('../models/application.model.js');
+    const appOrConditions: any[] = [
+      { companyId: deleted._id },
+      { companyId: companyIdStr },
+    ];
+    if (customIdStr) appOrConditions.push({ companyId: customIdStr });
+    if (companyName) appOrConditions.push({ company: new RegExp(`^${companyName}$`, 'i') });
+    if (jobIds.length > 0) appOrConditions.push({ jobId: { $in: jobIds } });
+
+    await Application.deleteMany({ $or: appOrConditions });
 
     res.json({ success: true, message: 'Company and associated records deleted' });
   } catch (error: any) {
@@ -614,76 +721,83 @@ export const getJobApplicants = async (req: Request, res: Response) => {
   }
 };
 
-// @desc    Get all applications
+// @desc    Get all resumes (both jobseeker profile resumes and application resumes)
 // @route   GET /api/admin/applications
 export const getAdminApplications = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
     await seedInitialAdminData();
 
-    const apps = await Application.find({}).sort({ createdAt: -1 });
+    // 1. Fetch real job applications (exclude legacy placeholder entries)
+    const apps = await Application.find({
+      company: { $ne: 'Candidate Profile Upload' },
+    }).sort({ createdAt: -1 });
 
-    // Also include any registered job seekers who uploaded resumes from their profile
+    // 2. Fetch all registered job seekers who have uploaded resumes in their profile
     const candidatesWithResume = await User.find({
       role: 'job_seeker',
-      resumeName: { $exists: true, $ne: '' },
+      $or: [
+        { resumeName: { $exists: true, $ne: '' } },
+        { resumeUrl: { $exists: true, $ne: '' } },
+      ],
     }).sort({ updatedAt: -1 });
 
-    const existingEmails = new Set(apps.map((a: any) => (a.candidateEmail || '').toLowerCase().trim()));
-    const existingIds = new Set(apps.map((a: any) => (a.candidateId ? String(a.candidateId) : '')));
+    // 3. Format job seeker profile resumes
+    const profileResumes = candidatesWithResume.map((u) => {
+      const cName = u.name || 'Candidate';
+      return {
+        id: `profile-${u._id.toString()}`,
+        candidateName: cName,
+        candidateEmail: u.email,
+        candidatePhone: u.phone || '',
+        avatarLetter: getInitials(cName),
+        avatarBg: getColorForName(cName),
+        position: u.headline || u.targetRole || 'Candidate Profile',
+        company: 'Candidate Profile',
+        appliedOn: u.resumeDate ? u.resumeDate.split('•')[0].trim() : 'Profile Resume',
+        status: 'Shortlisted' as const,
+        resumeUrl: u.resumeUrl || '',
+        domain: u.specialization || u.targetRole || 'General Pool',
+        experience: u.experience || 'Fresher',
+        skills: u.skills || [],
+        pdfData: u.resumeUrl || '',
+        fileName: u.resumeName || `${cName.replace(/\s+/g, '_')}_Resume.pdf`,
+        isProfileResume: true,
+        resumeType: 'Profile Resume',
+        jobId: '',
+      };
+    });
 
-    const profileResumes = candidatesWithResume
-      .filter((u) => !existingEmails.has(u.email.toLowerCase().trim()) && !existingIds.has(String(u._id)))
-      .map((u) => {
-        const cName = u.name || 'Candidate';
-        return {
-          id: u._id.toString(),
-          candidateName: cName,
-          candidateEmail: u.email,
-          candidatePhone: u.phone || '',
-          avatarLetter: getInitials(cName),
-          avatarBg: getColorForName(cName),
-          position: u.headline || u.targetRole || 'Candidate Profile',
-          company: 'Candidate Profile Upload',
-          appliedOn: u.resumeDate ? u.resumeDate.split('•')[0].trim() : 'Recent',
-          status: 'New',
-          resumeUrl: u.resumeUrl || '',
-          domain: u.specialization || u.targetRole || 'General Pool',
-          experience: u.experience || 'Fresher',
-          skills: u.skills || [],
-          pdfData: u.resumeUrl || '',
-          fileName: u.resumeName || '',
-          jobId: '',
-        };
-      });
+    // 4. Format job application resumes (submitted when applying to companies)
+    const applicationResumes = apps.map((a: any) => ({
+      id: a._id.toString(),
+      candidateName: a.candidateName,
+      candidateEmail: a.candidateEmail || '',
+      candidatePhone: a.candidatePhone || '',
+      avatarLetter: a.avatarLetter || getInitials(a.candidateName),
+      avatarBg: a.avatarBg || getColorForName(a.candidateName),
+      position: a.position,
+      company: a.company,
+      appliedOn: a.appliedOn || 'Recent',
+      status: a.status,
+      resumeUrl: a.resumeUrl || '',
+      domain: a.domain || '',
+      experience: a.experience || '',
+      skills: a.skills || [],
+      pdfData: a.pdfData || a.resumeUrl || '',
+      fileName: a.fileName || 'Application_Resume.pdf',
+      isApplicationResume: true,
+      resumeType: 'Application Resume',
+      jobId: a.jobId ? a.jobId.toString() : '',
+    }));
 
-    const formatted = [
-      ...apps.map((a: any) => ({
-        id: a._id.toString(),
-        candidateName: a.candidateName,
-        candidateEmail: a.candidateEmail || '',
-        candidatePhone: a.candidatePhone || '',
-        avatarLetter: a.avatarLetter || getInitials(a.candidateName),
-        avatarBg: a.avatarBg || getColorForName(a.candidateName),
-        position: a.position,
-        company: a.company,
-        appliedOn: a.appliedOn || 'Recent',
-        status: a.status,
-        resumeUrl: a.resumeUrl || '',
-        domain: a.domain || '',
-        experience: a.experience || '',
-        skills: a.skills || [],
-        pdfData: a.pdfData || '',
-        fileName: a.fileName || '',
-        jobId: a.jobId ? a.jobId.toString() : '',
-      })),
-      ...profileResumes,
-    ];
+    // Both profile resumes and applied resumes are available to Super Admin
+    const allResumes = [...applicationResumes, ...profileResumes];
 
-    res.json({ success: true, applications: formatted });
+    res.json({ success: true, applications: allResumes });
   } catch (error: any) {
     console.error('getAdminApplications error:', error);
-    res.status(500).json({ success: false, message: 'Failed to retrieve applications' });
+    res.status(500).json({ success: false, message: 'Failed to retrieve resumes' });
   }
 };
 
@@ -1085,7 +1199,14 @@ export const deleteAdminPlan = async (req: Request, res: Response) => {
 };
 
 // Global permissions settings store
-let globalPermissionsSettings = {
+let globalPermissionsSettings: {
+  defaultPermissions: Record<string, boolean>;
+  autoApprovalEnabled: boolean;
+  enableDefaultPermissions?: boolean;
+  defaultNewCompanyPerms?: Record<string, boolean>;
+  planRules: Record<string, any>;
+  planRulesDetails?: any[];
+} = {
   defaultPermissions: {
     profile: true,
     subscription: true,
@@ -1096,6 +1217,14 @@ let globalPermissionsSettings = {
     settings: false,
   },
   autoApprovalEnabled: true,
+  enableDefaultPermissions: false,
+  defaultNewCompanyPerms: {
+    dashboard: true,
+    jobs: false,
+    applicants: false,
+    resumes: false,
+    settings: false,
+  },
   planRules: {
     'Basic Plan': {
       dashboard: false,
@@ -1326,6 +1455,22 @@ export const updateAdminPermissionsSettings = async (req: Request, res: Response
           };
           await comp.save();
           updatedCompaniesCount++;
+        } else if (
+          globalPermissionsSettings.enableDefaultPermissions &&
+          (globalPermissionsSettings as any).defaultNewCompanyPerms
+        ) {
+          comp.permissions = {
+            dashboard: false,
+            jobs: false,
+            applicants: false,
+            resumes: false,
+            settings: false,
+            ...(comp.permissions || {}),
+            ...(globalPermissionsSettings as any).defaultNewCompanyPerms,
+            autoApproveFromSubscription: true,
+          };
+          await comp.save();
+          updatedCompaniesCount++;
         }
       }
     }
@@ -1381,6 +1526,7 @@ export const getAdminJobSeekers = async (req: Request, res: Response) => {
         resumeDate: u.resumeDate || '',
         resumeUrl: u.resumeUrl || '',
         status: u.status || 'Active',
+        createdAt: u.createdAt,
         registeredOn: u.createdAt
           ? new Date(u.createdAt).toLocaleDateString('en-US', {
               month: 'short',
@@ -1432,6 +1578,76 @@ export const deleteAdminJobSeeker = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('deleteAdminJobSeeker error:', error);
     res.status(500).json({ success: false, message: 'Failed to delete job seeker' });
+  }
+};
+
+// @desc    Get real notifications for Super Admin (Companies & Job Seekers registration only)
+// @route   GET /api/admin/notifications
+export const getAdminNotifications = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+
+    // 1. Fetch recent companies
+    const companies = await User.find({ role: 'company' })
+      .select('_id userId customId companyName name workEmail email status createdAt')
+      .sort({ createdAt: -1 })
+      .limit(30);
+
+    // 2. Fetch recent job seekers
+    const jobSeekers = await User.find({
+      $or: [{ role: 'job_seeker' }, { role: { $nin: ['company', 'admin'] } }],
+    })
+      .select('_id userId customId name email headline targetRole createdAt')
+      .sort({ createdAt: -1 })
+      .limit(30);
+
+    const notifications: any[] = [];
+
+    companies.forEach((comp) => {
+      const cName = comp.companyName || comp.name || 'Unnamed Company';
+      const isPending = comp.status === 'Pending';
+      notifications.push({
+        id: `comp-${comp._id.toString()}`,
+        type: 'company_registered',
+        title: 'New Company Registered',
+        desc: isPending
+          ? `${cName} applied for approval`
+          : `${cName} registered as employer`,
+        createdAt: comp.createdAt || new Date(),
+        targetTab: isPending ? 'approvals' : 'companies',
+        entityId: comp._id.toString(),
+        iconType: 'company',
+      });
+    });
+
+    jobSeekers.forEach((seeker) => {
+      const sName = seeker.name || 'Candidate';
+      const roleText = seeker.targetRole || seeker.headline || 'Job Seeker';
+      notifications.push({
+        id: `seeker-${seeker._id.toString()}`,
+        type: 'jobseeker_registered',
+        title: 'New Jobseeker Registered',
+        desc: `${sName} registered (${roleText})`,
+        createdAt: seeker.createdAt || new Date(),
+        targetTab: 'jobseekers',
+        entityId: seeker._id.toString(),
+        iconType: 'jobseeker',
+      });
+    });
+
+    // Sort all notifications by createdAt descending
+    notifications.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    res.json({
+      success: true,
+      count: notifications.length,
+      notifications: notifications.slice(0, 30),
+    });
+  } catch (error: any) {
+    console.error('getAdminNotifications error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve notifications' });
   }
 };
 

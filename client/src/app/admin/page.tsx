@@ -131,12 +131,25 @@ export default function SuperAdminPage() {
     };
     window.addEventListener("job_created", handleSync);
     window.addEventListener("job_updated", handleSync);
+    window.addEventListener("company_profile_updated", handleSync);
+    window.addEventListener("company_permissions_updated", handleSync);
+    window.addEventListener("companies_updated", handleSync);
+    window.addEventListener("auth_change", handleSync);
+    window.addEventListener("applied_jobs_change", handleSync);
     window.addEventListener("storage", handleSync);
+
+    const interval = setInterval(loadDatabaseData, 6000);
 
     return () => {
       window.removeEventListener("job_created", handleSync);
       window.removeEventListener("job_updated", handleSync);
+      window.removeEventListener("company_profile_updated", handleSync);
+      window.removeEventListener("company_permissions_updated", handleSync);
+      window.removeEventListener("companies_updated", handleSync);
+      window.removeEventListener("auth_change", handleSync);
+      window.removeEventListener("applied_jobs_change", handleSync);
       window.removeEventListener("storage", handleSync);
+      clearInterval(interval);
     };
   }, []);
 
@@ -180,17 +193,17 @@ export default function SuperAdminPage() {
     }
   };
 
-  const handleRejectCompany = async (id: string, name: string) => {
+  const handleRejectCompany = async (id: string, name: string, reason?: string) => {
     setPendingCompanies((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: "Rejected" } : c))
+      prev.map((c) => (c.id === id ? { ...c, status: "Rejected", rejectionReason: reason } : c))
     );
     setAllCompanies((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: "Rejected" } : c))
+      prev.map((c) => (c.id === id ? { ...c, status: "Rejected", rejectionReason: reason } : c))
     );
-    showToast(`Application for "${name}" has been rejected.`, "error");
+    showToast(`Verification for "${name}" rejected. Email sent to company admin.`, "error");
 
     try {
-      await updateCompanyStatus(id, "Rejected");
+      await updateCompanyStatus(id, "Rejected", reason);
       const overview = await fetchAdminOverview();
       if (overview) setOverviewStats(overview);
     } catch (err) {
@@ -366,6 +379,7 @@ export default function SuperAdminPage() {
             onToggleSidebar={() => setSidebarOpen(true)}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
+            onSelectTab={setActiveTab}
           />
 
           {/* Main Dashboard Canvas */}
@@ -447,10 +461,10 @@ export default function SuperAdminPage() {
                       onViewAll={() => setActiveTab("companies")}
                     />
 
-                    {/* Recent Applications Table */}
+                    {/* Recent Applications / Resumes Table */}
                     <RecentApplications
                       applications={applications}
-                      onViewAll={() => setActiveTab("applications")}
+                      onViewAll={() => setActiveTab("resumes")}
                     />
                   </div>
 
@@ -503,13 +517,13 @@ export default function SuperAdminPage() {
               />
             )}
 
-            {/* Dedicated Job Seekers & Applications Tab */}
-            {(activeTab === "applications" || activeTab === "resumes") && (
+            {/* Dedicated Candidate Resumes Tab */}
+            {(activeTab === "resumes" || activeTab === "applications") && (
               <ApplicationsManager
                 applications={applications}
                 companies={allCompanies.map((c) => ({ id: c.id, name: c.name }))}
                 onUpdateStatus={handleUpdateApplicationStatus}
-                activeView={activeTab}
+                activeView="resumes"
                 onAddApplication={(newApp) => {
                   setApplications((prev) => [newApp, ...prev]);
                 }}
@@ -524,7 +538,7 @@ export default function SuperAdminPage() {
                 onToggleStatus={handleToggleJobStatus}
                 onDeleteJob={handleDeleteJob}
                 onUpdateApplicationStatus={handleUpdateApplicationStatus}
-                onNavigateToApplications={() => setActiveTab("applications")}
+                onNavigateToApplications={() => setActiveTab("resumes")}
               />
             )}
 

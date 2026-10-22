@@ -17,6 +17,8 @@ import {
   Shield,
   ExternalLink,
   KeyRound,
+  AlertTriangle,
+  Send,
 } from "lucide-react";
 
 import CompanySubAdminView from "./CompanySubAdminView";
@@ -43,6 +45,15 @@ export interface CompanyRecord {
   userId?: string;
   activeJobs?: number;
   permissions?: CompanyPermissions;
+  rejectionReason?: string;
+  aboutCompany?: string;
+  tagline?: string;
+  bio?: string;
+  culture?: string[];
+  perks?: string[];
+  logo?: string;
+  profileImage?: string;
+  bannerImage?: string;
 }
 
 interface CompaniesManagerProps {
@@ -50,7 +61,7 @@ interface CompaniesManagerProps {
   jobs?: JobPosting[];
   applications?: ApplicationItem[];
   onApprove: (id: string, name: string) => void;
-  onReject: (id: string, name: string) => void;
+  onReject: (id: string, name: string, reason?: string) => void;
   onUpdateCompany?: (updatedCompany: CompanyRecord) => void;
 }
 
@@ -66,6 +77,9 @@ export default function CompaniesManager({
   const [search, setSearch] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<CompanyRecord | null>(null);
   const [permissionsModalCompany, setPermissionsModalCompany] = useState<CompanyRecord | null>(null);
+  const [rejectionModalCompany, setRejectionModalCompany] = useState<CompanyRecord | null>(null);
+  const [rejectionReasonText, setRejectionReasonText] = useState("");
+  const [isSubmittingReject, setIsSubmittingReject] = useState(false);
 
   const filteredCompanies = companies.filter((c) => {
     const matchesFilter = filter === "ALL" || c.status === filter;
@@ -79,6 +93,169 @@ export default function CompaniesManager({
 
   const pendingCount = companies.filter((c) => c.status === "Pending").length;
 
+  const rejectionModalNode = rejectionModalCompany && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div
+        className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="bg-gradient-to-r from-rose-50 via-red-50 to-rose-100/50 p-6 border-b border-rose-100 flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-rose-600/20">
+            <AlertTriangle className="w-6 h-6 stroke-[2.2]" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-600 bg-rose-200/60 px-2 py-0.5 rounded-full">
+                Action: Rejection
+              </span>
+              <button
+                onClick={() => {
+                  if (!isSubmittingReject) {
+                    setRejectionModalCompany(null);
+                    setRejectionReasonText("");
+                  }
+                }}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-white/60 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <h3 className="text-lg font-black text-slate-900 mt-1">
+              Reject Company Verification
+            </h3>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Explain the reason for rejecting <span className="font-bold text-slate-900">{rejectionModalCompany.name}</span>. This reason will be emailed to company admin and displayed in RED on their screen.
+            </p>
+          </div>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 space-y-4 text-xs">
+          {/* Recipient Details Pill */}
+          <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-200/80">
+            <span className="text-slate-500 font-semibold">Recipient:</span>
+            <span className="font-bold text-slate-900">{rejectionModalCompany.name}</span>
+            <span className="text-slate-300">•</span>
+            <span className="flex items-center gap-1 font-mono text-slate-700 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
+              <Mail className="w-3 h-3 text-rose-500" />
+              {rejectionModalCompany.email}
+            </span>
+            {rejectionModalCompany.userId && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className="text-[10px] font-mono text-slate-500 bg-slate-200/70 px-1.5 py-0.5 rounded">
+                  {rejectionModalCompany.userId}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Quick Preset Reason Chips */}
+          <div>
+            <label className="font-bold text-slate-700 block mb-1.5">
+              Quick Reason Presets (Click to insert)
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "Invalid or unverifiable GSTIN number",
+                "Missing or inaccessible official company website",
+                "Incomplete company profile and missing contact verification",
+                "Unverifiable business location and registered address",
+                "Duplicate company account / suspicious application",
+              ].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setRejectionReasonText(preset)}
+                  className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-slate-200 text-slate-700 text-[11px] font-medium transition cursor-pointer text-left"
+                >
+                  + {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Reason Textarea */}
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">
+              Rejection Reason / Message <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              rows={4}
+              required
+              placeholder="Enter detailed reason explaining why company verification was rejected (e.g. Your GSTIN could not be verified with govt portal. Please provide valid business registration)..."
+              value={rejectionReasonText}
+              onChange={(e) => setRejectionReasonText(e.target.value)}
+              className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:bg-white focus:border-rose-500 focus:ring-4 focus:ring-rose-100 outline-hidden resize-none leading-relaxed"
+            />
+          </div>
+
+          {/* Notice Banner */}
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 flex items-start gap-2.5 text-[11px]">
+            <Mail className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <span>
+              An official rejection email will be dispatched to <strong>{rejectionModalCompany.email}</strong> and the company dashboard will display this rejection reason in <strong>red color</strong>.
+            </span>
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-5 bg-slate-50 border-t border-slate-200/80 flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            disabled={isSubmittingReject}
+            onClick={() => {
+              setRejectionModalCompany(null);
+              setRejectionReasonText("");
+            }}
+            className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={isSubmittingReject || !rejectionReasonText.trim()}
+            onClick={async () => {
+              if (!rejectionReasonText.trim()) return;
+              setIsSubmittingReject(true);
+              try {
+                await onReject(
+                  rejectionModalCompany.id,
+                  rejectionModalCompany.name,
+                  rejectionReasonText.trim()
+                );
+                if (selectedCompany && selectedCompany.id === rejectionModalCompany.id) {
+                  const updated = {
+                    ...selectedCompany,
+                    status: "Rejected" as const,
+                    rejectionReason: rejectionReasonText.trim(),
+                  };
+                  setSelectedCompany(updated);
+                  if (onUpdateCompany) onUpdateCompany(updated);
+                }
+                setRejectionModalCompany(null);
+                setRejectionReasonText("");
+              } finally {
+                setIsSubmittingReject(false);
+              }
+            }}
+            className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/25 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmittingReject ? (
+              <span>Sending Rejection...</span>
+            ) : (
+              <>
+                <Send className="w-3.5 h-3.5" />
+                <span>Send Rejection & Email</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // Render Sub-Super Admin Company Portal if a company is selected
   if (selectedCompany) {
     return (
@@ -88,8 +265,23 @@ export default function CompaniesManager({
           allJobs={jobs}
           allApplications={applications}
           onBack={() => setSelectedCompany(null)}
-          onApprove={onApprove}
-          onReject={onReject}
+          onApprove={(id, name) => {
+            onApprove(id, name);
+            if (selectedCompany && selectedCompany.id === id) {
+              const updated = {
+                ...selectedCompany,
+                status: "Approved" as const,
+                rejectionReason: "",
+              };
+              setSelectedCompany(updated);
+              if (onUpdateCompany) onUpdateCompany(updated);
+            }
+          }}
+          onReject={(id, name) => {
+            const comp = companies.find((c) => c.id === id) || selectedCompany;
+            setRejectionModalCompany(comp);
+            setRejectionReasonText(comp.rejectionReason || "");
+          }}
           onOpenPermissions={() => setPermissionsModalCompany(selectedCompany)}
         />
         {permissionsModalCompany && (
@@ -111,6 +303,7 @@ export default function CompaniesManager({
             }}
           />
         )}
+        {rejectionModalNode}
       </>
     );
   }
@@ -192,11 +385,19 @@ export default function CompaniesManager({
                   <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-2.5 whitespace-nowrap">
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-xs ${c.logoBg}`}
-                        >
-                          {c.logoLetter}
-                        </div>
+                        {c.logo || c.profileImage ? (
+                          <img
+                            src={c.logo || c.profileImage}
+                            alt={c.name}
+                            className="w-7 h-7 rounded-lg object-cover shrink-0 border border-slate-200"
+                          />
+                        ) : (
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-xs ${c.logoBg}`}
+                          >
+                            {c.logoLetter}
+                          </div>
+                        )}
                         <span className="font-bold text-slate-900 leading-tight">
                           {c.name}
                         </span>
@@ -221,8 +422,16 @@ export default function CompaniesManager({
                     </td>
 
                     <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
-                        {c.plan}
+                      <span
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border whitespace-nowrap ${
+                          (c.plan || "").toLowerCase().includes("enterprise") || (c.plan || "").toLowerCase().includes("scale")
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : (c.plan || "").toLowerCase().includes("pro")
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        }`}
+                      >
+                        {c.plan || "Basic Plan"}
                       </span>
                     </td>
 
@@ -274,7 +483,10 @@ export default function CompaniesManager({
                             <span>Approve</span>
                           </button>
                           <button
-                            onClick={() => onReject(c.id, c.name)}
+                            onClick={() => {
+                              setRejectionModalCompany(c);
+                              setRejectionReasonText(c.rejectionReason || "");
+                            }}
                             className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-200 rounded-lg transition-all cursor-pointer flex items-center gap-1"
                           >
                             <X className="w-3.5 h-3.5 stroke-[3]" />
@@ -285,7 +497,10 @@ export default function CompaniesManager({
                         <div className="flex items-center justify-end gap-2">
                           {c.status === "Approved" ? (
                             <button
-                              onClick={() => onReject(c.id, c.name)}
+                              onClick={() => {
+                                setRejectionModalCompany(c);
+                                setRejectionReasonText(c.rejectionReason || "");
+                              }}
                               className="text-xs text-rose-600 hover:underline font-medium cursor-pointer"
                             >
                               Revoke Access
@@ -324,6 +539,9 @@ export default function CompaniesManager({
           }}
         />
       )}
+
+      {/* Rejection Reason & Email Notification Modal */}
+      {rejectionModalNode}
     </div>
   );
 }

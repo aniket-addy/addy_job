@@ -23,6 +23,7 @@ import {
 import {
   fetchAdminPermissionsSettings,
   updateAdminPermissionsSettings,
+  safeSetLocalStorage,
   CompanyPermissions,
   PLAN_AUTO_PERMISSIONS,
 } from "@/lib/api";
@@ -305,7 +306,7 @@ export default function PermissionsSettingsManager({
 
       // 1. Store in localStorage for instant front-end synchronicity
       if (typeof window !== "undefined") {
-        localStorage.setItem("addyjob_permissions_settings", JSON.stringify(payload));
+        safeSetLocalStorage("addyjob_permissions_settings", JSON.stringify(payload));
         // Update in-memory PLAN_AUTO_PERMISSIONS
         planRules.forEach((pr) => {
           PLAN_AUTO_PERMISSIONS[pr.planName] = pr.permissions;

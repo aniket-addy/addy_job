@@ -641,11 +641,56 @@ export const getCandidateApplications = async (req: Request, res: Response) => {
     };
 
     const { Application } = await import('../models/application.model.js');
+    const { User } = await import('../models/user.model.js');
     const apps = await Application.find(query).populate('jobId').sort({ createdAt: -1 });
+
+    // Fetch existing companies to ensure deleted or non-existent companies are not displayed to candidates
+    const existingCompanies = await User.find({ role: 'company' }).select('_id userId customId companyName name');
+    const validCompanyIds = new Set<string>();
+    const validCompanyNames = new Set<string>();
+
+    existingCompanies.forEach((comp) => {
+      validCompanyIds.add(comp._id.toString());
+      if (comp.userId) validCompanyIds.add(String(comp.userId).toLowerCase().trim());
+      if (comp.customId) validCompanyIds.add(String(comp.customId).toLowerCase().trim());
+      const cName = (comp.companyName || comp.name || '').trim().toLowerCase();
+      if (cName) validCompanyNames.add(cName);
+    });
+
+    const orphanAppIds: any[] = [];
+    const validApps = apps.filter((appDoc) => {
+      const a = appDoc.toObject ? appDoc.toObject() : { ...appDoc };
+      const appCompId = a.companyId ? String(a.companyId).trim().toLowerCase() : '';
+      const appCompName = (a.company || '').trim().toLowerCase();
+      const jobCompName = (a.jobId && typeof a.jobId === 'object' && a.jobId.company)
+        ? String(a.jobId.company).trim().toLowerCase()
+        : '';
+      const jobCompId = (a.jobId && typeof a.jobId === 'object' && a.jobId.companyId)
+        ? String(a.jobId.companyId).trim().toLowerCase()
+        : '';
+
+      const exists =
+        (appCompId && validCompanyIds.has(appCompId)) ||
+        (jobCompId && validCompanyIds.has(jobCompId)) ||
+        (appCompName && validCompanyNames.has(appCompName)) ||
+        (jobCompName && validCompanyNames.has(jobCompName));
+
+      if (!exists) {
+        orphanAppIds.push(a._id);
+        return false;
+      }
+      return true;
+    });
+
+    if (orphanAppIds.length > 0) {
+      Application.deleteMany({ _id: { $in: orphanAppIds } }).catch((err) =>
+        console.warn('Cleaned up orphan applications for deleted companies:', err)
+      );
+    }
 
     const statsCache = new Map<string, { totalApplicants: number; viewedCount: number }>();
     const formattedApps = await Promise.all(
-      apps.map(async (appDoc) => {
+      validApps.map(async (appDoc) => {
         const a = appDoc.toObject ? appDoc.toObject() : { ...appDoc };
         const rawJobId = (a.jobId && typeof a.jobId === 'object')
           ? (a.jobId._id?.toString() || a.jobId.id?.toString())

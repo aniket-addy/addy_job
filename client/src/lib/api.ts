@@ -50,6 +50,7 @@ export interface UserSession {
   culture?: string[];
   perks?: string[];
   status?: string;
+  rejectionReason?: string;
   plan?: string;
   permissions?: any;
   purchasedResumes?: any[];
@@ -64,11 +65,84 @@ export interface AuthResponse {
   user?: UserSession;
 }
 
-// Store session in localStorage
+// Sanitize user object to remove any bloated base64 before storing in browser localStorage
+export const sanitizeUserForStorage = (user: UserSession): UserSession => {
+  if (!user || typeof user !== 'object') return user;
+  const clone: any = { ...user };
+  // If bannerImage is heavy base64 data URI (> 50KB), strip for session storage
+  if (typeof clone.bannerImage === 'string' && clone.bannerImage.length > 50000) {
+    clone.bannerImage = '';
+  }
+  // If logo or profileImage is heavy base64 (> 100KB), strip for session storage
+  if (typeof clone.profileImage === 'string' && clone.profileImage.length > 100000) {
+    clone.profileImage = '';
+  }
+  if (typeof clone.logo === 'string' && clone.logo.length > 100000) {
+    clone.logo = '';
+  }
+  // Strip heavy pdfData from purchased resumes
+  if (Array.isArray(clone.purchasedResumes)) {
+    clone.purchasedResumes = clone.purchasedResumes.map((r: any) => ({
+      ...r,
+      pdfData: undefined,
+    }));
+  }
+  // If resumeUrl is heavy base64 (> 50KB)
+  if (typeof clone.resumeUrl === 'string' && clone.resumeUrl.length > 50000) {
+    clone.resumeUrl = '';
+  }
+  return clone;
+};
+
+// Safe localStorage setItem helper that cleans old cache if quota is reached
+export const safeSetLocalStorage = (key: string, value: string): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, value);
+  } catch (err: any) {
+    console.warn(`localStorage quota exceeded for key "${key}". Cleaning bloated keys...`, err);
+    try {
+      // Clear non-critical duplicate caches
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (
+          k.startsWith('company_profile_data_') ||
+          k.startsWith('company_posted_jobs_') ||
+          k.startsWith('company_applicants_data_') ||
+          k.startsWith('company_purchased_resumes_') ||
+          k.startsWith('resumes_cache_') ||
+          k.startsWith('applications_cache_')
+        )) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+      // Try again after cleanup
+      localStorage.setItem(key, value);
+    } catch (retryErr) {
+      // Fallback to sessionStorage
+      try {
+        sessionStorage.setItem(key, value);
+      } catch (sessionErr) {
+        console.error('Failed to save to sessionStorage as fallback:', sessionErr);
+      }
+    }
+  }
+};
+
+// Store session in localStorage (safe with quota management)
 export const setAuthSession = (token: string, user: UserSession) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('career_token', token);
-    localStorage.setItem('career_user', JSON.stringify(user));
+    const cleanUser = sanitizeUserForStorage(user);
+    safeSetLocalStorage('career_token', token);
+    safeSetLocalStorage('career_user', JSON.stringify(cleanUser));
+    try {
+      sessionStorage.setItem('career_token', token);
+      sessionStorage.setItem('career_user', JSON.stringify(cleanUser));
+    } catch {}
     window.dispatchEvent(new Event('auth_change'));
   }
 };
@@ -76,15 +150,19 @@ export const setAuthSession = (token: string, user: UserSession) => {
 // Clear session
 export const clearAuthSession = () => {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('career_token');
-    localStorage.removeItem('career_user');
-    localStorage.removeItem('company_profile_data');
-    localStorage.removeItem('company_active_plan');
-    localStorage.removeItem('company_posted_jobs');
-    localStorage.removeItem('company_applicants_data');
-    localStorage.removeItem('company_purchased_resumes');
-    localStorage.removeItem('company_permissions_active');
-    sessionStorage.clear();
+    try {
+      localStorage.removeItem('career_token');
+      localStorage.removeItem('career_user');
+      localStorage.removeItem('company_profile_data');
+      localStorage.removeItem('company_active_plan');
+      localStorage.removeItem('company_posted_jobs');
+      localStorage.removeItem('company_applicants_data');
+      localStorage.removeItem('company_purchased_resumes');
+      localStorage.removeItem('company_permissions_active');
+    } catch {}
+    try {
+      sessionStorage.clear();
+    } catch {}
 
     // Expire cookies
     document.cookie = 'career_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
@@ -95,11 +173,10 @@ export const clearAuthSession = () => {
   }
 };
 
-
-// Get stored user from localStorage
+// Get stored user from localStorage or sessionStorage
 export const getStoredUser = (): UserSession | null => {
   if (typeof window === 'undefined') return null;
-  const data = localStorage.getItem('career_user');
+  const data = localStorage.getItem('career_user') || sessionStorage.getItem('career_user');
   if (!data) return null;
   try {
     return JSON.parse(data);
@@ -111,7 +188,11 @@ export const getStoredUser = (): UserSession | null => {
 // Update stored user in localStorage
 export const setStoredUser = (user: UserSession): void => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('career_user', JSON.stringify(user));
+    const cleanUser = sanitizeUserForStorage(user);
+    safeSetLocalStorage('career_user', JSON.stringify(cleanUser));
+    try {
+      sessionStorage.setItem('career_user', JSON.stringify(cleanUser));
+    } catch {}
     window.dispatchEvent(new Event('auth_change'));
   }
 };
@@ -119,7 +200,7 @@ export const setStoredUser = (user: UserSession): void => {
 // Get token
 export const getAuthToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('career_token');
+  return localStorage.getItem('career_token') || sessionStorage.getItem('career_token');
 };
 
 // Register API call
@@ -334,15 +415,41 @@ export async function fetchAdminCompanies(): Promise<any[]> {
   }
 }
 
+export interface AdminNotificationItem {
+  id: string;
+  type: 'company_registered' | 'jobseeker_registered';
+  title: string;
+  desc: string;
+  createdAt: string | Date;
+  targetTab: string;
+  entityId?: string;
+  iconType: 'company' | 'jobseeker';
+}
+
+export async function fetchAdminNotifications(): Promise<AdminNotificationItem[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/notifications`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.notifications || [];
+  } catch (error) {
+    console.error('fetchAdminNotifications error:', error);
+    return [];
+  }
+}
+
 export async function updateCompanyStatus(
   id: string,
-  status: 'Approved' | 'Rejected' | 'Pending'
-): Promise<{ success: boolean; message: string }> {
+  status: 'Approved' | 'Rejected' | 'Pending',
+  reason?: string
+): Promise<{ success: boolean; message: string; company?: any }> {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/companies/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, reason, rejectionReason: reason }),
     });
     return await res.json();
   } catch (error: any) {
@@ -949,11 +1056,33 @@ export function getEffectiveCompanyPermissions(company?: {
     if (autoApprove && activePlan) {
       const planRule = getMatchingPlanRule(activePlan);
       if (planRule) {
-        result = { ...result, ...planRule };
+        result = {
+          ...result,
+          ...currentPermissions,
+          ...planRule, // Plan rule MUST take priority so Super Admin's plan rules stay active!
+          autoApproveFromSubscription: true,
+        };
+        return result;
       }
     }
 
-    // 3. Apply manual overrides
+    // 2b. If company is unsubscribed, check if Super Admin enabled default permissions
+    if (cachedSettings) {
+      try {
+        const parsed = JSON.parse(cachedSettings);
+        if (parsed.enableDefaultPermissions && parsed.defaultNewCompanyPerms) {
+          result = {
+            ...result,
+            ...currentPermissions,
+            ...parsed.defaultNewCompanyPerms,
+            autoApproveFromSubscription: autoApprove,
+          };
+          return result;
+        }
+      } catch (e) {}
+    }
+
+    // 3. Fallback to manual / company permissions
     result = {
       ...result,
       ...currentPermissions,

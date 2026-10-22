@@ -314,13 +314,24 @@ export default function ResumeDetailModal({
                   >
                     {application.status}
                   </span>
+                  {application.isProfileResume ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                      <User className="w-2.5 h-2.5" />
+                      Job Seeker Profile Resume
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                      <Building2 className="w-2.5 h-2.5" />
+                      Job Application Resume
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-300 flex items-center gap-2 mt-0.5">
                   <span className="font-semibold text-white">{position}</span>
                   <span>•</span>
                   <span className="flex items-center gap-1 text-slate-400">
                     <Building2 className="w-3 h-3" />
-                    {company}
+                    {application.isProfileResume ? "Direct Profile Data" : company}
                   </span>
                 </p>
               </div>
