@@ -19,6 +19,9 @@ import {
   X,
   RefreshCw,
   Sparkles,
+  Gift,
+  Clock,
+  Coins,
 } from "lucide-react";
 import {
   fetchAdminPermissionsSettings,
@@ -156,9 +159,18 @@ export default function PermissionsSettingsManager({
   // 2. Plan-Wise Rules
   const [planRules, setPlanRules] = useState<PlanRuleItem[]>(DEFAULT_PLAN_RULES);
 
-  // 3. Default Permissions for Unsubscribed Companies
-  const [enableDefaultPerms, setEnableDefaultPerms] = useState(false);
-  const [unsubscribedPerms, setUnsubscribedPerms] = useState(DEFAULT_UNSUBSCRIBED_PERMS);
+  // 3. Company Free Trial & Unsubscribed Permissions
+  const [enableDefaultPerms, setEnableDefaultPerms] = useState(true);
+  const [freeTrialEnabled, setFreeTrialEnabled] = useState(true);
+  const [trialDays, setTrialDays] = useState(14);
+  const [trialCredits, setTrialCredits] = useState(15);
+  const [unsubscribedPerms, setUnsubscribedPerms] = useState({
+    dashboard: true,
+    jobs: true,
+    applicants: true,
+    resumes: false,
+    settings: false,
+  });
 
   // UI state
   const [isSaving, setIsSaving] = useState(false);
@@ -182,6 +194,15 @@ export default function PermissionsSettingsManager({
         if (remote) {
           if (typeof remote.autoApprovalEnabled === "boolean") {
             setAutoApprovalEnabled(remote.autoApprovalEnabled);
+          }
+          if (typeof remote.freeTrialEnabled === "boolean") {
+            setFreeTrialEnabled(remote.freeTrialEnabled);
+          }
+          if (typeof remote.trialDays === "number") {
+            setTrialDays(remote.trialDays);
+          }
+          if (typeof remote.trialCredits === "number") {
+            setTrialCredits(remote.trialCredits);
           }
           if (typeof remote.enableDefaultPermissions === "boolean") {
             setEnableDefaultPerms(remote.enableDefaultPermissions);
@@ -226,6 +247,15 @@ export default function PermissionsSettingsManager({
             const parsed = JSON.parse(cached);
             if (typeof parsed.autoApprovalEnabled === "boolean") {
               setAutoApprovalEnabled(parsed.autoApprovalEnabled);
+            }
+            if (typeof parsed.freeTrialEnabled === "boolean") {
+              setFreeTrialEnabled(parsed.freeTrialEnabled);
+            }
+            if (typeof parsed.trialDays === "number") {
+              setTrialDays(parsed.trialDays);
+            }
+            if (typeof parsed.trialCredits === "number") {
+              setTrialCredits(parsed.trialCredits);
             }
             if (typeof parsed.enableDefaultPermissions === "boolean") {
               setEnableDefaultPerms(parsed.enableDefaultPermissions);
@@ -281,9 +311,36 @@ export default function PermissionsSettingsManager({
   const handleResetToDefault = () => {
     setAutoApprovalEnabled(true);
     setPlanRules(DEFAULT_PLAN_RULES);
-    setEnableDefaultPerms(false);
-    setUnsubscribedPerms(DEFAULT_UNSUBSCRIBED_PERMS);
+    setEnableDefaultPerms(true);
+    setFreeTrialEnabled(true);
+    setTrialDays(14);
+    setTrialCredits(15);
+    setUnsubscribedPerms({
+      dashboard: true,
+      jobs: true,
+      applicants: true,
+      resumes: false,
+      settings: false,
+    });
     showToast("Settings reset to default configuration", "info");
+  };
+
+  // Immediate toggle handler for Free Trial
+  const handleToggleFreeTrial = (enabled: boolean) => {
+    setFreeTrialEnabled(enabled);
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("addyjob_permissions_settings");
+        const parsed = cached ? JSON.parse(cached) : {};
+        parsed.freeTrialEnabled = enabled;
+        localStorage.setItem("addyjob_permissions_settings", JSON.stringify(parsed));
+        window.dispatchEvent(new Event("company_permissions_updated"));
+        window.dispatchEvent(new Event("storage"));
+      } catch (e) {}
+    }
+    updateAdminPermissionsSettings({ freeTrialEnabled: enabled }).catch((err) =>
+      console.warn("Background freeTrialEnabled sync error:", err)
+    );
   };
 
   // Save full configuration
@@ -295,8 +352,14 @@ export default function PermissionsSettingsManager({
         planRulesMap[pr.planName] = pr.permissions;
       });
 
+      // Synchronize Free Trial rule with unsubscribedPerms
+      planRulesMap["Free Trial"] = unsubscribedPerms;
+
       const payload = {
         autoApprovalEnabled,
+        freeTrialEnabled,
+        trialDays,
+        trialCredits,
         enableDefaultPermissions: enableDefaultPerms,
         planRules: planRulesMap,
         planRulesDetails: planRules,
@@ -310,6 +373,7 @@ export default function PermissionsSettingsManager({
         planRules.forEach((pr) => {
           PLAN_AUTO_PERMISSIONS[pr.planName] = pr.permissions;
         });
+        PLAN_AUTO_PERMISSIONS["Free Trial"] = unsubscribedPerms;
         window.dispatchEvent(new Event("company_permissions_updated"));
         window.dispatchEvent(new Event("storage"));
       }
@@ -607,49 +671,159 @@ export default function PermissionsSettingsManager({
         </div>
       </div>
 
-      {/* SECTION 3: Default Permissions for Unsubscribed Companies */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
+      {/* SECTION 3: Company Free Trial & Unsubscribed Permissions */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-5">
         {/* Card Header with Master Toggle */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div className="flex items-start gap-3">
-            <div className="w-6 h-6 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-              <Lock className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 rounded-2xl bg-purple-50 text-[#7C3AED] flex items-center justify-center shrink-0 mt-0.5 border border-purple-100/60 shadow-xs">
+              <Gift className="w-5 h-5 text-[#7C3AED]" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-900 tracking-tight">
-                Default Permissions for Unsubscribed Companies
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Extra features to grant companies before they purchase a plan (in addition to Profile & Subscription).
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-black text-slate-900 tracking-tight">
+                  Company Free Trial & Unsubscribed Permissions
+                </h2>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                    freeTrialEnabled
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-slate-100 text-slate-600 border-slate-200"
+                  }`}
+                >
+                  {freeTrialEnabled ? "● Trial Active" : "○ Trial Disabled"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                Control whether companies can activate a Free Trial from their subscription page, configure trial duration & complimentary resume credits, and select exact feature permissions granted.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start sm:self-auto shrink-0">
-            <span className="text-xs font-semibold text-slate-600">
-              Enable default permissions
-            </span>
-            <ToggleSwitch
-              size="sm"
-              checked={enableDefaultPerms}
-              onChange={setEnableDefaultPerms}
-              ariaLabel="Enable default permissions for unsubscribed companies"
-            />
-            <div
-              className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              title="When enabled, these baseline permissions are granted to newly registered companies prior to purchasing any subscription plan."
-            >
-              <Info className="w-4 h-4" />
+          {/* Master Trial Switch */}
+          <div className="flex items-center gap-3 p-2.5 bg-slate-50/80 rounded-2xl border border-slate-200/60 self-start lg:self-auto shrink-0">
+            <div className="text-right">
+              <span className="text-xs font-bold text-slate-800 block">
+                Enable Free Trial
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                {freeTrialEnabled ? "Companies can activate trial" : "Trial option hidden / locked"}
+              </span>
             </div>
+            <ToggleSwitch
+              size="md"
+              checked={freeTrialEnabled}
+              onChange={handleToggleFreeTrial}
+              ariaLabel="Enable Free Trial for companies"
+            />
           </div>
         </div>
 
+        {/* Trial Duration & Complimentary Credits Configuration Bar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
+          {/* Trial Duration Selector */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/70 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-purple-600" />
+                Trial Duration
+              </span>
+              <span className="text-xs font-extrabold text-[#7C3AED] bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
+                {trialDays} Days
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[7, 14, 30].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setTrialDays(d)}
+                  className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center ${
+                    trialDays === d
+                      ? "bg-[#7C3AED] text-white shadow-xs scale-[1.02]"
+                      : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100"
+                  }`}
+                >
+                  {d} Days
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Complimentary Credits Selector */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/70 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Coins className="w-3.5 h-3.5 text-amber-500" />
+                Resume Credits
+              </span>
+              <span className="text-xs font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                {trialCredits} Credits
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[5, 10, 15, 25].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setTrialCredits(c)}
+                  className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center ${
+                    trialCredits === c
+                      ? "bg-amber-500 text-white shadow-xs scale-[1.02]"
+                      : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Baseline Unsubscribed Auto-Grant Switch */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/70 flex flex-col justify-between gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-blue-600" />
+                Baseline Unsubscribed
+              </span>
+              <ToggleSwitch
+                size="sm"
+                checked={enableDefaultPerms}
+                onChange={setEnableDefaultPerms}
+                ariaLabel="Enable baseline permissions for unsubscribed companies"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Auto-grant the same feature permissions to newly registered companies before they purchase a plan.
+            </p>
+          </div>
+        </div>
+
+        {/* Feature Permissions Matrix Header */}
+        <div className="flex items-center justify-between pt-2">
+          <div>
+            <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+              Trial & Baseline Feature Toggles
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Turn each individual feature ON or OFF to control what companies can access during the trial.
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-slate-500 hidden sm:inline-block">
+            {Object.values(unsubscribedPerms).filter(Boolean).length} of 5 Features Granted
+          </span>
+        </div>
+
         {/* 5 Feature Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 pt-1">
           {/* Card 1: Dashboard Overview */}
           <div
             onClick={() => handleToggleUnsubscribed("dashboard")}
-            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 cursor-pointer select-none ${
+              unsubscribedPerms.dashboard
+                ? "border-blue-200/90 bg-blue-50/20 shadow-xs"
+                : "border-slate-200/80 bg-white hover:border-slate-300"
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
@@ -659,15 +833,26 @@ export default function PermissionsSettingsManager({
                 size="sm"
                 checked={unsubscribedPerms.dashboard}
                 onChange={() => handleToggleUnsubscribed("dashboard")}
-                ariaLabel="Toggle Dashboard Overview default"
+                ariaLabel="Toggle Dashboard Overview"
               />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Dashboard Overview
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                Allow access to dashboard for unsubscribed companies
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <h4 className="text-xs font-bold text-slate-900">
+                  Dashboard
+                </h4>
+                <span
+                  className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                    unsubscribedPerms.dashboard
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {unsubscribedPerms.dashboard ? "Granted" : "Locked"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Analytics, overview stats & company summary metrics.
               </p>
             </div>
           </div>
@@ -675,7 +860,11 @@ export default function PermissionsSettingsManager({
           {/* Card 2: Job Postings */}
           <div
             onClick={() => handleToggleUnsubscribed("jobs")}
-            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 cursor-pointer select-none ${
+              unsubscribedPerms.jobs
+                ? "border-purple-200/90 bg-purple-50/20 shadow-xs"
+                : "border-slate-200/80 bg-white hover:border-slate-300"
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
@@ -685,15 +874,26 @@ export default function PermissionsSettingsManager({
                 size="sm"
                 checked={unsubscribedPerms.jobs}
                 onChange={() => handleToggleUnsubscribed("jobs")}
-                ariaLabel="Toggle Job Postings default"
+                ariaLabel="Toggle Job Postings"
               />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Job Postings
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                Allow posting jobs without an active plan
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <h4 className="text-xs font-bold text-slate-900">
+                  Job Postings
+                </h4>
+                <span
+                  className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                    unsubscribedPerms.jobs
+                      ? "bg-purple-100 text-purple-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {unsubscribedPerms.jobs ? "Granted" : "Locked"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Post new openings & manage active job listings.
               </p>
             </div>
           </div>
@@ -701,7 +901,11 @@ export default function PermissionsSettingsManager({
           {/* Card 3: Applications & Candidates */}
           <div
             onClick={() => handleToggleUnsubscribed("applicants")}
-            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 cursor-pointer select-none ${
+              unsubscribedPerms.applicants
+                ? "border-emerald-200/90 bg-emerald-50/20 shadow-xs"
+                : "border-slate-200/80 bg-white hover:border-slate-300"
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
@@ -711,15 +915,26 @@ export default function PermissionsSettingsManager({
                 size="sm"
                 checked={unsubscribedPerms.applicants}
                 onChange={() => handleToggleUnsubscribed("applicants")}
-                ariaLabel="Toggle Applications & Candidates default"
+                ariaLabel="Toggle Applications & Candidates"
               />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Applications & Candidates
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                Allow viewing applications and candidate details
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <h4 className="text-xs font-bold text-slate-900">
+                  Applicants
+                </h4>
+                <span
+                  className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                    unsubscribedPerms.applicants
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {unsubscribedPerms.applicants ? "Granted" : "Locked"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Review applicant profiles, status & manage pipeline.
               </p>
             </div>
           </div>
@@ -727,7 +942,11 @@ export default function PermissionsSettingsManager({
           {/* Card 4: Candidate Resumes Purchased */}
           <div
             onClick={() => handleToggleUnsubscribed("resumes")}
-            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 cursor-pointer select-none ${
+              unsubscribedPerms.resumes
+                ? "border-rose-200/90 bg-rose-50/20 shadow-xs"
+                : "border-slate-200/80 bg-white hover:border-slate-300"
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
@@ -737,15 +956,26 @@ export default function PermissionsSettingsManager({
                 size="sm"
                 checked={unsubscribedPerms.resumes}
                 onChange={() => handleToggleUnsubscribed("resumes")}
-                ariaLabel="Toggle Candidate Resumes Purchased default"
+                ariaLabel="Toggle Candidate Resumes Purchased"
               />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Candidate Resumes Purchased
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                Allow purchasing and viewing candidate resumes
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <h4 className="text-xs font-bold text-slate-900">
+                  Resumes
+                </h4>
+                <span
+                  className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                    unsubscribedPerms.resumes
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {unsubscribedPerms.resumes ? "Granted" : "Locked"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Access candidate CV downloads & resume repository.
               </p>
             </div>
           </div>
@@ -753,7 +983,11 @@ export default function PermissionsSettingsManager({
           {/* Card 5: Company Settings */}
           <div
             onClick={() => handleToggleUnsubscribed("settings")}
-            className="p-4 rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 cursor-pointer select-none"
+            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 cursor-pointer select-none ${
+              unsubscribedPerms.settings
+                ? "border-amber-200/90 bg-amber-50/20 shadow-xs"
+                : "border-slate-200/80 bg-white hover:border-slate-300"
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
@@ -763,15 +997,26 @@ export default function PermissionsSettingsManager({
                 size="sm"
                 checked={unsubscribedPerms.settings}
                 onChange={() => handleToggleUnsubscribed("settings")}
-                ariaLabel="Toggle Company Settings default"
+                ariaLabel="Toggle Company Settings"
               />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Company Settings
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                Allow basic company settings access
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <h4 className="text-xs font-bold text-slate-900">
+                  Settings
+                </h4>
+                <span
+                  className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                    unsubscribedPerms.settings
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {unsubscribedPerms.settings ? "Granted" : "Locked"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Configure company profile, preferences & team access.
               </p>
             </div>
           </div>

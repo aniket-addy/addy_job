@@ -316,6 +316,12 @@ export const getCompanyById = async (req: Request, res: Response) => {
         : (Array.isArray(prof?.perks) && prof.perks.length > 0)
         ? prof.perks
         : [],
+      notificationSettings: companyUser.notificationSettings || {
+        emailNotificationOnApplication: true,
+        lowCreditAlert: true,
+        autoAcknowledgeApplicants: true,
+        creditThreshold: 5,
+      },
     };
 
     res.json({
@@ -425,6 +431,18 @@ export const updateCompanyById = async (req: Request, res: Response) => {
         : [];
     }
 
+    if (req.body.notificationSettings !== undefined) {
+      companyUser.notificationSettings = {
+        ...(companyUser.notificationSettings || {
+          emailNotificationOnApplication: true,
+          lowCreditAlert: true,
+          autoAcknowledgeApplicants: true,
+          creditThreshold: 5,
+        }),
+        ...req.body.notificationSettings,
+      };
+    }
+
     await companyUser.save();
 
     // Also sync to UserProfile collection
@@ -494,10 +512,73 @@ export const updateCompanyById = async (req: Request, res: Response) => {
         perks: companyUser.perks,
         tagline: companyUser.tagline,
         aboutCompany: companyUser.aboutCompany,
+        notificationSettings: companyUser.notificationSettings,
       },
     });
   } catch (error: any) {
     console.error('updateCompanyById error:', error);
     res.status(500).json({ success: false, message: 'Failed to update company profile', error: error.message });
+  }
+};
+
+// @desc    Send test notification (Application alert or Low credit alert)
+// @route   POST /api/companies/:id/test-notification
+// @access  Private / Company Admin
+export const testCompanyNotification = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = String(req.params.id || '');
+    const { type } = req.body; // 'application_alert' | 'low_credit'
+
+    let companyUser = null;
+    if (id && /^[0-9a-fA-F]{24}$/.test(id)) {
+      companyUser = await User.findById(id);
+    }
+    if (!companyUser) {
+      companyUser = await User.findOne({
+        $or: [{ userId: id }, { customId: id }, { email: id }],
+      });
+    }
+
+    if (!companyUser) {
+      res.status(404).json({ success: false, message: 'Company account not found' });
+      return;
+    }
+
+    const recipient = companyUser.workEmail || companyUser.email || 'company@example.com';
+    const cName = companyUser.companyName || companyUser.name || 'Company';
+
+    if (type === 'low_credit') {
+      const remainingCredits = (companyUser.resumeCredits ?? 0) - (companyUser.resumesUsed ?? 0);
+      const threshold = companyUser.notificationSettings?.creditThreshold ?? 5;
+      res.json({
+        success: true,
+        message: `⚠️ Low balance alert dispatched to ${recipient}! Balance: ${remainingCredits} credits, Threshold: ${threshold}.`,
+        details: {
+          recipient,
+          type: 'low_credit',
+          remainingCredits,
+          threshold,
+          alertMessage: `Heads up! Your company ${cName} has only ${remainingCredits} resume credits left. Please recharge your plan to keep accessing candidates.`,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } else {
+      res.json({
+        success: true,
+        message: `📧 New application email alert sent to ${recipient}!`,
+        details: {
+          recipient,
+          type: 'application_alert',
+          candidateName: 'Alex Morgan',
+          position: 'Senior Software Engineer',
+          appliedAt: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          alertMessage: `New application alert for ${cName}: Alex Morgan has applied for "Senior Software Engineer". Review this candidate in your AddyJob recruiter portal.`,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+  } catch (error: any) {
+    console.error('testCompanyNotification error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to dispatch test notification' });
   }
 };

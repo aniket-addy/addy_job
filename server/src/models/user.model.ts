@@ -78,6 +78,12 @@ export interface IUser extends Document {
   }>;
   resumeCredits?: number;
   resumesUsed?: number;
+  notificationSettings?: {
+    emailNotificationOnApplication?: boolean;
+    lowCreditAlert?: boolean;
+    autoAcknowledgeApplicants?: boolean;
+    creditThreshold?: number;
+  };
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -354,6 +360,12 @@ const userSchema = new Schema<IUser>(
     resumesUsed: {
       type: Number,
       default: 0,
+    },
+    notificationSettings: {
+      emailNotificationOnApplication: { type: Boolean, default: true },
+      lowCreditAlert: { type: Boolean, default: true },
+      autoAcknowledgeApplicants: { type: Boolean, default: true },
+      creditThreshold: { type: Number, default: 5 },
     },
   },
   {

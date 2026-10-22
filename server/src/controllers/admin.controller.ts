@@ -1085,7 +1085,7 @@ export const deleteAdminPlan = async (req: Request, res: Response) => {
 };
 
 // Global permissions settings store
-let globalPermissionsSettings = {
+let globalPermissionsSettings: any = {
   defaultPermissions: {
     profile: true,
     subscription: true,
@@ -1096,7 +1096,25 @@ let globalPermissionsSettings = {
     settings: false,
   },
   autoApprovalEnabled: true,
+  freeTrialEnabled: true,
+  trialDays: 14,
+  trialCredits: 15,
+  enableDefaultPermissions: true,
+  defaultNewCompanyPerms: {
+    dashboard: true,
+    jobs: true,
+    applicants: true,
+    resumes: false,
+    settings: false,
+  },
   planRules: {
+    'Free Trial': {
+      dashboard: true,
+      jobs: true,
+      applicants: true,
+      resumes: false,
+      settings: false,
+    },
     'Basic Plan': {
       dashboard: false,
       jobs: true,
@@ -1134,12 +1152,26 @@ export const findMatchingPlanRule = (planName?: string, planRules: Record<string
     }
   }
 
-  // 2. Specific tier matching
+  // 2. Free Trial matching
+  if (p.includes('trial')) {
+    return (
+      planRules['Free Trial'] ||
+      globalPermissionsSettings.defaultNewCompanyPerms || {
+        dashboard: true,
+        jobs: true,
+        applicants: true,
+        resumes: false,
+        settings: false,
+      }
+    );
+  }
+
+  // 3. Specific tier matching
   if (p.includes('enterprise')) return planRules['Enterprise'] || planRules['Tier 3'] || null;
   if (p.includes('growth') || p.includes('pro')) return planRules['Pro Plan'] || planRules['Tier 2'] || null;
   if (p.includes('starter') || p.includes('basic') || p.includes('testy')) return planRules['Basic Plan'] || planRules['Tier 1'] || null;
 
-  // 3. Last fallback
+  // 4. Last fallback
   for (const [key, rule] of Object.entries(planRules)) {
     const k = key.trim().toLowerCase();
     if (k && (p === k || (k.length > 5 && p.includes(k)))) {
@@ -1293,6 +1325,14 @@ export const updateAdminPermissionsSettings = async (req: Request, res: Response
         ...settings,
       };
 
+      // Keep Free Trial rule synchronized with defaultNewCompanyPerms
+      if (globalPermissionsSettings.defaultNewCompanyPerms) {
+        globalPermissionsSettings.planRules = {
+          ...(globalPermissionsSettings.planRules || {}),
+          'Free Trial': globalPermissionsSettings.defaultNewCompanyPerms,
+        };
+      }
+
       // Persist to MongoDB
       await Settings.findOneAndUpdate(
         { key: 'global_permissions' },
@@ -1311,7 +1351,11 @@ export const updateAdminPermissionsSettings = async (req: Request, res: Response
         }
 
         const compPlan = comp.plan || '';
-        const matchedRule = findMatchingPlanRule(compPlan, planRules);
+        const matchedRule =
+          findMatchingPlanRule(compPlan, planRules) ||
+          (compPlan.toLowerCase().includes('trial') || (!compPlan && globalPermissionsSettings.enableDefaultPermissions)
+            ? globalPermissionsSettings.defaultNewCompanyPerms
+            : null);
 
         if (matchedRule) {
           comp.permissions = {
@@ -1434,4 +1478,166 @@ export const deleteAdminJobSeeker = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Failed to delete job seeker' });
   }
 };
+
+// @desc    Get detailed platform analytics and reports data
+// @route   GET /api/admin/reports
+export const getAdminReports = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+
+    const [
+      allUsers,
+      allJobs,
+      allApplications,
+      allPlans
+    ] = await Promise.all([
+      User.find({}).lean(),
+      Job.find({}).lean(),
+      Application.find({}).lean(),
+      Plan.find({}).lean(),
+    ]);
+
+    const companies = allUsers.filter((u: any) => u.role === 'company');
+    const jobSeekers = allUsers.filter((u: any) => u.role === 'job_seeker');
+
+    // 1. Applications Funnel
+    const funnel = {
+      total: allApplications.length,
+      new: allApplications.filter((a: any) => a.status === 'New').length,
+      reviewed: allApplications.filter((a: any) => a.status === 'Reviewed' || a.status === 'Reviewing').length,
+      shortlisted: allApplications.filter((a: any) => a.status === 'Shortlisted').length,
+      interview: allApplications.filter((a: any) => a.status === 'Interview').length,
+      hired: allApplications.filter((a: any) => a.status === 'Hired').length,
+      rejected: allApplications.filter((a: any) => a.status === 'Rejected').length,
+    };
+
+    // 2. Company Plans Distribution
+    const planCounts: Record<string, number> = {};
+    companies.forEach((c: any) => {
+      const p = c.plan || 'Free Tier';
+      planCounts[p] = (planCounts[p] || 0) + 1;
+    });
+
+    // 3. Jobs Domain Breakdown (Real departments from jobs, no defaults)
+    const domainCounts: Record<string, number> = {};
+    allJobs.forEach((j: any) => {
+      const d = (j.department || 'General').trim();
+      domainCounts[d] = (domainCounts[d] || 0) + 1;
+    });
+
+    // 4. Candidate Experience Distribution (Real candidate profiles only)
+    const expCounts: Record<string, number> = {
+      'Fresher (0-1 Yrs)': 0,
+      'Junior (1-3 Yrs)': 0,
+      'Mid-Level (3-5 Yrs)': 0,
+      'Senior (5+ Yrs)': 0,
+    };
+    jobSeekers.forEach((c: any) => {
+      const exp = (c.experience || '').toLowerCase().trim();
+      if (exp.includes('0-1') || exp.includes('fresher')) expCounts['Fresher (0-1 Yrs)']++;
+      else if (exp.includes('1-3')) expCounts['Junior (1-3 Yrs)']++;
+      else if (exp.includes('3-5')) expCounts['Mid-Level (3-5 Yrs)']++;
+      else if (exp.length > 0) expCounts['Senior (5+ Yrs)']++;
+    });
+
+    // 5. 100% Real Monthly trends calculation based on actual document createdAt timestamps
+    const now = new Date();
+    const monthsList: Array<{ label: string; year: number; monthIdx: number }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthsList.push({
+        label: d.toLocaleString('en-US', { month: 'short' }),
+        year: d.getFullYear(),
+        monthIdx: d.getMonth(),
+      });
+    }
+
+    const monthlyTrends = monthsList.map((m) => {
+      const isSameMonth = (d: Date | string | undefined) => {
+        if (!d) return false;
+        const dateObj = new Date(d);
+        return dateObj.getFullYear() === m.year && dateObj.getMonth() === m.monthIdx;
+      };
+
+      return {
+        month: m.label,
+        jobs: allJobs.filter((j: any) => isSameMonth(j.createdAt)).length,
+        applications: allApplications.filter((a: any) => isSameMonth(a.createdAt)).length,
+        companies: companies.filter((c: any) => isSameMonth(c.createdAt)).length,
+        candidates: jobSeekers.filter((u: any) => isSameMonth(u.createdAt)).length,
+      };
+    });
+
+    // 6. Real Candidate and Application skills extraction (no defaults)
+    const skillCounts: Record<string, number> = {};
+    const addSkills = (skillsList: any) => {
+      if (Array.isArray(skillsList)) {
+        skillsList.forEach((s) => {
+          const str = String(s).trim();
+          if (str && str.length > 0) {
+            skillCounts[str] = (skillCounts[str] || 0) + 1;
+          }
+        });
+      } else if (typeof skillsList === 'string' && skillsList.trim().length > 0) {
+        skillsList.split(',').forEach((s) => {
+          const str = s.trim();
+          if (str && str.length > 0) {
+            skillCounts[str] = (skillCounts[str] || 0) + 1;
+          }
+        });
+      }
+    };
+
+    jobSeekers.forEach((c: any) => addSkills(c.skills));
+    allApplications.forEach((a: any) => addSkills(a.skills));
+
+    const topSkills = Object.entries(skillCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // 7. Estimated revenue and ARPU based on real company plans
+    let calculatedRevenue = 0;
+    companies.forEach((c: any) => {
+      if (c.plan) {
+        const matched = allPlans.find((p: any) => p.name?.toLowerCase().trim() === c.plan?.toLowerCase().trim());
+        if (matched && matched.price) {
+          const numPrice = parseInt(String(matched.price).replace(/[^\d]/g, ''), 10) || 0;
+          calculatedRevenue += numPrice;
+        }
+      }
+    });
+
+    const avgArpu = companies.length > 0 ? Math.round(calculatedRevenue / companies.length) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          totalCompanies: companies.length,
+          approvedCompanies: companies.filter((c: any) => c.status === 'Approved').length,
+          pendingCompanies: companies.filter((c: any) => c.status === 'Pending').length,
+          totalJobs: allJobs.length,
+          activeJobs: allJobs.filter((j: any) => j.status === 'Active').length,
+          totalApplications: allApplications.length,
+          totalCandidates: jobSeekers.length,
+          estimatedRevenue: calculatedRevenue > 0 ? `₹ ${calculatedRevenue.toLocaleString('en-IN')}` : '₹ 0',
+          avgArpu: avgArpu > 0 ? `₹ ${avgArpu.toLocaleString('en-IN')}` : '₹ 0',
+          conversionRate: allApplications.length > 0 
+            ? `${Math.round(((funnel.shortlisted + funnel.hired) / allApplications.length) * 100)}%` 
+            : '0%',
+        },
+        funnel,
+        planCounts,
+        domainCounts,
+        expCounts,
+        monthlyTrends,
+        topSkills,
+      },
+    });
+  } catch (error: any) {
+    console.error('getAdminReports error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate reports' });
+  }
+};
+
 

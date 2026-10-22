@@ -43,7 +43,11 @@ export default function LoginPage() {
       }
 
       setSuccessMsg(res.message || "Login successful! Opening dashboard...");
-      setAuthSession(res.token, res.user);
+      try {
+        setAuthSession(res.token, res.user);
+      } catch (storageErr) {
+        console.warn("Session storage warning:", storageErr);
+      }
 
       setTimeout(() => {
         if (res.user?.role === "admin") {

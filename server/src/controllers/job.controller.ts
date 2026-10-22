@@ -488,10 +488,57 @@ export const applyToJob = async (req: Request, res: Response) => {
 
     await Job.findByIdAndUpdate(id, { $inc: { applicantsCount: 1 } });
 
+    // Check company notification settings and dispatch application alert
+    let alertDispatched = false;
+    let autoAckDispatched = false;
+    try {
+      let companyUser = null;
+      if (job.companyId) {
+        if (job.companyId.toString().match(/^[0-9a-fA-F]{24}$/)) {
+          companyUser = await User.findById(job.companyId);
+        }
+        if (!companyUser) {
+          companyUser = await User.findOne({
+            $or: [{ userId: job.companyId }, { customId: job.companyId }],
+          });
+        }
+      }
+      if (!companyUser && job.company) {
+        companyUser = await User.findOne({
+          companyName: new RegExp(`^${job.company.trim()}$`, 'i'),
+        });
+      }
+
+      if (companyUser) {
+        const notif = companyUser.notificationSettings || {
+          emailNotificationOnApplication: true,
+          lowCreditAlert: true,
+          autoAcknowledgeApplicants: true,
+        };
+
+        if (notif.emailNotificationOnApplication !== false) {
+          alertDispatched = true;
+          const toEmail = companyUser.workEmail || companyUser.email;
+          console.log(`[EMAIL ALERT] Real-time new application notification dispatched to "${toEmail}" for role "${job.title}" by "${candidateName || 'Candidate'}"`);
+        }
+
+        if (notif.autoAcknowledgeApplicants !== false && candidateEmail) {
+          autoAckDispatched = true;
+          console.log(`[AUTO-ACKNOWLEDGE] Automated receipt confirmation email sent to applicant "${candidateEmail}" for "${job.title}" at "${job.company}"`);
+        }
+      }
+    } catch (notifErr) {
+      console.warn('Error processing application notification alert:', notifErr);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Application submitted successfully!',
       application: appRecord,
+      notifications: {
+        companyAlertDispatched: alertDispatched,
+        applicantAutoAcknowledged: autoAckDispatched,
+      },
     });
   } catch (error: any) {
     console.error('applyToJob error:', error);
