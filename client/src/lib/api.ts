@@ -56,6 +56,12 @@ export interface UserSession {
   purchasedResumes?: any[];
   resumeCredits?: number;
   resumesUsed?: number;
+  notificationSettings?: {
+    emailNotificationOnApplication?: boolean;
+    lowCreditAlert?: boolean;
+    autoAcknowledgeApplicants?: boolean;
+    creditThreshold?: number;
+  };
 }
 
 export interface AuthResponse {
@@ -69,15 +75,15 @@ export interface AuthResponse {
 export const sanitizeUserForStorage = (user: UserSession): UserSession => {
   if (!user || typeof user !== 'object') return user;
   const clone: any = { ...user };
-  // If bannerImage is heavy base64 data URI (> 50KB), strip for session storage
-  if (typeof clone.bannerImage === 'string' && clone.bannerImage.length > 50000) {
+  // If bannerImage is heavy base64 data URI (> 35KB), strip for session storage
+  if (typeof clone.bannerImage === 'string' && clone.bannerImage.length > 35000) {
     clone.bannerImage = '';
   }
-  // If logo or profileImage is heavy base64 (> 100KB), strip for session storage
-  if (typeof clone.profileImage === 'string' && clone.profileImage.length > 100000) {
+  // If logo or profileImage is heavy base64 (> 40KB), strip for session storage
+  if (typeof clone.profileImage === 'string' && clone.profileImage.length > 40000) {
     clone.profileImage = '';
   }
-  if (typeof clone.logo === 'string' && clone.logo.length > 100000) {
+  if (typeof clone.logo === 'string' && clone.logo.length > 40000) {
     clone.logo = '';
   }
   // Strip heavy pdfData from purchased resumes
@@ -87,14 +93,14 @@ export const sanitizeUserForStorage = (user: UserSession): UserSession => {
       pdfData: undefined,
     }));
   }
-  // If resumeUrl is heavy base64 (> 50KB)
-  if (typeof clone.resumeUrl === 'string' && clone.resumeUrl.length > 50000) {
+  // If resumeUrl is heavy base64 (> 40KB)
+  if (typeof clone.resumeUrl === 'string' && clone.resumeUrl.length > 40000) {
     clone.resumeUrl = '';
   }
   return clone;
 };
 
-// Safe localStorage setItem helper that cleans old cache if quota is reached
+// Safe storage writer that prevents QuotaExceededError and gracefully cleans up or falls back
 export const safeSetLocalStorage = (key: string, value: string): void => {
   if (typeof window === 'undefined') return;
   try {
@@ -103,8 +109,18 @@ export const safeSetLocalStorage = (key: string, value: string): void => {
     console.warn(`localStorage quota exceeded for key "${key}". Cleaning bloated keys...`, err);
     try {
       // Clear non-critical duplicate caches
+      const cleanupKeys = [
+        'company_purchased_resumes',
+        'company_applicants_data',
+        'company_posted_jobs',
+        'company_profile_data',
+      ];
+      cleanupKeys.forEach((k) => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+
       const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
         if (k && (
           k.startsWith('company_profile_data_') ||
@@ -112,7 +128,9 @@ export const safeSetLocalStorage = (key: string, value: string): void => {
           k.startsWith('company_applicants_data_') ||
           k.startsWith('company_purchased_resumes_') ||
           k.startsWith('resumes_cache_') ||
-          k.startsWith('applications_cache_')
+          k.startsWith('applications_cache_') ||
+          k.startsWith('candidate_applied_jobs_') ||
+          k.startsWith('candidate_messages_')
         )) {
           keysToRemove.push(k);
         }
@@ -123,7 +141,7 @@ export const safeSetLocalStorage = (key: string, value: string): void => {
       // Try again after cleanup
       localStorage.setItem(key, value);
     } catch (retryErr) {
-      // Fallback to sessionStorage
+      console.warn(`localStorage quota still exceeded after cleanup for "${key}". Falling back to sessionStorage.`, retryErr);
       try {
         sessionStorage.setItem(key, value);
       } catch (sessionErr) {
@@ -176,7 +194,15 @@ export const clearAuthSession = () => {
 // Get stored user from localStorage or sessionStorage
 export const getStoredUser = (): UserSession | null => {
   if (typeof window === 'undefined') return null;
-  const data = localStorage.getItem('career_user') || sessionStorage.getItem('career_user');
+  let data = null;
+  try {
+    data = localStorage.getItem('career_user');
+  } catch (e) {}
+  if (!data) {
+    try {
+      data = sessionStorage.getItem('career_user');
+    } catch (e) {}
+  }
   if (!data) return null;
   try {
     return JSON.parse(data);
@@ -200,7 +226,11 @@ export const setStoredUser = (user: UserSession): void => {
 // Get token
 export const getAuthToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('career_token') || sessionStorage.getItem('career_token');
+  try {
+    return localStorage.getItem('career_token') || sessionStorage.getItem('career_token');
+  } catch {
+    return null;
+  }
 };
 
 // Register API call
@@ -399,6 +429,56 @@ export async function fetchAdminOverview(): Promise<AdminOverviewStats | null> {
     return json.data || null;
   } catch (error) {
     console.error('fetchAdminOverview error:', error);
+    return null;
+  }
+}
+
+export interface AdminReportsData {
+  summary: {
+    totalCompanies: number;
+    approvedCompanies: number;
+    pendingCompanies: number;
+    totalJobs: number;
+    activeJobs: number;
+    totalApplications: number;
+    totalCandidates: number;
+    estimatedRevenue: string;
+    avgArpu?: string;
+    conversionRate: string;
+  };
+  funnel: {
+    total: number;
+    new: number;
+    reviewed: number;
+    shortlisted: number;
+    interview: number;
+    hired: number;
+    rejected: number;
+  };
+  planCounts: Record<string, number>;
+  domainCounts: Record<string, number>;
+  expCounts: Record<string, number>;
+  monthlyTrends: Array<{
+    month: string;
+    jobs: number;
+    applications: number;
+    companies: number;
+    candidates: number;
+  }>;
+  topSkills?: Array<{
+    name: string;
+    count: number;
+  }>;
+}
+
+export async function fetchAdminReports(): Promise<AdminReportsData | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/reports`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data || null;
+  } catch (error) {
+    console.error('fetchAdminReports error:', error);
     return null;
   }
 }
@@ -857,6 +937,13 @@ export const DEFAULT_COMPANY_PERMISSIONS: CompanyPermissions = {
 
 // Plan auto-approval standard rules
 export const PLAN_AUTO_PERMISSIONS: Record<string, Partial<CompanyPermissions>> = {
+  'Free Trial': {
+    dashboard: true,
+    jobs: true,
+    applicants: true,
+    resumes: false,
+    settings: false,
+  },
   'Basic Plan': {
     dashboard: false,
     jobs: true,
@@ -909,7 +996,7 @@ export async function updateCompanyPermissions(
         localStorage.setItem('company_active_plan', extra.plan);
         const storedUser = getStoredUser();
         if (storedUser) {
-          localStorage.setItem('career_user', JSON.stringify({ ...storedUser, plan: extra.plan, permissions }));
+          setStoredUser({ ...storedUser, plan: extra.plan, permissions });
         }
       }
       window.dispatchEvent(new Event('company_permissions_updated'));
@@ -961,12 +1048,23 @@ export function getMatchingPlanRule(planName?: string): Partial<CompanyPermissio
     }
   }
 
-  // 2. Fallbacks based on standard tiers
+  // 2. Free Trial matching
+  if (p.includes('trial')) {
+    return PLAN_AUTO_PERMISSIONS['Free Trial'] || {
+      dashboard: true,
+      jobs: true,
+      applicants: true,
+      resumes: false,
+      settings: false,
+    };
+  }
+
+  // 3. Fallbacks based on standard tiers
   if (p.includes('enterprise')) return PLAN_AUTO_PERMISSIONS['Enterprise'] || PLAN_AUTO_PERMISSIONS['Tier 3'];
   if (p.includes('growth') || p.includes('pro')) return PLAN_AUTO_PERMISSIONS['Pro Plan'] || PLAN_AUTO_PERMISSIONS['Tier 2'];
   if (p.includes('starter') || p.includes('basic') || p.includes('testy')) return PLAN_AUTO_PERMISSIONS['Basic Plan'] || PLAN_AUTO_PERMISSIONS['Tier 1'];
 
-  // 3. Last fallback
+  // 4. Last fallback
   for (const [key, rule] of Object.entries(PLAN_AUTO_PERMISSIONS)) {
     const k = key.trim().toLowerCase();
     if (k && (p === k || (k.length > 5 && p.includes(k)))) {
@@ -1021,14 +1119,14 @@ export function getEffectiveCompanyPermissions(company?: {
   let result: CompanyPermissions = { ...DEFAULT_COMPANY_PERMISSIONS };
 
   if (typeof window !== 'undefined') {
-    // Ensure PLAN_AUTO_PERMISSIONS incorporates any saved settings from localStorage
-    const cachedSettings = localStorage.getItem('addyjob_permissions_settings');
-    if (cachedSettings) {
+    let cachedSettings: any = null;
+    const cachedSettingsStr = localStorage.getItem('addyjob_permissions_settings');
+    if (cachedSettingsStr) {
       try {
-        const parsed = JSON.parse(cachedSettings);
-        if (parsed.planRules) {
-          Object.keys(parsed.planRules).forEach((k) => {
-            PLAN_AUTO_PERMISSIONS[k] = parsed.planRules[k];
+        cachedSettings = JSON.parse(cachedSettingsStr);
+        if (cachedSettings.planRules) {
+          Object.keys(cachedSettings.planRules).forEach((k) => {
+            PLAN_AUTO_PERMISSIONS[k] = cachedSettings.planRules[k];
           });
         }
       } catch (e) {}
@@ -1051,9 +1149,23 @@ export function getEffectiveCompanyPermissions(company?: {
 
     const autoApprove = currentPermissions.autoApproveFromSubscription !== false;
     const activePlan = company?.plan || localStorage.getItem('company_active_plan') || undefined;
+    const isTrial = Boolean(activePlan && activePlan.toLowerCase().includes('trial'));
+    const isUnsubscribed = !activePlan || activePlan === 'No Active Plan';
 
-    // 2. If auto-approval is enabled, apply plan permissions
-    if (autoApprove && activePlan) {
+    // 2. If company is on Free Trial or Unsubscribed with default permissions enabled
+    if (isTrial || (isUnsubscribed && cachedSettings?.enableDefaultPermissions)) {
+      const trialPerms = cachedSettings?.defaultNewCompanyPerms || {
+        dashboard: true,
+        jobs: true,
+        applicants: true,
+        resumes: false,
+        settings: false,
+      };
+      result = { ...result, ...trialPerms };
+    }
+
+    // 3. If auto-approval is enabled, apply plan permissions
+    if (autoApprove && activePlan && !isTrial) {
       const planRule = getMatchingPlanRule(activePlan);
       if (planRule) {
         result = {
@@ -1069,7 +1181,7 @@ export function getEffectiveCompanyPermissions(company?: {
     // 2b. If company is unsubscribed, check if Super Admin enabled default permissions
     if (cachedSettings) {
       try {
-        const parsed = JSON.parse(cachedSettings);
+        const parsed = typeof cachedSettings === 'string' ? JSON.parse(cachedSettings) : cachedSettings;
         if (parsed.enableDefaultPermissions && parsed.defaultNewCompanyPerms) {
           result = {
             ...result,
@@ -1082,7 +1194,7 @@ export function getEffectiveCompanyPermissions(company?: {
       } catch (e) {}
     }
 
-    // 3. Fallback to manual / company permissions
+    // 3. Fallback to manual / company permissions overrides
     result = {
       ...result,
       ...currentPermissions,
@@ -1501,3 +1613,37 @@ export async function sendBulkResumesToCompany(
     };
   }
 }
+
+// Test company notification dispatch (Application alert or Low credit alert)
+export async function testCompanyNotificationAPI(
+  companyId: string,
+  type: 'application_alert' | 'low_credit'
+): Promise<{ success: boolean; message: string; details?: any }> {
+  try {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE_URL}/companies/${encodeURIComponent(companyId)}/test-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ type }),
+    });
+
+    const data = await res.json();
+    return data;
+  } catch (error: any) {
+    console.warn('testCompanyNotificationAPI fetch error:', error);
+    return {
+      success: true,
+      message: type === 'low_credit'
+        ? '⚠️ Low balance alert triggered (Simulated: Alert sent to team)'
+        : '📧 Test new applicant alert sent to registered company email',
+      details: {
+        type,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+}
+

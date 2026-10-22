@@ -62,6 +62,7 @@ import {
   BarChart3,
   GraduationCap,
   Award,
+  Coins,
 } from "lucide-react";
 import {
   getStoredUser,
@@ -74,6 +75,7 @@ import {
   getMatchingPlanRule,
   syncGlobalPermissionsRules,
   updateCompanyPermissions,
+  fetchAdminPermissionsSettings,
   fetchCurrentUser,
   updateUserProfile,
   fetchAdminPlans,
@@ -90,6 +92,7 @@ import {
   fetchCompanyApplications,
   updateAdminApplicationStatus,
   notifyApplicationSync,
+  testCompanyNotificationAPI,
 } from "@/lib/api";
 import CompanyJobApplicantsModal, {
   CompanyCandidateApplicant,
@@ -465,14 +468,82 @@ export default function CompanyDashboardPage() {
   const [planValidity, setPlanValidity] = useState("No Active Plan");
   const [totalResumesPurchased, setTotalResumesPurchased] = useState(0);
   const [resumesUsed, setResumesUsed] = useState(0);
-  const [activePlanCard, setActivePlanCard] = useState<"starter" | "pro" | "enterprise" | null>(null);
+  const [activePlanCard, setActivePlanCard] = useState<"starter" | "pro" | "enterprise" | "trial" | null>(null);
   const [companyStatus, setCompanyStatus] = useState<"Pending" | "Approved" | "Rejected">("Pending");
   const [rejectionReason, setRejectionReason] = useState<string>("");
   const [isApprovalRequiredModalOpen, setIsApprovalRequiredModalOpen] = useState(false);
 
-  // Dynamic Plans from Super Admin Database & Monthly/Yearly toggle
+  // Portal / Company Notification Settings
+  const [emailNotificationOnApplication, setEmailNotificationOnApplication] = useState<boolean>(true);
+  const [lowCreditAlert, setLowCreditAlert] = useState<boolean>(true);
+  const [autoAcknowledgeApplicants, setAutoAcknowledgeApplicants] = useState<boolean>(true);
+  const [creditThreshold, setCreditThreshold] = useState<number>(5);
+  const [isSavingSettingKey, setIsSavingSettingKey] = useState<string | null>(null);
+  const [isTestingAlert, setIsTestingAlert] = useState<"application_alert" | "low_credit" | null>(null);
+  const [lastTestAlertResult, setLastTestAlertResult] = useState<{
+    type: "application_alert" | "low_credit";
+    message: string;
+    details?: any;
+    time: string;
+  } | null>(null);
+
+  // Dynamic Plans from Super Admin Database & Monthly/Yearly/Trial toggle
   const [adminPlans, setAdminPlans] = useState<any[]>([]);
-  const [subscriptionBillingCycle, setSubscriptionBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [subscriptionBillingCycle, setSubscriptionBillingCycle] = useState<"monthly" | "yearly" | "trial">("monthly");
+
+  // Free Trial settings configured by Super Admin (Section 3)
+  const [trialSettings, setTrialSettings] = useState<{
+    enabled: boolean;
+    trialDays: number;
+    trialCredits: number;
+    permissions: {
+      dashboard: boolean;
+      jobs: boolean;
+      applicants: boolean;
+      resumes: boolean;
+      settings: boolean;
+    };
+  }>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("addyjob_permissions_settings");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          return {
+            enabled: parsed.freeTrialEnabled !== false,
+            trialDays: typeof parsed.trialDays === "number" ? parsed.trialDays : 14,
+            trialCredits: typeof parsed.trialCredits === "number" ? parsed.trialCredits : 15,
+            permissions: {
+              dashboard: parsed.defaultNewCompanyPerms?.dashboard ?? true,
+              jobs: parsed.defaultNewCompanyPerms?.jobs ?? true,
+              applicants: parsed.defaultNewCompanyPerms?.applicants ?? true,
+              resumes: parsed.defaultNewCompanyPerms?.resumes ?? false,
+              settings: parsed.defaultNewCompanyPerms?.settings ?? false,
+            },
+          };
+        }
+      } catch (e) {}
+    }
+    return {
+      enabled: true,
+      trialDays: 14,
+      trialCredits: 15,
+      permissions: {
+        dashboard: true,
+        jobs: true,
+        applicants: true,
+        resumes: false,
+        settings: false,
+      },
+    };
+  });
+
+  // If Free Trial is disabled by admin and billing cycle is set to trial, fallback to monthly
+  useEffect(() => {
+    if (!trialSettings.enabled && subscriptionBillingCycle === "trial") {
+      setSubscriptionBillingCycle("monthly");
+    }
+  }, [trialSettings.enabled, subscriptionBillingCycle]);
 
   // Fallback plans if database is initializing
   const fallbackSubscriptionPlans = [
@@ -514,7 +585,7 @@ export default function CompanyDashboardPage() {
   ];
 
   // Helper matching Super Admin pricing calculation with dynamic /month or /year
-  const getCardPriceInfo = (plan: any, cycle: "monthly" | "yearly") => {
+  const getCardPriceInfo = (plan: any, cycle: "monthly" | "yearly" | "trial") => {
     const rawPrice = typeof plan === "string" ? plan : (plan?.price || "");
     const digits = (rawPrice || "").replace(/[^\d]/g, "");
     const num = parseInt(digits, 10);
@@ -549,7 +620,7 @@ export default function CompanyDashboardPage() {
 
   // Uniquely determine which single plan card is currently active (prevents multiple plans from activating simultaneously)
   const activePlanIndex = (() => {
-    if (!currentPlan || currentPlan === "No Active Plan") return -1;
+    if (!currentPlan || currentPlan === "No Active Plan" || currentPlan.toLowerCase().includes("trial")) return -1;
     const curLower = currentPlan.trim().toLowerCase();
 
     // 1. Direct exact name match (highest priority)
@@ -626,9 +697,9 @@ export default function CompanyDashboardPage() {
     };
   }, []);
 
-  // Sync permissions from Super Admin / User session / Subscription Plan
+  // Sync permissions and trial settings from Super Admin / User session / Subscription Plan
   useEffect(() => {
-    const syncPermissions = () => {
+    const syncPermissionsAndTrial = () => {
       const user = getStoredUser();
       const perms = getEffectiveCompanyPermissions({
         id: (user as any)?._id || user?.id,
@@ -644,19 +715,59 @@ export default function CompanyDashboardPage() {
         if (perms[current as keyof CompanyPermissions]) return current;
         return "profile";
       });
+
+      // Synchronize trialSettings from localStorage cache
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem("addyjob_permissions_settings");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            setTrialSettings({
+              enabled: parsed.freeTrialEnabled !== false,
+              trialDays: typeof parsed.trialDays === "number" ? parsed.trialDays : 14,
+              trialCredits: typeof parsed.trialCredits === "number" ? parsed.trialCredits : 15,
+              permissions: {
+                dashboard: parsed.defaultNewCompanyPerms?.dashboard ?? true,
+                jobs: parsed.defaultNewCompanyPerms?.jobs ?? true,
+                applicants: parsed.defaultNewCompanyPerms?.applicants ?? true,
+                resumes: parsed.defaultNewCompanyPerms?.resumes ?? false,
+                settings: parsed.defaultNewCompanyPerms?.settings ?? false,
+              },
+            });
+          } catch (e) {}
+        }
+      }
+
+      // Fetch latest settings from backend
+      fetchAdminPermissionsSettings().then((remote) => {
+        if (remote) {
+          setTrialSettings({
+            enabled: remote.freeTrialEnabled !== false,
+            trialDays: typeof remote.trialDays === "number" ? remote.trialDays : 14,
+            trialCredits: typeof remote.trialCredits === "number" ? remote.trialCredits : 15,
+            permissions: {
+              dashboard: remote.defaultNewCompanyPerms?.dashboard ?? true,
+              jobs: remote.defaultNewCompanyPerms?.jobs ?? true,
+              applicants: remote.defaultNewCompanyPerms?.applicants ?? true,
+              resumes: remote.defaultNewCompanyPerms?.resumes ?? false,
+              settings: remote.defaultNewCompanyPerms?.settings ?? false,
+            },
+          });
+        }
+      });
     };
 
-    syncPermissions();
+    syncPermissionsAndTrial();
     // Sync latest global plan rules configured by Super Admin
-    syncGlobalPermissionsRules().then(() => syncPermissions());
+    syncGlobalPermissionsRules().then(() => syncPermissionsAndTrial());
 
-    window.addEventListener("company_permissions_updated", syncPermissions);
-    window.addEventListener("storage", syncPermissions);
-    window.addEventListener("focus", syncPermissions);
+    window.addEventListener("company_permissions_updated", syncPermissionsAndTrial);
+    window.addEventListener("storage", syncPermissionsAndTrial);
+    window.addEventListener("focus", syncPermissionsAndTrial);
     return () => {
-      window.removeEventListener("company_permissions_updated", syncPermissions);
-      window.removeEventListener("storage", syncPermissions);
-      window.removeEventListener("focus", syncPermissions);
+      window.removeEventListener("company_permissions_updated", syncPermissionsAndTrial);
+      window.removeEventListener("storage", syncPermissionsAndTrial);
+      window.removeEventListener("focus", syncPermissionsAndTrial);
     };
   }, [currentPlan]);
 
@@ -670,7 +781,9 @@ export default function CompanyDashboardPage() {
 
       if (planName) {
         setCurrentPlan(planName);
-        if (planName.toLowerCase().includes("enterprise")) {
+        if (planName.toLowerCase().includes("trial")) {
+          setActivePlanCard("trial");
+        } else if (planName.toLowerCase().includes("enterprise")) {
           setActivePlanCard("enterprise");
         } else if (planName.toLowerCase().includes("pro")) {
           setActivePlanCard("pro");
@@ -693,7 +806,7 @@ export default function CompanyDashboardPage() {
   // Activate any plan dynamically from Super Admin database
   const handleActivateDynamicPlan = async (
     plan: any,
-    cycle: "monthly" | "yearly"
+    cycle: "monthly" | "yearly" | "trial"
   ) => {
     // Guard: Company must be approved to purchase or activate subscriptions
     if (companyStatus !== "Approved") {
@@ -869,6 +982,83 @@ export default function CompanyDashboardPage() {
     setToastMessage(`🎉 ${planTitle} activated! New permissions have been unlocked.`);
     setTimeout(() => setToastMessage(null), 4000);
     setIsUpgradePlanModalOpen(false);
+  };
+
+  // Handle 1-click Free Trial activation
+  const handleActivateFreeTrial = async () => {
+    if (currentPlan === "Free Trial") {
+      setToastMessage("Your company is already enjoying the Free Trial!");
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+
+    if (!trialSettings.enabled) {
+      setToastMessage("Free Trial is currently disabled by administrator.");
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+
+    const days = trialSettings.trialDays || 14;
+    const credits = trialSettings.trialCredits || 15;
+    const validityText = `Valid for ${days} Days (Trial)`;
+
+    // Feature permissions configured by Super Admin in Section 3
+    const trialPerms: CompanyPermissions = {
+      ...permissions,
+      dashboard: Boolean(trialSettings.permissions.dashboard),
+      jobs: Boolean(trialSettings.permissions.jobs),
+      applicants: Boolean(trialSettings.permissions.applicants),
+      resumes: Boolean(trialSettings.permissions.resumes),
+      settings: Boolean(trialSettings.permissions.settings),
+      autoApproveFromSubscription: true,
+    };
+
+    setCurrentPlan("Free Trial");
+    setActivePlanCard("trial");
+    setTotalResumesPurchased(credits);
+    setResumesUsed(0);
+    setPlanValidity(validityText);
+    setPermissions(trialPerms);
+
+    if (typeof window !== "undefined") {
+      const storedUser = getStoredUser();
+      const uid = (storedUser as any)?._id || storedUser?.id || (storedUser as any)?.userId || storedUser?.email;
+      if (uid) {
+        localStorage.setItem(`company_total_credits_${uid}`, String(credits));
+        localStorage.setItem(`company_resumes_used_${uid}`, "0");
+      }
+      if (storedUser) {
+        const updatedUser = {
+          ...storedUser,
+          plan: "Free Trial",
+          permissions: trialPerms,
+        };
+        setStoredUser(updatedUser);
+        if (storedUser.id) {
+          localStorage.setItem(`company_permissions_${storedUser.id}`, JSON.stringify(trialPerms));
+        }
+      }
+      localStorage.setItem("company_active_plan", "Free Trial");
+      localStorage.setItem("company_plan_validity", validityText);
+      localStorage.setItem("company_permissions_active", JSON.stringify(trialPerms));
+      window.dispatchEvent(new Event("company_permissions_updated"));
+      window.dispatchEvent(new Event("storage"));
+    }
+
+    const user = getStoredUser();
+    const companyId = (user as any)?._id || user?.id || "c1";
+    try {
+      await updateCompanyPermissions(companyId, trialPerms, {
+        name: companyName,
+        email: contactEmail,
+        plan: "Free Trial",
+      });
+    } catch (e) {
+      console.warn("Background trial sync error:", e);
+    }
+
+    setToastMessage(`🎉 Free Trial Activated! You have ${days} days of access & ${credits} complimentary resume credits.`);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   // Search & Filter
@@ -1114,6 +1304,29 @@ export default function CompanyDashboardPage() {
         setWebsite(resolvedWebsite);
         setProfileImage(resolvedProfileImage);
         setBannerImage(resolvedBannerImage);
+
+        // Load notification settings from DB or localStorage
+        let savedNotif: any = u.notificationSettings;
+        if (!savedNotif && uid) {
+          try {
+            const raw = localStorage.getItem(`company_notification_settings_${uid}`);
+            if (raw) savedNotif = JSON.parse(raw);
+          } catch (e) {}
+        }
+        if (savedNotif) {
+          if (typeof savedNotif.emailNotificationOnApplication === "boolean") {
+            setEmailNotificationOnApplication(savedNotif.emailNotificationOnApplication);
+          }
+          if (typeof savedNotif.lowCreditAlert === "boolean") {
+            setLowCreditAlert(savedNotif.lowCreditAlert);
+          }
+          if (typeof savedNotif.autoAcknowledgeApplicants === "boolean") {
+            setAutoAcknowledgeApplicants(savedNotif.autoAcknowledgeApplicants);
+          }
+          if (typeof savedNotif.creditThreshold === "number") {
+            setCreditThreshold(savedNotif.creditThreshold);
+          }
+        }
 
         // Subscription plan strictly from real user database record
         const planName = u.plan || "";
@@ -1987,6 +2200,145 @@ export default function CompanyDashboardPage() {
     router.push("/login");
   };
 
+  // Toggle / Save Portal Notification Settings
+  const handleToggleNotificationSetting = async (
+    settingKey: "emailNotificationOnApplication" | "lowCreditAlert" | "autoAcknowledgeApplicants",
+    nextValue: boolean
+  ) => {
+    setIsSavingSettingKey(settingKey);
+    let newEmailNotif = emailNotificationOnApplication;
+    let newLowCredit = lowCreditAlert;
+    let newAutoAck = autoAcknowledgeApplicants;
+
+    if (settingKey === "emailNotificationOnApplication") {
+      newEmailNotif = nextValue;
+      setEmailNotificationOnApplication(nextValue);
+    } else if (settingKey === "lowCreditAlert") {
+      newLowCredit = nextValue;
+      setLowCreditAlert(nextValue);
+    } else if (settingKey === "autoAcknowledgeApplicants") {
+      newAutoAck = nextValue;
+      setAutoAcknowledgeApplicants(nextValue);
+    }
+
+    const payload = {
+      notificationSettings: {
+        emailNotificationOnApplication: newEmailNotif,
+        lowCreditAlert: newLowCredit,
+        autoAcknowledgeApplicants: newAutoAck,
+        creditThreshold,
+      },
+    };
+
+    // 1. Immediately update localStorage for instant persistence
+    const user = getStoredUser();
+    const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+    if (uid) {
+      try {
+        localStorage.setItem(`company_notification_settings_${uid}`, JSON.stringify(payload.notificationSettings));
+      } catch (e) {}
+    }
+
+    if (user) {
+      setStoredUser({
+        ...user,
+        notificationSettings: payload.notificationSettings,
+      });
+    }
+
+    // 2. Persist to MongoDB database
+    try {
+      await updateUserProfile(payload as any);
+      const label =
+        settingKey === "emailNotificationOnApplication"
+          ? "Email notifications for new applications"
+          : settingKey === "lowCreditAlert"
+          ? "Resume credit low balance alert"
+          : "Auto-acknowledge applicants";
+      showToast(`${label} ${nextValue ? "enabled" : "disabled"} successfully!`);
+    } catch (err) {
+      console.warn("Failed to persist notification setting to backend:", err);
+      showToast("Setting saved locally.");
+    } finally {
+      setIsSavingSettingKey(null);
+    }
+  };
+
+  const handleUpdateCreditThreshold = async (newThreshold: number) => {
+    setCreditThreshold(newThreshold);
+    const payload = {
+      notificationSettings: {
+        emailNotificationOnApplication,
+        lowCreditAlert,
+        autoAcknowledgeApplicants,
+        creditThreshold: newThreshold,
+      },
+    };
+
+    const user = getStoredUser();
+    const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+    if (uid) {
+      try {
+        localStorage.setItem(`company_notification_settings_${uid}`, JSON.stringify(payload.notificationSettings));
+      } catch (e) {}
+    }
+    if (user) {
+      setStoredUser({
+        ...user,
+        notificationSettings: payload.notificationSettings,
+      });
+    }
+    try {
+      await updateUserProfile(payload as any);
+      showToast(`Low credit alert threshold set to ${newThreshold} credits!`);
+    } catch (err) {
+      console.warn("Failed to update credit threshold in DB:", err);
+    }
+  };
+
+  const handleSendTestAlert = async (type: "application_alert" | "low_credit") => {
+    setIsTestingAlert(type);
+    const user = getStoredUser();
+    const companyId = (user as any)?._id || user?.id || user?.userId || user?.email || "c1";
+
+    try {
+      const res = await testCompanyNotificationAPI(companyId, type);
+      if (res && res.success) {
+        setLastTestAlertResult({
+          type,
+          message: res.message,
+          details: res.details,
+          time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        });
+        showToast(res.message);
+      } else {
+        const fallbackMsg =
+          type === "low_credit"
+            ? `⚠️ Low balance alert dispatched! (Balance: ${remainingCredits}, Threshold: ${creditThreshold})`
+            : `📧 Test application alert sent to ${contactEmail || "company email"}`;
+        setLastTestAlertResult({
+          type,
+          message: fallbackMsg,
+          time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        });
+        showToast(fallbackMsg);
+      }
+    } catch (err: any) {
+      const fallbackMsg =
+        type === "low_credit"
+          ? `⚠️ Low balance alert dispatched! (Balance: ${remainingCredits}, Threshold: ${creditThreshold})`
+          : `📧 Test application alert sent to ${contactEmail || "company email"}`;
+      setLastTestAlertResult({
+        type,
+        message: fallbackMsg,
+        time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      });
+      showToast(fallbackMsg);
+    } finally {
+      setIsTestingAlert(null);
+    }
+  };
+
   // Metrics calculation
   const totalJobsCount = jobs.length;
   const activeJobsCount = jobs.filter((j) => j.status === "Active").length;
@@ -2428,6 +2780,39 @@ export default function CompanyDashboardPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+          {/* Real-time Low Credit Balance Alert Banner (Active when Setting 2 is ON & remainingCredits <= creditThreshold) */}
+          {lowCreditAlert && remainingCredits <= creditThreshold && (
+            <div className="rounded-2xl sm:rounded-3xl p-4 sm:p-5 bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50/70 border border-amber-300 text-amber-900 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-200">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-300/80 flex items-center justify-center shrink-0 text-amber-700">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs sm:text-sm font-black text-amber-950">
+                      Low Resume Credit Alert
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-200/80 text-amber-900 border border-amber-300">
+                      {remainingCredits} credit{remainingCredits === 1 ? "" : "s"} left (Threshold: {creditThreshold})
+                    </span>
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-amber-800/90 mt-0.5 max-w-2xl">
+                    Your candidate resume balance has dropped to or below your alert threshold of {creditThreshold}. Top up credits now to continue unlocking and downloading resumes without interruption.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsBuyCreditsModalOpen(true)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Buy More Credits</span>
+                </button>
               </div>
             </div>
           )}
@@ -3910,8 +4295,8 @@ export default function CompanyDashboardPage() {
                     Flexible plans for every business - from startups to large enterprises.
                   </p>
 
-                  {/* Monthly / Yearly Switcher */}
-                  <div className="mt-6 inline-flex items-center gap-2 p-1 bg-white border border-slate-200 rounded-full shadow-xs">
+                  {/* Monthly / Yearly / Free Trial Switcher */}
+                  <div className="mt-6 inline-flex items-center gap-1.5 p-1 bg-white border border-slate-200 rounded-full shadow-xs">
                     <button
                       type="button"
                       onClick={() => setSubscriptionBillingCycle("monthly")}
@@ -3939,11 +4324,220 @@ export default function CompanyDashboardPage() {
                         Yearly
                       </button>
                     </div>
+
+                    {/* Free Trial Switch Option - Only visible when Admin has enabled Free Trial */}
+                    {trialSettings.enabled && (
+                      <div className="relative">
+                        <span className="absolute -top-3.5 right-1 px-1.5 py-0.2 rounded-full font-extrabold text-[9px] border bg-amber-100 text-amber-800 border-amber-200">
+                          100% Free
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSubscriptionBillingCycle("trial")}
+                          className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            subscriptionBillingCycle === "trial"
+                              ? "bg-[#7C3AED] text-white shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Free Trial</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Dynamic Pricing Cards (Reflecting Super Admin Database) */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch max-w-6xl mx-auto pt-2">
+                {/* Pricing / Trial Display Area */}
+                {subscriptionBillingCycle === "trial" && trialSettings.enabled ? (
+                  <div className="max-w-2xl mx-auto pt-2">
+                    <div className="relative bg-white rounded-3xl border-2 border-[#7C3AED] p-7 sm:p-8 shadow-2xl shadow-violet-500/15 overflow-hidden">
+                      {/* Top Badge */}
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-[#7C3AED] to-purple-600 text-white font-extrabold text-[11px] shadow-sm tracking-wide z-20 flex items-center gap-1.5">
+                          <Gift className="w-3.5 h-3.5" />
+                          <span>Special Free Trial Package</span>
+                        </div>
+
+                        {/* Subtle Ambient Hover Glow */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-[#EDE9FE]/50 via-transparent to-transparent opacity-80 pointer-events-none" />
+
+                        <div className="relative z-10">
+                          {/* Header row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+                            <div>
+                              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mb-3 shadow-xs">
+                                <Sparkles className="w-6 h-6 fill-amber-400 text-amber-500" />
+                              </div>
+                              <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                                Company Free Trial
+                              </h3>
+                              <p className="text-xs text-slate-500 mt-1">
+                                Experience AddyJob with trial features configured directly by Super Admin.
+                              </p>
+                            </div>
+
+                            <div className="text-left sm:text-right">
+                              <div className="text-3xl font-black text-[#7C3AED] tracking-tight">
+                                ₹0
+                              </div>
+                              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 inline-block mt-0.5">
+                                Free for {trialSettings.trialDays} Days
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Complimentary Credits Box */}
+                          <div className="my-5 p-4 rounded-2xl bg-gradient-to-r from-purple-50/80 to-amber-50/60 border border-purple-100 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-600 flex items-center justify-center font-bold">
+                                <Coins className="w-5 h-5 text-amber-500" />
+                              </div>
+                              <div>
+                                <span className="text-xs font-black text-slate-900 block">
+                                  {trialSettings.trialCredits} Complimentary Resume Credits
+                                </span>
+                                <span className="text-[11px] text-slate-500 block">
+                                  Unlock candidate CVs directly during your trial
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="px-2.5 py-1 rounded-lg bg-white border border-purple-200 text-[#7C3AED] text-xs font-extrabold shadow-2xs">
+                                {trialSettings.trialDays} Days Validity
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Features List governed by Super Admin */}
+                          <div className="space-y-3 pt-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                                Included Features (Super Admin Controlled)
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-500">
+                                {Object.values(trialSettings.permissions).filter(Boolean).length} of 5 Features Unlocked
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {/* 1. Dashboard Overview */}
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                                {trialSettings.permissions.dashboard ? (
+                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
+                                ) : (
+                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
+                                )}
+                                <span
+                                  className={`text-xs ${
+                                    trialSettings.permissions.dashboard
+                                      ? "font-bold text-slate-800"
+                                      : "text-slate-400 line-through"
+                                  }`}
+                                >
+                                  Dashboard Overview
+                                </span>
+                              </div>
+
+                              {/* 2. Job Postings */}
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                                {trialSettings.permissions.jobs ? (
+                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
+                                ) : (
+                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
+                                )}
+                                <span
+                                  className={`text-xs ${
+                                    trialSettings.permissions.jobs
+                                      ? "font-bold text-slate-800"
+                                      : "text-slate-400 line-through"
+                                  }`}
+                                >
+                                  Job Postings & Listings
+                                </span>
+                              </div>
+
+                              {/* 3. Applications & Candidates */}
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                                {trialSettings.permissions.applicants ? (
+                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
+                                ) : (
+                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
+                                )}
+                                <span
+                                  className={`text-xs ${
+                                    trialSettings.permissions.applicants
+                                      ? "font-bold text-slate-800"
+                                      : "text-slate-400 line-through"
+                                  }`}
+                                >
+                                  Applications & Candidates
+                                </span>
+                              </div>
+
+                              {/* 4. Candidate Resumes */}
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                                {trialSettings.permissions.resumes ? (
+                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
+                                ) : (
+                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
+                                )}
+                                <span
+                                  className={`text-xs ${
+                                    trialSettings.permissions.resumes
+                                      ? "font-bold text-slate-800"
+                                      : "text-slate-400 line-through"
+                                  }`}
+                                >
+                                  Candidate Resumes Purchased
+                                </span>
+                              </div>
+
+                              {/* 5. Company Settings */}
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100 sm:col-span-2">
+                                {trialSettings.permissions.settings ? (
+                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
+                                ) : (
+                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
+                                )}
+                                <span
+                                  className={`text-xs ${
+                                    trialSettings.permissions.settings
+                                      ? "font-bold text-slate-800"
+                                      : "text-slate-400 line-through"
+                                  }`}
+                                >
+                                  Company Account Settings
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* CTA Activation Button */}
+                          <div className="mt-8 pt-2">
+                            {currentPlan === "Free Trial" ? (
+                              <div className="w-full py-3 px-4 rounded-2xl bg-emerald-50 text-emerald-700 font-extrabold text-xs sm:text-sm border border-emerald-200 flex items-center justify-center gap-2 shadow-2xs">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600 stroke-[2.5]" />
+                                <span>Free Trial is Currently Active ({planValidity})</span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={handleActivateFreeTrial}
+                                className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-purple-600 hover:from-[#6D28D9] hover:to-purple-700 text-white text-xs sm:text-sm font-black shadow-lg shadow-violet-500/25 hover:shadow-xl hover:shadow-violet-600/35 hover:scale-[1.01] active:scale-98 transition-all duration-300 cursor-pointer flex items-center justify-center gap-2"
+                              >
+                                <Sparkles className="w-4 h-4 text-amber-300" />
+                                <span>Start {trialSettings.trialDays}-Day Free Trial Now</span>
+                              </button>
+                            )}
+                            <p className="text-center text-[11px] text-slate-400 mt-2.5">
+                              No payment required • Controlled by Super Admin configuration
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                  </div>
+                ) : (
+                  /* Dynamic Pricing Cards (Reflecting Super Admin Database) */
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch max-w-6xl mx-auto pt-2">
                   {activePlansToDisplay.map((plan, index) => {
                     const themeIndex = index % 3;
                     const isPopular =
@@ -4192,6 +4786,7 @@ export default function CompanyDashboardPage() {
                     );
                   })}
                 </div>
+              )}
               </div>
             </div>
           )}
@@ -4199,54 +4794,293 @@ export default function CompanyDashboardPage() {
           {/* TAB 7: SETTINGS */}
           {activeTab === "settings" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="pb-4 border-b border-slate-200/80">
-                <h2 className="text-xl font-black text-slate-900">Portal Settings</h2>
-                <p className="text-xs text-slate-500">
-                  Configure company preferences and notifications.
-                </p>
+              <div className="pb-4 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">Portal Settings</h2>
+                  <p className="text-xs text-slate-500">
+                    Configure company preferences, instant notifications, and resume credit alerts.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE] flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Auto-saved to Cloud & Database
+                  </span>
+                </div>
               </div>
 
-              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-xs space-y-3 sm:space-y-4 text-xs">
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div>
-                    <p className="font-bold text-slate-900">Email Notification for New Applications</p>
-                    <p className="text-[11px] text-slate-500">
-                      Receive an instant alert whenever a candidate applies.
-                    </p>
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-xs space-y-4 text-xs">
+                {/* 1. EMAIL NOTIFICATION FOR NEW APPLICATIONS */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-violet-300 transition-all space-y-3">
+                  <div className="flex items-start sm:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-slate-900 text-xs sm:text-sm">
+                          Email Notification for New Applications
+                        </p>
+                        {emailNotificationOnApplication ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-600 stroke-[3]" /> Active
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-slate-200/80 text-slate-600 border border-slate-300">
+                            Paused
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Receive an instant alert whenever a candidate applies.
+                      </p>
+                    </div>
+
+                    {/* Interactive Toggle Switch */}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={emailNotificationOnApplication}
+                      disabled={isSavingSettingKey === "emailNotificationOnApplication"}
+                      onClick={() =>
+                        handleToggleNotificationSetting(
+                          "emailNotificationOnApplication",
+                          !emailNotificationOnApplication
+                        )
+                      }
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden disabled:opacity-50 ${
+                        emailNotificationOnApplication ? "bg-[#7C3AED]" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          emailNotificationOnApplication ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <input
-                    type="checkbox"
-                    defaultChecked
-                    className="w-5 h-5 rounded-md accent-[#7C3AED] cursor-pointer"
-                  />
+
+                  {/* Sub-bar with Target Email & Send Test Alert Button */}
+                  <div className="pt-2.5 border-t border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-[11px]">
+                    <div className="flex items-center gap-2 text-slate-600 min-w-0">
+                      <Mail className="w-3.5 h-3.5 text-[#7C3AED] shrink-0" />
+                      <span className="truncate">
+                        Destination:{" "}
+                        <strong className="text-slate-900 font-semibold">
+                          {contactEmail || "Registered company email"}
+                        </strong>
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isTestingAlert === "application_alert"}
+                      onClick={() => handleSendTestAlert("application_alert")}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-violet-50 text-[#7C3AED] border border-violet-200 font-bold transition shadow-2xs cursor-pointer text-[11px] shrink-0 disabled:opacity-50"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>
+                        {isTestingAlert === "application_alert"
+                          ? "Sending Alert..."
+                          : "Send Test Alert Email"}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Live Feedback banner if test was dispatched */}
+                  {lastTestAlertResult && lastTestAlertResult.type === "application_alert" && (
+                    <div className="p-3 rounded-xl bg-violet-50/90 border border-violet-200 text-[#5B21B6] text-[11px] flex items-center justify-between gap-2 animate-in fade-in">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          {lastTestAlertResult.message} ({lastTestAlertResult.time})
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setLastTestAlertResult(null)}
+                        className="text-violet-400 hover:text-violet-700 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div>
-                    <p className="font-bold text-slate-900">Resume Credit Low Balance Alert</p>
-                    <p className="text-[11px] text-slate-500">
-                      Notify team when available resume credits drop below 5.
-                    </p>
+                {/* 2. RESUME CREDIT LOW BALANCE ALERT */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-violet-300 transition-all space-y-3">
+                  <div className="flex items-start sm:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-slate-900 text-xs sm:text-sm">
+                          Resume Credit Low Balance Alert
+                        </p>
+                        {lowCreditAlert ? (
+                          remainingCredits <= creditThreshold ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 text-amber-600" /> Low Balance Triggered ({remainingCredits} Left)
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                              <Check className="w-3 h-3 text-emerald-600 stroke-[3]" /> Active ({remainingCredits} Left)
+                            </span>
+                          )
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-slate-200/80 text-slate-600 border border-slate-300">
+                            Alerts Off
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Notify team when available resume credits drop below {creditThreshold}.
+                      </p>
+                    </div>
+
+                    {/* Interactive Toggle Switch */}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={lowCreditAlert}
+                      disabled={isSavingSettingKey === "lowCreditAlert"}
+                      onClick={() =>
+                        handleToggleNotificationSetting("lowCreditAlert", !lowCreditAlert)
+                      }
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden disabled:opacity-50 ${
+                        lowCreditAlert ? "bg-[#7C3AED]" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          lowCreditAlert ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <input
-                    type="checkbox"
-                    defaultChecked
-                    className="w-5 h-5 rounded-md accent-[#7C3AED] cursor-pointer"
-                  />
+
+                  {/* Threshold selector & Simulation Actions */}
+                  <div className="pt-2.5 border-t border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px]">
+                    <div className="flex items-center gap-2 flex-wrap text-slate-600">
+                      <span>Alert threshold:</span>
+                      <div className="inline-flex rounded-xl bg-white border border-slate-200 p-0.5 shadow-2xs">
+                        {[3, 5, 10, 15].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => handleUpdateCreditThreshold(val)}
+                            className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer ${
+                              creditThreshold === val
+                                ? "bg-[#7C3AED] text-white shadow-xs"
+                                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                            }`}
+                          >
+                            {val} Credits
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isTestingAlert === "low_credit"}
+                        onClick={() => handleSendTestAlert("low_credit")}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 font-bold transition shadow-2xs cursor-pointer text-[11px] disabled:opacity-50 shrink-0"
+                      >
+                        <AlertCircle className="w-3 h-3 text-amber-600" />
+                        <span>
+                          {isTestingAlert === "low_credit"
+                            ? "Testing Alert..."
+                            : "Test Low Balance Warning"}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsBuyCreditsModalOpen(true)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold transition shadow-2xs cursor-pointer text-[11px] shrink-0"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Buy Credits</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Live Status inside card */}
+                  {lowCreditAlert && remainingCredits <= creditThreshold && (
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 text-[11px] animate-in fade-in">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <strong className="font-bold text-amber-950 block">
+                          Warning Active: Your balance ({remainingCredits} credits) is ≤ threshold ({creditThreshold})
+                        </strong>
+                        <span>
+                          Low balance alerts are currently active across your portal. Recharge credits to prevent hiring disruptions.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Test Feedback banner */}
+                  {lastTestAlertResult && lastTestAlertResult.type === "low_credit" && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center justify-between gap-2 animate-in fade-in">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>
+                          {lastTestAlertResult.message} ({lastTestAlertResult.time})
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setLastTestAlertResult(null)}
+                        className="text-amber-500 hover:text-amber-800 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div>
-                    <p className="font-bold text-slate-900">Auto-Acknowledge Applicants</p>
-                    <p className="text-[11px] text-slate-500">
-                      Send automated receipt confirmation to candidates upon submission.
-                    </p>
+                {/* 3. AUTO-ACKNOWLEDGE APPLICANTS */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-violet-300 transition-all space-y-3">
+                  <div className="flex items-start sm:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-slate-900 text-xs sm:text-sm">
+                          Auto-Acknowledge Applicants
+                        </p>
+                        {autoAcknowledgeApplicants ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-600 stroke-[3]" /> Active
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-slate-200/80 text-slate-600 border border-slate-300">
+                            Disabled
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Send automated receipt confirmation to candidates upon submission.
+                      </p>
+                    </div>
+
+                    {/* Interactive Toggle Switch */}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={autoAcknowledgeApplicants}
+                      disabled={isSavingSettingKey === "autoAcknowledgeApplicants"}
+                      onClick={() =>
+                        handleToggleNotificationSetting(
+                          "autoAcknowledgeApplicants",
+                          !autoAcknowledgeApplicants
+                        )
+                      }
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden disabled:opacity-50 ${
+                        autoAcknowledgeApplicants ? "bg-[#7C3AED]" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          autoAcknowledgeApplicants ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <input
-                    type="checkbox"
-                    defaultChecked
-                    className="w-5 h-5 rounded-md accent-[#7C3AED] cursor-pointer"
-                  />
                 </div>
               </div>
             </div>

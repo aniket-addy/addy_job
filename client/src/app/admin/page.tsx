@@ -33,6 +33,7 @@ import MobileBottomNav from "@/components/admin/MobileBottomNav";
 import PlansPricingManager, { PlanItem } from "@/components/admin/PlansPricingManager";
 import PermissionsSettingsManager from "@/components/admin/PermissionsSettingsManager";
 import JobSeekersManager from "@/components/admin/JobSeekersManager";
+import ReportsManager from "@/components/admin/ReportsManager";
 import {
   getStoredUser,
   fetchAdminOverview,
@@ -559,22 +560,42 @@ export default function SuperAdminPage() {
               />
             )}
 
-            {/* Payments & Reports View */}
-            {(activeTab === "payments" || activeTab === "reports") && (
+            {/* Super Admin Reports & Analytics Page */}
+            {activeTab === "reports" && (
+              <ReportsManager
+                overviewStats={overviewStats}
+                companies={allCompanies}
+                jobs={jobs}
+                applications={applications}
+                jobSeekers={jobSeekers}
+                plans={plans}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+                onRefresh={loadDatabaseData}
+              />
+            )}
+
+            {/* Payments Management View */}
+            {activeTab === "payments" && (
               <div className="bg-white rounded-2xl p-8 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] text-center space-y-3">
                 <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
                   <Sparkles className="w-6 h-6" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 capitalize">
-                  {activeTab} Management
+                  Payments & Subscriptions Management
                 </h3>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Detailed analytics, transaction history, and system audit logs are automatically synced and aggregated from platform telemetry.
+                  Detailed transaction history, gateway logs, and subscription billing records are synchronized with platform billing engines.
                 </p>
-                <div className="pt-2">
+                <div className="pt-2 flex justify-center gap-3">
+                  <button
+                    onClick={() => setActiveTab("reports")}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 cursor-pointer"
+                  >
+                    View Financial Analytics
+                  </button>
                   <button
                     onClick={() => setActiveTab("dashboard")}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700"
+                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-200 cursor-pointer"
                   >
                     Return to Super Admin Dashboard
                   </button>

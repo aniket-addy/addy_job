@@ -100,9 +100,9 @@ const formatUser = (user: IUser) => {
     tagline: user.tagline || '',
     website: user.website || '',
     aboutCompany: user.aboutCompany || '',
-    logo: user.logo || user.profileImage || '',
-    profileImage: user.profileImage || user.logo || '',
-    bannerImage: user.bannerImage || '',
+    logo: (user.logo && user.logo.length > 50000) ? '' : (user.logo || user.profileImage || ''),
+    profileImage: (user.profileImage && user.profileImage.length > 50000) ? '' : (user.profileImage || user.logo || ''),
+    bannerImage: (user.bannerImage && user.bannerImage.length > 50000) ? '' : (user.bannerImage || ''),
     culture: user.culture || [],
     perks: user.perks || [],
     status: user.status || 'Pending',
@@ -132,10 +132,17 @@ const formatUser = (user: IUser) => {
           skills: r.skills,
           isUnlocked: r.isUnlocked,
           unlockedAt: r.unlockedAt,
+          pdfData: undefined,
         }))
       : [],
     resumeCredits: user.resumeCredits ?? 0,
     resumesUsed: user.resumesUsed ?? 0,
+    notificationSettings: user.notificationSettings || {
+      emailNotificationOnApplication: true,
+      lowCreditAlert: true,
+      autoAcknowledgeApplicants: true,
+      creditThreshold: 5,
+    },
     createdAt: user.createdAt,
   };
 };
@@ -381,8 +388,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Dedicated Super Admin check for sadmin@gmail.com or admin@careerconnect.com
-    if (normalizedEmail === 'sadmin@gmail.com' || normalizedEmail === 'admin@careerconnect.com') {
+    // Dedicated Super Admin check for sadmin@gmail.com
+    if (normalizedEmail === 'sadmin@gmail.com') {
       if (password !== 'Sadmin123') {
         res.status(401).json({
           success: false,
@@ -696,6 +703,17 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     if (req.body.purchasedResumes !== undefined) user.purchasedResumes = req.body.purchasedResumes;
     if (req.body.resumeCredits !== undefined) user.resumeCredits = req.body.resumeCredits;
     if (req.body.resumesUsed !== undefined) user.resumesUsed = req.body.resumesUsed;
+    if (req.body.notificationSettings !== undefined) {
+      user.notificationSettings = {
+        ...(user.notificationSettings || {
+          emailNotificationOnApplication: true,
+          lowCreditAlert: true,
+          autoAcknowledgeApplicants: true,
+          creditThreshold: 5,
+        }),
+        ...req.body.notificationSettings,
+      };
+    }
 
     await user.save();
 

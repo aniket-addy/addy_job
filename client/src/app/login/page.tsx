@@ -46,7 +46,7 @@ export default function LoginPage() {
       try {
         setAuthSession(res.token, res.user);
       } catch (storageErr) {
-        console.warn("Storage warning during login:", storageErr);
+        console.warn("Session storage warning during login:", storageErr);
       }
 
       setTimeout(() => {

@@ -24,13 +24,15 @@ import {
   deleteAdminJobSeeker,
   sendBulkResumesToCompany,
   getAdminNotifications,
+  getAdminReports,
 } from '../controllers/admin.controller.js';
 
 const router = Router();
 
-// Overview stats & real notifications
+// Overview stats, notifications & Reports
 router.get('/overview', getAdminOverview);
 router.get('/notifications', getAdminNotifications);
+router.get('/reports', getAdminReports);
 
 // Companies management
 router.get('/companies', getAdminCompanies);
