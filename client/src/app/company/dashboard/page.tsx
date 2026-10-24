@@ -1249,9 +1249,16 @@ export default function CompanyDashboardPage() {
         const uid = u._id || u.id || u.userId || u.email;
         const cName = u.companyName || u.name || "";
 
-        // Read stored profile data with fallbacks (scoped by user ID, email, name, or global)
+        // Read stored profile data with fallbacks (scoped strictly by user ID, email, or company name)
         let parsed: any = {};
         if (typeof window !== "undefined") {
+          try {
+            const rawGlobal = localStorage.getItem("company_profile_data");
+            if (rawGlobal && (rawGlobal.includes("sadmin@gmail.com") || rawGlobal.includes("Super Admin"))) {
+              localStorage.removeItem("company_profile_data");
+            }
+          } catch (e) {}
+
           const keys = [
             uid ? `company_profile_data_${uid}` : null,
             u.id ? `company_profile_data_${u.id}` : null,
@@ -1259,16 +1266,21 @@ export default function CompanyDashboardPage() {
             u.email ? `company_profile_data_${u.email}` : null,
             cName ? `company_profile_data_${cName.toLowerCase().trim()}` : null,
             cName ? `company_profile_data_${cName.toLowerCase().replace(/\s+/g, "-")}` : null,
-            "company_profile_data",
           ].filter(Boolean) as string[];
 
           for (const k of keys) {
             const raw = localStorage.getItem(k);
             if (raw) {
               try {
-                parsed = { ...JSON.parse(raw), ...parsed };
+                parsed = { ...parsed, ...JSON.parse(raw) };
               } catch (e) {}
             }
+          }
+
+          if (parsed.companyName === "Super Admin" || parsed.contactEmail === "sadmin@gmail.com") {
+            delete parsed.companyName;
+            delete parsed.contactEmail;
+            delete parsed.profileImage;
           }
         }
 
@@ -1513,10 +1525,30 @@ export default function CompanyDashboardPage() {
 
       const user = getStoredUser();
       if (user) {
+        if (user.email === "sadmin@gmail.com") {
+          clearAuthSession();
+          router.push("/login");
+          return;
+        }
+        if (user.role === "admin") {
+          router.push("/admin");
+          return;
+        }
         applyUserData(user);
       }
       fetchCurrentUser().then((fresh) => {
-        if (fresh) applyUserData(fresh);
+        if (fresh) {
+          if (fresh.email === "sadmin@gmail.com") {
+            clearAuthSession();
+            router.push("/login");
+            return;
+          }
+          if (fresh.role === "admin") {
+            router.push("/admin");
+            return;
+          }
+          applyUserData(fresh);
+        }
       });
 
       const handleVaultSync = () => {
@@ -4350,16 +4382,16 @@ export default function CompanyDashboardPage() {
 
                 {/* Pricing / Trial Display Area */}
                 {subscriptionBillingCycle === "trial" && trialSettings.enabled ? (
-                  <div className="max-w-2xl mx-auto pt-2">
-                    <div className="relative bg-white rounded-3xl border-2 border-[#7C3AED] p-7 sm:p-8 shadow-2xl shadow-violet-500/15 overflow-hidden">
+                  <div className="max-w-2xl mx-auto pt-4 sm:pt-6">
+                    <div className="relative bg-white rounded-3xl border-2 border-[#7C3AED] p-7 sm:p-8 shadow-2xl shadow-violet-500/15 overflow-visible">
                       {/* Top Badge */}
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-[#7C3AED] to-purple-600 text-white font-extrabold text-[11px] shadow-sm tracking-wide z-20 flex items-center gap-1.5">
-                          <Gift className="w-3.5 h-3.5" />
-                          <span>Special Free Trial Package</span>
-                        </div>
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-[#7C3AED] to-purple-600 text-white font-extrabold text-[11px] shadow-md tracking-wide z-20 flex items-center gap-1.5 whitespace-nowrap">
+                        <Gift className="w-3.5 h-3.5" />
+                        <span>Special Free Trial Package</span>
+                      </div>
 
-                        {/* Subtle Ambient Hover Glow */}
-                        <div className="absolute inset-0 bg-gradient-to-b from-[#EDE9FE]/50 via-transparent to-transparent opacity-80 pointer-events-none" />
+                      {/* Subtle Ambient Hover Glow */}
+                      <div className="absolute inset-0 rounded-3xl bg-gradient-to-b from-[#EDE9FE]/50 via-transparent to-transparent opacity-80 pointer-events-none" />
 
                         <div className="relative z-10">
                           {/* Header row */}

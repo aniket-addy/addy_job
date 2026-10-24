@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import dns from 'node:dns';
-import { User } from '../models/user.model.js';
 
 try {
   dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -33,31 +32,7 @@ const bindConnectionListeners = () => {
   });
 };
 
-const seedSuperAdmin = async () => {
-  try {
-    const adminEmail = 'sadmin@gmail.com';
-    let admin = await User.findOne({ email: adminEmail });
-    if (!admin) {
-      admin = new User({
-        email: adminEmail,
-        password: 'Sadmin123',
-        name: 'Super Admin',
-        role: 'admin',
-        status: 'Approved',
-      });
-      await admin.save();
-      console.log('👑 Super Admin account initialized in database: sadmin@gmail.com');
-    } else {
-      admin.role = 'admin';
-      admin.name = 'Super Admin';
-      admin.password = 'Sadmin123';
-      await admin.save();
-      console.log('👑 Super Admin credentials synchronized in database: sadmin@gmail.com');
-    }
-  } catch (err: any) {
-    console.error('Error seeding super admin:', err.message);
-  }
-};
+// Auto-seeding of hardcoded sadmin@gmail.com removed
 
 export const connectDB = async () => {
   if (mongoose.connection.readyState === 1) {
@@ -84,7 +59,6 @@ export const connectDB = async () => {
       family: 4, // Force IPv4 to prevent Windows DNS IPv6 resolution timeouts on Atlas
     });
     console.log(`✅ MongoDB Connected successfully: ${conn.connection.host} (DB: ${conn.connection.name})`);
-    await seedSuperAdmin();
   } catch (error: any) {
     console.error(`❌ MongoDB connection error: ${error.message}`);
   } finally {

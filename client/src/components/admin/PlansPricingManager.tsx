@@ -222,9 +222,6 @@ export default function PlansPricingManager({
             </button>
           </div>
         </div>
-        <p className="text-[11px] text-slate-400 mt-2 font-medium">
-          Showing <span className="font-bold text-[#7C3AED] capitalize">{billingCycleView}</span> plans ({displayedPlans.length} active in MongoDB)
-        </p>
       </div>
 
       {/* Plans Grid (1:1 Matching Employer Signup Card Themes from Image 2) */}

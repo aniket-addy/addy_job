@@ -15,7 +15,6 @@ const profilesFolder = path.join(__dirname, '../database/profiles');
 async function runCleanup() {
   console.log('🚀 Starting credentials cleanup...');
   console.log('Preserving:');
-  console.log(' - Super Admin: sadmin@gmail.com');
   console.log(' - Google (Company): cp2@gmail.com / C102600001');
 
   const client = new MongoClient(uri);
@@ -33,7 +32,7 @@ async function runCleanup() {
   console.log('Found Google company user in DB:', googleUser ? { email: googleUser.email, companyName: googleUser.companyName, userId: googleUserId } : 'NOT FOUND');
 
   const usersDeleteRes = await usersCollection.deleteMany({
-    email: { $nin: ['sadmin@gmail.com', 'cp2@gmail.com'] }
+    email: { $ne: 'cp2@gmail.com' }
   });
   console.log(`✅ Deleted ${usersDeleteRes.deletedCount} non-whitelisted users from 'users' collection.`);
 

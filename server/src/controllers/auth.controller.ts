@@ -388,38 +388,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Dedicated Super Admin check for sadmin@gmail.com
-    if (normalizedEmail === 'sadmin@gmail.com') {
-      if (password !== 'Sadmin123') {
-        res.status(401).json({
-          success: false,
-          message: 'Invalid password for Super Admin. Please check credentials.',
-        });
-        return;
-      }
 
-      let admin = await User.findOne({ email: 'sadmin@gmail.com' });
-      if (!admin) {
-        admin = new User({
-          email: 'sadmin@gmail.com',
-          password: 'Sadmin123',
-          name: 'Super Admin',
-          role: 'admin',
-          status: 'Approved',
-        });
-        await admin.save();
-      }
-
-      const adminToken = generateToken(admin);
-
-      res.status(200).json({
-        success: true,
-        message: 'Super Admin authenticated successfully!',
-        token: adminToken,
-        user: formatUser(admin),
-      });
-      return;
-    }
 
     // Find user in database by email OR customId / userId (e.g. JS102600001, C102600001, us01)
     const user = await User.findOne({
@@ -501,10 +470,7 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     const decoded: any = jwt.verify(token, JWT_SECRET);
 
     if (decoded.role === 'admin') {
-      let admin = await User.findById(decoded.id).select('-password');
-      if (!admin) {
-        admin = await User.findOne({ email: 'sadmin@gmail.com' }).select('-password');
-      }
+      const admin = await User.findById(decoded.id).select('-password');
       if (admin) {
         res.status(200).json({
           success: true,

@@ -321,80 +321,82 @@ export default function JobSeekersManager({
     setFilter("ALL");
   };
 
-  const filteredCandidates = jobSeekers.filter((c) => {
-    // 1. Status Filter Pills
-    if (filter === "WITH_RESUME" && !c.resumeName) return false;
-    if (filter === "NO_RESUME" && c.resumeName) return false;
-    if (filter === "FRESHER") {
-      const exp = (c.experience || "").toLowerCase();
-      if (!exp.includes("fresher") && !exp.includes("0 year") && exp !== "0") return false;
-    }
-    if (filter === "EXPERIENCED") {
-      const exp = (c.experience || "").toLowerCase();
-      if (exp.includes("fresher") || exp.includes("0 year") || exp === "0" || !exp) return false;
-    }
-
-    // 2. Role Filter
-    if (roleFilter !== "ALL") {
-      const rLower = roleFilter.toLowerCase().trim();
-      const targetRole = (c.targetRole || "").toLowerCase();
-      const headline = (c.headline || "").toLowerCase();
-      if (!targetRole.includes(rLower) && !headline.includes(rLower)) {
-        return false;
+  const filteredCandidates = useMemo(() => {
+    return jobSeekers.filter((c) => {
+      // 1. Status Filter Pills
+      if (filter === "WITH_RESUME" && !c.resumeName) return false;
+      if (filter === "NO_RESUME" && c.resumeName) return false;
+      if (filter === "FRESHER") {
+        const exp = (c.experience || "").toLowerCase();
+        if (!exp.includes("fresher") && !exp.includes("0 year") && exp !== "0") return false;
       }
-    }
+      if (filter === "EXPERIENCED") {
+        const exp = (c.experience || "").toLowerCase();
+        if (exp.includes("fresher") || exp.includes("0 year") || exp === "0" || !exp) return false;
+      }
 
-    // 3. Experience Filter
-    if (experienceFilter !== "ALL") {
-      const exp = (c.experience || "").toLowerCase().trim();
-      if (experienceFilter === "FRESHER") {
-        const isFresher = exp.includes("fresher") || exp.includes("0 year") || exp === "0" || !exp;
-        if (!isFresher) return false;
-      } else if (experienceFilter === "1-2") {
-        if (!exp.includes("1") && !exp.includes("2")) return false;
-      } else if (experienceFilter === "3-5") {
-        if (!exp.includes("3") && !exp.includes("4") && !exp.includes("5")) return false;
-      } else if (experienceFilter === "5-8") {
-        if (!exp.includes("5") && !exp.includes("6") && !exp.includes("7") && !exp.includes("8")) return false;
-      } else if (experienceFilter === "8+") {
-        if (
-          !exp.includes("8") &&
-          !exp.includes("9") &&
-          !exp.includes("10") &&
-          !exp.includes("lead") &&
-          !exp.includes("principal") &&
-          !exp.includes("senior")
-        )
+      // 2. Role Filter
+      if (roleFilter !== "ALL") {
+        const rLower = roleFilter.toLowerCase().trim();
+        const targetRole = (c.targetRole || "").toLowerCase();
+        const headline = (c.headline || "").toLowerCase();
+        if (!targetRole.includes(rLower) && !headline.includes(rLower)) {
           return false;
-      } else {
-        if (!exp.includes(experienceFilter.toLowerCase())) return false;
+        }
       }
-    }
 
-    // 4. Skills Filter
-    if (skillFilter !== "ALL") {
-      const sLower = skillFilter.toLowerCase().trim();
-      const hasSkill = (c.skills || []).some((s) => s.toLowerCase().includes(sLower));
-      if (!hasSkill) return false;
-    }
+      // 3. Experience Filter
+      if (experienceFilter !== "ALL") {
+        const exp = (c.experience || "").toLowerCase().trim();
+        if (experienceFilter === "FRESHER") {
+          const isFresher = exp.includes("fresher") || exp.includes("0 year") || exp === "0" || !exp;
+          if (!isFresher) return false;
+        } else if (experienceFilter === "1-2") {
+          if (!exp.includes("1") && !exp.includes("2")) return false;
+        } else if (experienceFilter === "3-5") {
+          if (!exp.includes("3") && !exp.includes("4") && !exp.includes("5")) return false;
+        } else if (experienceFilter === "5-8") {
+          if (!exp.includes("5") && !exp.includes("6") && !exp.includes("7") && !exp.includes("8")) return false;
+        } else if (experienceFilter === "8+") {
+          if (
+            !exp.includes("8") &&
+            !exp.includes("9") &&
+            !exp.includes("10") &&
+            !exp.includes("lead") &&
+            !exp.includes("principal") &&
+            !exp.includes("senior")
+          )
+            return false;
+        } else {
+          if (!exp.includes(experienceFilter.toLowerCase())) return false;
+        }
+      }
 
-    // 5. Keyword Search query
-    const q = search.toLowerCase().trim();
-    if (!q) return true;
+      // 4. Skills Filter
+      if (skillFilter !== "ALL") {
+        const sLower = skillFilter.toLowerCase().trim();
+        const hasSkill = (c.skills || []).some((s) => s.toLowerCase().includes(sLower));
+        if (!hasSkill) return false;
+      }
 
-    return (
-      c.name.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      (c.phone && c.phone.toLowerCase().includes(q)) ||
-      (c.headline && c.headline.toLowerCase().includes(q)) ||
-      (c.targetRole && c.targetRole.toLowerCase().includes(q)) ||
-      (c.location && c.location.toLowerCase().includes(q)) ||
-      (c.university && c.university.toLowerCase().includes(q)) ||
-      (c.course && c.course.toLowerCase().includes(q)) ||
-      (c.skills && c.skills.some((s) => s.toLowerCase().includes(q))) ||
-      (c.userId && c.userId.toLowerCase().includes(q))
-    );
-  });
+      // 5. Keyword Search query
+      const q = search.toLowerCase().trim();
+      if (!q) return true;
+
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        (c.phone && c.phone.toLowerCase().includes(q)) ||
+        (c.headline && c.headline.toLowerCase().includes(q)) ||
+        (c.targetRole && c.targetRole.toLowerCase().includes(q)) ||
+        (c.location && c.location.toLowerCase().includes(q)) ||
+        (c.university && c.university.toLowerCase().includes(q)) ||
+        (c.course && c.course.toLowerCase().includes(q)) ||
+        (c.skills && c.skills.some((s) => s.toLowerCase().includes(q))) ||
+        (c.userId && c.userId.toLowerCase().includes(q))
+      );
+    });
+  }, [jobSeekers, filter, roleFilter, experienceFilter, skillFilter, search]);
 
   const totalCount = jobSeekers.length;
   const withResumeCount = jobSeekers.filter((c) => Boolean(c.resumeName)).length;

@@ -148,7 +148,7 @@ function JobDetailPageContent() {
             if (fresh.resumeDate) setProfileResumeDate(fresh.resumeDate);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [isApplyModalOpen]);
 
@@ -185,8 +185,8 @@ function JobDetailPageContent() {
     ? Array.isArray(job.tags) && job.tags.length > 0
       ? job.tags
       : Array.isArray(job.skills)
-      ? job.skills
-      : []
+        ? job.skills
+        : []
     : [];
   const currentId = job ? job.id || job._id : "";
 
@@ -357,17 +357,15 @@ function JobDetailPageContent() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleToggleSave}
-              className={`p-2 rounded-xl border transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold ${
-                isSaved
-                  ? "bg-blue-50 border-blue-200 text-blue-600"
-                  : "border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-slate-50"
-              }`}
+              className={`p-2 rounded-xl border transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold ${isSaved
+                ? "bg-blue-50 border-blue-200 text-blue-600"
+                : "border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-slate-50"
+                }`}
               title={isSaved ? "Saved" : "Save Job"}
             >
               <Bookmark
-                className={`w-4 h-4 ${
-                  isSaved ? "fill-blue-600 text-blue-600" : ""
-                }`}
+                className={`w-4 h-4 ${isSaved ? "fill-blue-600 text-blue-600" : ""
+                  }`}
               />
               <span>{isSaved ? "Saved" : "Save Job"}</span>
             </button>
@@ -501,7 +499,7 @@ function JobDetailPageContent() {
                   </span>
                   <span className="text-slate-300">|</span>
                   <span>
-                    Applicants:{" "}
+                    <strong className="text-xs font-semibold text-slate-700 ">Applicants:</strong>{" "}
                     <strong className="font-semibold text-slate-800">
                       {job.applicants || "100+"}
                     </strong>
@@ -513,11 +511,10 @@ function JobDetailPageContent() {
                   <button
                     type="button"
                     onClick={handleToggleSave}
-                    className={`px-7 py-2 rounded-full border text-sm font-semibold transition cursor-pointer ${
-                      isSaved
-                        ? "bg-blue-50 border-blue-600 text-blue-600"
-                        : "bg-white border-blue-600 text-blue-600 hover:bg-blue-50"
-                    }`}
+                    className={`px-7 py-2 rounded-full border text-sm font-semibold transition cursor-pointer ${isSaved
+                      ? "bg-blue-50 border-blue-600 text-blue-600"
+                      : "bg-white border-blue-600 text-blue-600 hover:bg-blue-50"
+                      }`}
                   >
                     {isSaved ? "Saved" : "Save"}
                   </button>
@@ -844,11 +841,10 @@ function JobDetailPageContent() {
                               setResumeChoice("profile");
                               setResumeError("");
                             }}
-                            className={`font-semibold px-2 py-0.5 rounded-md transition cursor-pointer ${
-                              resumeChoice === "profile"
-                                ? "bg-blue-100 text-blue-700 font-bold"
-                                : "text-slate-500 hover:text-slate-800"
-                            }`}
+                            className={`font-semibold px-2 py-0.5 rounded-md transition cursor-pointer ${resumeChoice === "profile"
+                              ? "bg-blue-100 text-blue-700 font-bold"
+                              : "text-slate-500 hover:text-slate-800"
+                              }`}
                           >
                             Profile Resume
                           </button>
@@ -862,11 +858,10 @@ function JobDetailPageContent() {
                                 resumeInputRef.current?.click();
                               }
                             }}
-                            className={`font-semibold px-2 py-0.5 rounded-md transition cursor-pointer ${
-                              resumeChoice === "custom"
-                                ? "bg-blue-100 text-blue-700 font-bold"
-                                : "text-slate-500 hover:text-slate-800"
-                            }`}
+                            className={`font-semibold px-2 py-0.5 rounded-md transition cursor-pointer ${resumeChoice === "custom"
+                              ? "bg-blue-100 text-blue-700 font-bold"
+                              : "text-slate-500 hover:text-slate-800"
+                              }`}
                           >
                             Upload New
                           </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   X,
   Send,
@@ -84,10 +84,43 @@ export default function BulkSendResumesModal({
     }
   }, [isOpen, initialCompanies]);
 
-  // Initialize selected candidates based on default range (1 to 10 or total)
+  // Refs to prevent unexpected resets on background re-renders / intervals
+  const prevIsOpenRef = useRef(false);
+  const candidatesInitializedRef = useRef(false);
+
+  // Initialize selected candidates ONLY when modal opens, NOT on every re-render while open
   useEffect(() => {
-    if (isOpen && totalAvailable > 0) {
-      const end = Math.min(10, totalAvailable);
+    if (!isOpen) {
+      prevIsOpenRef.current = false;
+      candidatesInitializedRef.current = false;
+      return;
+    }
+
+    // Modal was freshly opened (isOpen transitioned from false to true)
+    if (!prevIsOpenRef.current) {
+      prevIsOpenRef.current = true;
+      setStep(1);
+      setSelectedCompany(null);
+      setCompanySearch("");
+      setErrorMessage("");
+      setIsSuccess(false);
+      setSentResult(null);
+
+      if (candidates.length > 0) {
+        candidatesInitializedRef.current = true;
+        const end = Math.min(10, candidates.length);
+        setRangeStart(1);
+        setRangeEnd(end);
+        setStartInput("1");
+        setEndInput(String(end));
+        setQuantityInput(String(end));
+        const initialSlice = candidates.slice(0, end).map((c) => c.id);
+        setSelectedIds(new Set(initialSlice));
+      }
+    } else if (!candidatesInitializedRef.current && candidates.length > 0) {
+      // If candidates arrived right after modal was opened, set initial selection without resetting step
+      candidatesInitializedRef.current = true;
+      const end = Math.min(10, candidates.length);
       setRangeStart(1);
       setRangeEnd(end);
       setStartInput("1");
@@ -95,10 +128,6 @@ export default function BulkSendResumesModal({
       setQuantityInput(String(end));
       const initialSlice = candidates.slice(0, end).map((c) => c.id);
       setSelectedIds(new Set(initialSlice));
-      setStep(1);
-      setErrorMessage("");
-      setIsSuccess(false);
-      setSentResult(null);
     }
   }, [isOpen, candidates]);
 
@@ -339,9 +368,14 @@ export default function BulkSendResumesModal({
         {/* STEP PROGRESS WIZARD BAR */}
         <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto">
-            <div
-              className={`flex items-center gap-1.5 font-bold ${
-                step === 1 ? "text-blue-600" : step > 1 ? "text-emerald-600" : "text-slate-400"
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMessage("");
+                setStep(1);
+              }}
+              className={`flex items-center gap-1.5 font-bold transition-all cursor-pointer ${
+                step === 1 ? "text-blue-600" : step > 1 ? "text-emerald-600 hover:text-emerald-700" : "text-slate-400"
               }`}
             >
               <span
@@ -356,13 +390,23 @@ export default function BulkSendResumesModal({
                 {step > 1 ? "✓" : "1"}
               </span>
               <span>1. Quantity & Range</span>
-            </div>
+            </button>
 
             <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
 
-            <div
-              className={`flex items-center gap-1.5 font-bold ${
-                step === 2 ? "text-blue-600" : step > 2 ? "text-emerald-600" : "text-slate-400"
+            <button
+              type="button"
+              disabled={selectedIds.size === 0}
+              onClick={() => {
+                if (selectedIds.size > 0) {
+                  setErrorMessage("");
+                  setStep(2);
+                }
+              }}
+              className={`flex items-center gap-1.5 font-bold transition-all ${
+                selectedIds.size > 0 ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+              } ${
+                step === 2 ? "text-blue-600" : step > 2 ? "text-emerald-600 hover:text-emerald-700" : "text-slate-400"
               }`}
             >
               <span
@@ -377,12 +421,22 @@ export default function BulkSendResumesModal({
                 {step > 2 ? "✓" : "2"}
               </span>
               <span>2. Choose Company</span>
-            </div>
+            </button>
 
             <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
 
-            <div
-              className={`flex items-center gap-1.5 font-bold ${
+            <button
+              type="button"
+              disabled={selectedIds.size === 0 || !selectedCompany}
+              onClick={() => {
+                if (selectedIds.size > 0 && selectedCompany) {
+                  setErrorMessage("");
+                  setStep(3);
+                }
+              }}
+              className={`flex items-center gap-1.5 font-bold transition-all ${
+                selectedIds.size > 0 && selectedCompany ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+              } ${
                 step === 3 ? "text-blue-600" : "text-slate-400"
               }`}
             >
@@ -394,7 +448,7 @@ export default function BulkSendResumesModal({
                 3
               </span>
               <span>3. Review & Confirm</span>
-            </div>
+            </button>
           </div>
 
           <span className="text-[11px] font-bold text-slate-500 shrink-0 hidden sm:inline-block">
