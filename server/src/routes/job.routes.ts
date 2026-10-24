@@ -13,22 +13,26 @@ import {
   markResumeViewed,
 } from '../controllers/job.controller.js';
 import { updateJobStatus, getJobApplicants, updateApplicationStatus } from '../controllers/admin.controller.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
+// 🔓 Public routes (no auth needed)
 router.get('/', getJobs);
-router.get('/applied/candidate', getCandidateApplications);
-router.get('/applied/company', getCompanyApplications);
 router.get('/:id/activity', getJobActivity);
-router.get('/:id/applicants', getJobApplicants);
-router.patch('/applications/:id/status', updateJobApplicationStatus);
-router.patch('/applications/:id/view-resume', markResumeViewed);
 router.get('/:id', getJobById);
-router.post('/', createJob);
-router.post('/:id/apply', applyToJob);
-router.put('/:id', updateJob);
-router.patch('/:id/status', updateJobStatus);
-router.patch('/:id', updateJob);
-router.delete('/:id', deleteJob);
+
+// 🔒 Protected routes (require valid JWT token)
+router.get('/applied/candidate', authenticate, getCandidateApplications);
+router.get('/applied/company', authenticate, getCompanyApplications);
+router.get('/:id/applicants', authenticate, getJobApplicants);
+router.patch('/applications/:id/status', authenticate, updateJobApplicationStatus);
+router.patch('/applications/:id/view-resume', authenticate, markResumeViewed);
+router.post('/', authenticate, createJob);
+router.post('/:id/apply', authenticate, applyToJob);
+router.put('/:id', authenticate, updateJob);
+router.patch('/:id/status', authenticate, updateJobStatus);
+router.patch('/:id', authenticate, updateJob);
+router.delete('/:id', authenticate, deleteJob);
 
 export default router;

@@ -26,8 +26,13 @@ import {
   getAdminNotifications,
   getAdminReports,
 } from '../controllers/admin.controller.js';
+import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// 🔒 All admin routes require valid JWT + admin/sadmin role
+router.use(authenticate);
+router.use(requireAdmin);
 
 // Overview stats, notifications & Reports
 router.get('/overview', getAdminOverview);

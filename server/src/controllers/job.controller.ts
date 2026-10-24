@@ -163,6 +163,12 @@ export const getJobById = async (req: Request, res: Response) => {
     await ensureDBConnection();
     const { id } = req.params;
 
+    // Validate ObjectId format early to avoid 500 error
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400).json({ success: false, message: 'Invalid job ID format.' });
+      return;
+    }
+
     let job = null;
     if (mongoose.isValidObjectId(id)) {
       job = await Job.findById(id);
