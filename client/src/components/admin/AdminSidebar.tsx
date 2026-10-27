@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { clearAuthSession } from "@/lib/api";
+import { clearAuthSession, getStoredUser, UserSession } from "@/lib/api";
 import {
   LayoutDashboard,
   Building2,
@@ -55,6 +55,11 @@ export default function AdminSidebar({
   jobSeekersCount = 0,
 }: AdminSidebarProps) {
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+
+  useEffect(() => {
+    setCurrentUser(getStoredUser());
+  }, []);
 
   const handleAdminLogout = () => {
     clearAuthSession();
@@ -265,10 +270,10 @@ export default function AdminSidebar({
               </div>
               <div className="text-left">
                 <p className="text-xs font-bold text-slate-900 leading-none flex items-center gap-1">
-                  Super Admin
+                  {currentUser?.name || "Super Admin"}
                 </p>
-                <p className="text-[11px] text-slate-400 truncate max-w-[125px]">
-                  admin@addyjob.com
+                <p className="text-[11px] text-slate-400 truncate max-w-[125px]" title={currentUser?.email || "admin@addyjob.com"}>
+                  {currentUser?.email || "admin@addyjob.com"}
                 </p>
               </div>
             </div>

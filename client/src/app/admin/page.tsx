@@ -36,6 +36,7 @@ import JobSeekersManager from "@/components/admin/JobSeekersManager";
 import ReportsManager from "@/components/admin/ReportsManager";
 import {
   getStoredUser,
+  getAuthToken,
   fetchAdminOverview,
   fetchAdminCompanies,
   updateCompanyStatus,
@@ -72,7 +73,8 @@ export default function SuperAdminPage() {
       })
     );
     const user = getStoredUser();
-    if (!user) {
+    const token = getAuthToken();
+    if (!user || !token) {
       window.location.href = "/login";
       return;
     }

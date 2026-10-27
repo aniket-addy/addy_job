@@ -233,6 +233,19 @@ export const getAuthToken = (): string | null => {
   }
 };
 
+// Helper for authenticated request headers
+export const getAuthHeaders = (contentType: boolean = false): Record<string, string> => {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (contentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 // Register API call
 export async function registerUser(payload: {
   role: 'job_seeker' | 'company';
@@ -423,7 +436,9 @@ export interface AdminOverviewStats {
 
 export async function fetchAdminOverview(): Promise<AdminOverviewStats | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/overview`);
+    const res = await fetch(`${API_BASE_URL}/admin/overview`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return null;
     const json = await res.json();
     return json.data || null;
@@ -473,7 +488,9 @@ export interface AdminReportsData {
 
 export async function fetchAdminReports(): Promise<AdminReportsData | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/reports`);
+    const res = await fetch(`${API_BASE_URL}/admin/reports`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return null;
     const json = await res.json();
     return json.data || null;
@@ -485,7 +502,9 @@ export async function fetchAdminReports(): Promise<AdminReportsData | null> {
 
 export async function fetchAdminCompanies(): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/companies`);
+    const res = await fetch(`${API_BASE_URL}/admin/companies`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return [];
     const json = await res.json();
     return json.companies || [];
@@ -510,6 +529,7 @@ export async function fetchAdminNotifications(): Promise<AdminNotificationItem[]
   try {
     const res = await fetch(`${API_BASE_URL}/admin/notifications`, {
       cache: 'no-store',
+      headers: getAuthHeaders(),
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -528,7 +548,7 @@ export async function updateCompanyStatus(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/companies/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({ status, reason, rejectionReason: reason }),
     });
     return await res.json();
@@ -544,6 +564,7 @@ export async function deleteAdminCompany(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/companies/${id}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     return await res.json();
   } catch (error: any) {
@@ -586,7 +607,9 @@ export interface JobSeekerRecord {
 
 export async function fetchAdminJobSeekers(): Promise<JobSeekerRecord[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/jobseekers`);
+    const res = await fetch(`${API_BASE_URL}/admin/jobseekers`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return [];
     const json = await res.json();
     return json.jobSeekers || [];
@@ -602,6 +625,7 @@ export async function deleteAdminJobSeeker(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/jobseekers/${id}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     return await res.json();
   } catch (error: any) {
@@ -612,7 +636,9 @@ export async function deleteAdminJobSeeker(
 
 export async function fetchAdminJobs(): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/jobs`);
+    const res = await fetch(`${API_BASE_URL}/admin/jobs`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return [];
     const json = await res.json();
     return json.jobs || [];
@@ -627,7 +653,7 @@ export async function createCompanyJob(jobData: any): Promise<{ success: boolean
   try {
     const res = await fetch(`${API_BASE_URL}/jobs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify(jobData),
     });
     const data = await res.json();
@@ -665,7 +691,7 @@ export async function updateCompanyJob(id: string, jobData: any): Promise<{ succ
   try {
     const res = await fetch(`${API_BASE_URL}/jobs/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify(jobData),
     });
     const data = await res.json();
@@ -685,7 +711,7 @@ export async function updateCompanyJobStatus(id: string, status: string): Promis
   try {
     const res = await fetch(`${API_BASE_URL}/jobs/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({ status }),
     });
     const data = await res.json();
@@ -705,6 +731,7 @@ export async function deleteCompanyJob(id: string): Promise<{ success: boolean; 
   try {
     const res = await fetch(`${API_BASE_URL}/jobs/${id}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     const data = await res.json();
     if (data.success && typeof window !== 'undefined') {
@@ -725,7 +752,7 @@ export async function updateAdminJobStatus(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/jobs/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({ status }),
     });
     return await res.json();
@@ -741,6 +768,7 @@ export async function deleteAdminJob(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/jobs/${id}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     return await res.json();
   } catch (error: any) {
@@ -751,7 +779,9 @@ export async function deleteAdminJob(
 
 export async function fetchAdminApplications(): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/applications`);
+    const res = await fetch(`${API_BASE_URL}/admin/applications`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return [];
     const json = await res.json();
     return json.applications || [];
@@ -763,9 +793,13 @@ export async function fetchAdminApplications(): Promise<any[]> {
 
 export async function fetchJobApplicants(jobId: string): Promise<any[]> {
   try {
-    let res = await fetch(`${API_BASE_URL}/jobs/${jobId}/applicants`);
+    let res = await fetch(`${API_BASE_URL}/jobs/${jobId}/applicants`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) {
-      res = await fetch(`${API_BASE_URL}/admin/jobs/${jobId}/applicants`);
+      res = await fetch(`${API_BASE_URL}/admin/jobs/${jobId}/applicants`, {
+        headers: getAuthHeaders(),
+      });
     }
     if (!res.ok) return [];
     const json = await res.json();
@@ -784,7 +818,9 @@ export async function fetchCompanyApplications(params: {
     const q = new URLSearchParams();
     if (params.company) q.append('company', params.company);
     if (params.companyId) q.append('companyId', params.companyId);
-    const res = await fetch(`${API_BASE_URL}/jobs/applied/company?${q.toString()}`);
+    const res = await fetch(`${API_BASE_URL}/jobs/applied/company?${q.toString()}`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return [];
     const json = await res.json();
     return json.applications || [];
@@ -801,7 +837,7 @@ export async function updateAdminApplicationStatus(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/applications/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({ status }),
     });
     const data = await res.json();
@@ -830,7 +866,7 @@ export async function createAdminApplication(payload: {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/applications`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
     });
     return await res.json();
@@ -842,7 +878,9 @@ export async function createAdminApplication(payload: {
 
 export async function fetchAdminPlans(): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/plans`);
+    const res = await fetch(`${API_BASE_URL}/admin/plans`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return [];
     const json = await res.json();
     return json.plans || [];
@@ -864,7 +902,7 @@ export async function createAdminPlan(payload: {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/plans`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
     });
     return await res.json();
@@ -889,7 +927,7 @@ export async function updateAdminPlan(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/plans/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
     });
     return await res.json();
@@ -905,6 +943,7 @@ export async function deleteAdminPlan(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/plans/${id}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     return await res.json();
   } catch (error: any) {
@@ -975,7 +1014,7 @@ export async function updateCompanyPermissions(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/companies/${id}/permissions`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({
         permissions,
         name: extra?.name,
@@ -1011,7 +1050,9 @@ export async function updateCompanyPermissions(
 
 export async function fetchAdminPermissionsSettings(): Promise<any> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/permissions-settings`);
+    const res = await fetch(`${API_BASE_URL}/admin/permissions-settings`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return null;
     const json = await res.json();
     return json.settings || null;
@@ -1025,7 +1066,7 @@ export async function updateAdminPermissionsSettings(settings: any): Promise<{ s
   try {
     const res = await fetch(`${API_BASE_URL}/admin/permissions-settings`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({ settings }),
     });
     return await res.json();
@@ -1348,6 +1389,7 @@ export async function fetchCandidateApplicationsFromDB(
 
     const res = await fetch(`${API_BASE_URL}/jobs/applied/candidate?${params.toString()}`, {
       cache: 'no-store',
+      headers: getAuthHeaders(),
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -1367,6 +1409,7 @@ export async function fetchCompanyApplicationsFromDB(companyId?: string, company
 
     const res = await fetch(`${API_BASE_URL}/jobs/applied/company?${params.toString()}`, {
       cache: 'no-store',
+      headers: getAuthHeaders(),
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -1543,7 +1586,7 @@ export async function sendBulkResumesToCompany(
   try {
     const res = await fetch(`${API_BASE_URL}/admin/resumes/bulk-send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({ companyId, resumes }),
     });
     const data = await res.json();
