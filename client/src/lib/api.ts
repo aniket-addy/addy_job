@@ -1781,10 +1781,14 @@ export async function updateApplicationStatusAPI(
       body: JSON.stringify({ status, recruiterAction }),
     });
     const data = await res.json();
+    invalidateApiCache('/jobs/applied');
+    invalidateApiCache('/admin/applications');
+    invalidateApiCache('/admin/overview');
     notifyApplicationSync();
     return data;
   } catch (err: any) {
     console.error('updateApplicationStatusAPI error:', err);
+    invalidateApiCache('/jobs/applied');
     notifyApplicationSync();
     return { success: false, message: err.message };
   }
@@ -1801,10 +1805,13 @@ export async function markResumeViewedAPI(
       headers: getAuthHeaders(true),
     });
     const data = await res.json();
+    invalidateApiCache('/jobs/applied');
+    invalidateApiCache('/admin/applications');
     notifyApplicationSync();
     return data;
   } catch (err: any) {
     console.error('markResumeViewedAPI error:', err);
+    invalidateApiCache('/jobs/applied');
     notifyApplicationSync();
     return { success: false, message: err.message };
   }
