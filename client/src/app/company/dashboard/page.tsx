@@ -63,6 +63,7 @@ import {
   GraduationCap,
   Award,
   Coins,
+  MoreVertical,
 } from "lucide-react";
 import {
   getStoredUser,
@@ -1270,6 +1271,15 @@ export default function CompanyDashboardPage() {
 
   // Jobs List (Real data only, default empty)
   const [jobs, setJobs] = useState<PostedJob[]>([]);
+  const [actionMenuJobId, setActionMenuJobId] = useState<string | null>(null);
+
+  // Close action dropdown on outside click
+  useEffect(() => {
+    if (!actionMenuJobId) return;
+    const handleOutsideClick = () => setActionMenuJobId(null);
+    window.addEventListener("click", handleOutsideClick);
+    return () => window.removeEventListener("click", handleOutsideClick);
+  }, [actionMenuJobId]);
 
   // Applicants List (Real data only, default empty)
   const [applicants, setApplicants] = useState<RecruiterApplicant[]>([]);
@@ -3834,19 +3844,19 @@ export default function CompanyDashboardPage() {
                 </div>
               </div>
 
-              {/* HORIZONTALLY SCROLLABLE JOBS TABLE: Single-row scrollable across all mobile & desktop screens */}
-              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+              {/* JOBS TABLE: Clean layout with 3-dots action menu and zero horizontal scrolling */}
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs">
                 <div className="overflow-x-auto w-full">
-                  <table className="w-full text-left text-xs min-w-[850px]">
+                  <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200/80">
                       <tr>
-                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Job Role & ID</th>
-                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Department & Mode</th>
-                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Location</th>
-                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Salary & Exp</th>
-                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Applications</th>
-                        <th className="py-3.5 px-4 sm:px-6 whitespace-nowrap">Status</th>
-                        <th className="py-3.5 px-4 sm:px-6 text-right whitespace-nowrap">Actions</th>
+                        <th className="py-3.5 px-3 sm:px-4 whitespace-nowrap">Job Role</th>
+                        <th className="py-3.5 px-3 sm:px-4 whitespace-nowrap">Department & Mode</th>
+                        <th className="py-3.5 px-3 sm:px-4 whitespace-nowrap">Location</th>
+                        <th className="py-3.5 px-3 sm:px-4 whitespace-nowrap">Salary & Exp</th>
+                        <th className="py-3.5 px-3 sm:px-4 whitespace-nowrap">Applications</th>
+                        <th className="py-3.5 px-3 sm:px-4 whitespace-nowrap">Status</th>
+                        <th className="py-3.5 px-3 sm:px-4 text-right whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -3863,28 +3873,15 @@ export default function CompanyDashboardPage() {
                       ) : (
                         jobs.map((job) => (
                         <tr key={job.id} className="hover:bg-slate-50/60 transition">
-                          <td className="py-4 px-4 sm:px-6 font-bold text-slate-900 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <span>{job.title}</span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-slate-400 font-mono">{job.id}</span>
-                              {job.openings && (
-                                <span
-                                  style={{ backgroundColor: "#EDE9FE", color: "#7C3AED", borderColor: "#DDD6FE" }}
-                                  className="text-[10px] px-2 py-0.5 rounded-md font-bold border"
-                                >
-                                  {job.openings} Openings
-                                </span>
-                              )}
-                            </div>
+                          <td className="py-3.5 px-3 sm:px-4 font-bold text-slate-900 whitespace-nowrap">
+                            <span>{job.title}</span>
                           </td>
-                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
+                          <td className="py-3.5 px-3 sm:px-4 whitespace-nowrap">
                             <div className="font-semibold text-slate-700">{job.department}</div>
                             <span className="text-[10px] text-slate-500 font-medium">{job.workplace || "Remote"} • {job.type}</span>
                           </td>
-                          <td className="py-4 px-4 sm:px-6 text-slate-600 whitespace-nowrap">{job.location}</td>
-                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
+                          <td className="py-3.5 px-3 sm:px-4 text-slate-600 whitespace-nowrap">{job.location}</td>
+                          <td className="py-3.5 px-3 sm:px-4 whitespace-nowrap">
                             <div className="font-bold text-emerald-600 text-xs tracking-tight whitespace-nowrap">
                               {job.salary}
                             </div>
@@ -3892,7 +3889,7 @@ export default function CompanyDashboardPage() {
                               {job.experience || "0 - 1 years"}
                             </div>
                           </td>
-                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
+                          <td className="py-3.5 px-3 sm:px-4 whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => handleOpenJobApplicants(job)}
@@ -3905,7 +3902,7 @@ export default function CompanyDashboardPage() {
                               <ExternalLink className="w-2.5 h-2.5 text-[#7C3AED] opacity-70 group-hover:opacity-100 transition-opacity ml-0.5" />
                             </button>
                           </td>
-                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
+                          <td className="py-3.5 px-3 sm:px-4 whitespace-nowrap">
                             <span
                               className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
                                 job.status === "Active"
@@ -3918,82 +3915,113 @@ export default function CompanyDashboardPage() {
                               {job.status === "Pending" ? "Pending Approval" : job.status}
                             </span>
                           </td>
-                          <td className="py-4 px-4 sm:px-6 text-right whitespace-nowrap">
-                            <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <td className="py-3.5 px-3 sm:px-4 text-right whitespace-nowrap">
+                            <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
                               <button
-                                onClick={() => openEditJobModal(job)}
-                                style={{ backgroundColor: "#EDE9FE", color: "#6D28D9", borderColor: "#DDD6FE" }}
-                                className="px-2.5 py-1.5 rounded-lg hover:bg-[#DDD6FE] text-xs font-bold cursor-pointer transition inline-flex items-center gap-1 border shadow-2xs"
-                                title="Edit Job Details"
+                                type="button"
+                                onClick={() => setActionMenuJobId(actionMenuJobId === job.id ? null : job.id)}
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer border ${
+                                  actionMenuJobId === job.id
+                                    ? "bg-slate-200 text-slate-900 border-slate-300 shadow-inner"
+                                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-100 border-transparent hover:border-slate-200"
+                                }`}
+                                title="Actions"
                               >
-                                <Pencil className="w-3.5 h-3.5" />
-                                <span>Edit</span>
+                                <MoreVertical className="w-4 h-4" />
                               </button>
-                              {job.status === "Pending" ? (
-                                <button
-                                  type="button"
-                                  disabled
-                                  className="px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200 shadow-2xs cursor-not-allowed opacity-90"
-                                  title="Job is awaiting Super Admin approval before going live"
-                                >
-                                  In Review
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={async () => {
-                                    const newStatus = (job.status === "Active" ? "Paused" : "Active") as "Active" | "Pending" | "Paused" | "Closed";
-                                    setJobs((prev) => {
-                                      const updated = prev.map((j) =>
-                                        j.id === job.id
-                                          ? {
-                                              ...j,
-                                              status: newStatus,
-                                            }
-                                          : j
-                                      );
+
+                              {actionMenuJobId === job.id && (
+                                <div className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1.5 z-50 text-left animate-in fade-in zoom-in-95">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActionMenuJobId(null);
+                                      openEditJobModal(job);
+                                    }}
+                                    className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/70 flex items-center gap-2.5 transition cursor-pointer"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>Edit Job</span>
+                                  </button>
+
+                                  {job.status === "Pending" ? (
+                                    <div className="px-3.5 py-2 text-xs font-medium text-amber-700 bg-amber-50/60 flex items-center gap-2.5 cursor-not-allowed">
+                                      <Clock className="w-3.5 h-3.5 text-amber-500" />
+                                      <span>In Review (Admin)</span>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        setActionMenuJobId(null);
+                                        const newStatus = (job.status === "Active" ? "Paused" : "Active") as "Active" | "Pending" | "Paused" | "Closed";
+                                        setJobs((prev) => {
+                                          const updated = prev.map((j) =>
+                                            j.id === job.id ? { ...j, status: newStatus } : j
+                                          );
+                                          try {
+                                            const user = getStoredUser();
+                                            const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+                                            if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
+                                          } catch (err) {}
+                                          return updated;
+                                        });
+                                        showToast(`Job status updated for ${job.title}`);
+                                        try {
+                                          await updateCompanyJobStatus(job.id, newStatus);
+                                        } catch (err) {
+                                          console.error("Failed to update status on backend:", err);
+                                        }
+                                      }}
+                                      className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2.5 transition cursor-pointer"
+                                    >
+                                      <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+                                      <span>{job.status === "Active" ? "Pause Job" : "Activate Job"}</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActionMenuJobId(null);
+                                      handleOpenJobApplicants(job);
+                                    }}
+                                    className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/70 flex items-center gap-2.5 transition cursor-pointer"
+                                  >
+                                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>View Candidates ({getJobApplicantCount(job)})</span>
+                                  </button>
+
+                                  <div className="h-px bg-slate-100 my-1" />
+
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setActionMenuJobId(null);
+                                      if (!confirm(`Are you sure you want to delete job "${job.title}"?`)) return;
+                                      setJobs((prev) => {
+                                        const updated = prev.filter((j) => j.id !== job.id);
+                                        try {
+                                          const user = getStoredUser();
+                                          const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+                                          if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
+                                        } catch (err) {}
+                                        return updated;
+                                      });
+                                      showToast(`Job ${job.title} deleted`);
                                       try {
-                                        const user = getStoredUser();
-                                        const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
-                                        if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
-                                      } catch (err) {}
-                                      return updated;
-                                    });
-                                    showToast(`Job status updated for ${job.title}`);
-                                    try {
-                                      await updateCompanyJobStatus(job.id, newStatus);
-                                    } catch (err) {
-                                      console.error("Failed to update status on backend:", err);
-                                    }
-                                  }}
-                                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition border border-slate-200/60 shadow-2xs"
-                                >
-                                  {job.status === "Active" ? "Pause" : "Activate"}
-                                </button>
+                                        await deleteCompanyJob(job.id);
+                                      } catch (err) {
+                                        console.error("Failed to delete job on backend:", err);
+                                      }
+                                    }}
+                                    className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                    <span>Delete Job</span>
+                                  </button>
+                                </div>
                               )}
-                              <button
-                                onClick={async () => {
-                                  if (!confirm(`Are you sure you want to delete job "${job.title}"?`)) return;
-                                  setJobs((prev) => {
-                                    const updated = prev.filter((j) => j.id !== job.id);
-                                    try {
-                                      const user = getStoredUser();
-                                      const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
-                                      if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
-                                    } catch (err) {}
-                                    return updated;
-                                  });
-                                  showToast(`Job ${job.title} deleted`);
-                                  try {
-                                    await deleteCompanyJob(job.id);
-                                  } catch (err) {
-                                    console.error("Failed to delete job on backend:", err);
-                                  }
-                                }}
-                                className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-100 cursor-pointer transition shadow-2xs"
-                                title="Delete job"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
                             </div>
                           </td>
                         </tr>
