@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -82,9 +82,16 @@ export default function SuperAdminPage() {
     setIsAuthorized(true);
   }, []);
 
-  const loadDatabaseData = async () => {
+  const isFetchingRef = useRef(false);
+
+  const loadDatabaseData = async (isBackground = false) => {
+    if (isFetchingRef.current) return;
+    if (isBackground && typeof document !== "undefined" && document.hidden) return;
+    isFetchingRef.current = true;
     try {
-      setIsLoading(true);
+      if (!isBackground) {
+        setIsLoading(true);
+      }
       const [overview, companies, jobsData, appsData, plansData, jobSeekersData] = await Promise.all([
         fetchAdminOverview(),
         fetchAdminCompanies(),
@@ -122,14 +129,15 @@ export default function SuperAdminPage() {
       console.error("Failed to load admin data from DB:", err);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
-    loadDatabaseData();
+    loadDatabaseData(false);
 
     const handleSync = () => {
-      loadDatabaseData();
+      loadDatabaseData(true);
     };
     window.addEventListener("job_created", handleSync);
     window.addEventListener("job_updated", handleSync);
@@ -138,9 +146,8 @@ export default function SuperAdminPage() {
     window.addEventListener("companies_updated", handleSync);
     window.addEventListener("auth_change", handleSync);
     window.addEventListener("applied_jobs_change", handleSync);
-    window.addEventListener("storage", handleSync);
 
-    const interval = setInterval(loadDatabaseData, 6000);
+    const interval = setInterval(() => loadDatabaseData(true), 30000);
 
     return () => {
       window.removeEventListener("job_created", handleSync);
@@ -150,7 +157,6 @@ export default function SuperAdminPage() {
       window.removeEventListener("companies_updated", handleSync);
       window.removeEventListener("auth_change", handleSync);
       window.removeEventListener("applied_jobs_change", handleSync);
-      window.removeEventListener("storage", handleSync);
       clearInterval(interval);
     };
   }, []);

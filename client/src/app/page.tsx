@@ -8,7 +8,14 @@ import HowItWorks from "@/components/HowItWorks";
 import TestimonialsAndCTA from "@/components/TestimonialsAndCTA";
 import Footer from "@/components/Footer";
 
-export default function Home() {
+import { fetchPublicCompanies, fetchPublicJobs } from "@/lib/api";
+
+export default async function Home() {
+  const [initialCompanies, initialJobs] = await Promise.all([
+    fetchPublicCompanies().catch(() => []),
+    fetchPublicJobs().catch(() => []),
+  ]);
+
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
       {/* 1. Navbar */}
@@ -21,7 +28,7 @@ export default function Home() {
 
         {/* 3. Recommended Jobs (Directly follows Hero on mobile matching reference UI) */}
         <div className="order-1 md:order-2">
-          <RecommendedJobs />
+          <RecommendedJobs initialJobs={initialJobs} />
         </div>
 
         {/* 4. Explore Jobs by Category */}
@@ -31,8 +38,8 @@ export default function Home() {
 
         {/* 5. Trusted by Top Companies & Top Companies Cards */}
         <div className="order-3">
-          <TopCompanies />
-          <TopCompaniesCards />
+          <TopCompanies initialCompanies={initialCompanies} />
+          <TopCompaniesCards initialCompanies={initialCompanies} />
         </div>
 
         {/* 6. Get Hired in 4 Easy Steps (Hidden on mobile) */}

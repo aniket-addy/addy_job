@@ -109,19 +109,25 @@ export const getAdminCompanies = async (req: Request, res: Response) => {
     await ensureDBConnection();
     await seedInitialAdminData();
 
-    const users = await User.find({ role: 'company' }).sort({ createdAt: -1 });
+    const [users, jobCounts] = await Promise.all([
+      User.find({ role: 'company' })
+        .select('-purchasedResumes -password')
+        .sort({ createdAt: -1 })
+        .lean(),
+      Job.aggregate([
+        { $match: { company: { $exists: true, $ne: '' } } },
+        { $group: { _id: { $toLower: '$company' }, count: { $sum: 1 } } },
+      ]),
+    ]);
 
-    // Count jobs per company
-    const jobs = await Job.find({});
     const jobsCountMap: Record<string, number> = {};
-    jobs.forEach((j) => {
-      const cName = j.company?.toLowerCase().trim();
-      if (cName) {
-        jobsCountMap[cName] = (jobsCountMap[cName] || 0) + 1;
+    jobCounts.forEach((jc) => {
+      if (jc._id) {
+        jobsCountMap[jc._id] = jc.count;
       }
     });
 
-    const companies = users.map((u) => {
+    const companies = users.map((u: any) => {
       const name = u.companyName || u.name || 'Unnamed Company';
       const cKey = name.toLowerCase().trim();
       const activeJobs = jobsCountMap[cKey] || 0;
@@ -527,6 +533,18 @@ export const createJob = async (req: Request, res: Response) => {
     const tagList = Array.isArray(tags) ? tags : [];
     const skillList = Array.isArray(skills) ? skills : tagList;
 
+    let initialStatus = ['Active', 'Pending', 'Expired', 'Closed', 'Paused'].includes(status) ? status : 'Active';
+    const reqUser = (req as any).user;
+    if (reqUser?.role === 'company' || (!reqUser && companyId)) {
+      const targetCompanyId = companyId || reqUser?.id;
+      if (targetCompanyId) {
+        const compUser = await User.findById(targetCompanyId);
+        if (compUser && (compUser.status !== 'Approved' || compUser.permissions?.jobs !== true)) {
+          initialStatus = 'Pending';
+        }
+      }
+    }
+
     const newJob = new Job({
       title: String(title).trim(),
       company: String(company).trim(),
@@ -545,7 +563,7 @@ export const createJob = async (req: Request, res: Response) => {
       responsibilities: Array.isArray(responsibilities) ? responsibilities : [],
       requirements: Array.isArray(requirements) ? requirements : [],
       benefits: Array.isArray(benefits) ? benefits : [],
-      status: ['Active', 'Pending', 'Expired', 'Closed', 'Paused'].includes(status) ? status : 'Active',
+      status: initialStatus,
       postedOn: 'Just now',
       applicantsCount: 0,
     });
@@ -803,19 +821,25 @@ export const getAdminApplications = async (req: Request, res: Response) => {
     await ensureDBConnection();
     await seedInitialAdminData();
 
-    // 1. Fetch real job applications (exclude legacy placeholder entries)
-    const apps = await Application.find({
-      company: { $ne: 'Candidate Profile Upload' },
-    }).sort({ createdAt: -1 });
-
-    // 2. Fetch all registered job seekers who have uploaded resumes in their profile
-    const candidatesWithResume = await User.find({
-      role: 'job_seeker',
-      $or: [
-        { resumeName: { $exists: true, $ne: '' } },
-        { resumeUrl: { $exists: true, $ne: '' } },
-      ],
-    }).sort({ updatedAt: -1 });
+    // 1 & 2. Fetch real applications and profile resumes in parallel with lean projection
+    const [apps, candidatesWithResume] = await Promise.all([
+      Application.find({
+        company: { $ne: 'Candidate Profile Upload' },
+      })
+        .select('-pdfData')
+        .sort({ createdAt: -1 })
+        .lean(),
+      User.find({
+        role: 'job_seeker',
+        $or: [
+          { resumeName: { $exists: true, $ne: '' } },
+          { resumeUrl: { $exists: true, $ne: '' } },
+        ],
+      })
+        .select('name email phone headline targetRole resumeDate resumeUrl specialization experience skills resumeName')
+        .sort({ updatedAt: -1 })
+        .lean(),
+    ]);
 
     // 3. Format job seeker profile resumes
     const profileResumes = candidatesWithResume.map((u) => {
@@ -1824,10 +1848,10 @@ export const getAdminReports = async (req: Request, res: Response) => {
       allApplications,
       allPlans
     ] = await Promise.all([
-      User.find({}).lean(),
-      Job.find({}).lean(),
-      Application.find({}).lean(),
-      Plan.find({}).lean(),
+      User.find({}).select('role plan experience createdAt skills').lean(),
+      Job.find({}).select('department createdAt status').lean(),
+      Application.find({}).select('status createdAt').lean(),
+      Plan.find({}).select('name price status').lean(),
     ]);
 
     const companies = allUsers.filter((u: any) => u.role === 'company');

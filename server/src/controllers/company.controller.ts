@@ -70,13 +70,13 @@ export const getCompanies = async (req: Request, res: Response) => {
       query.industry = new RegExp(String(industry).trim(), 'i');
     }
 
-    const companyUsers = await User.find(query).sort({ createdAt: -1 });
+    const companyUsers = await User.find(query).select('-password -purchasedResumes').sort({ createdAt: -1 }).lean();
 
-    // Fetch all active jobs to aggregate count per company
-    const activeJobs = await Job.find({ status: 'Active' });
+    // Fetch active jobs with minimal fields to aggregate count per company
+    const activeJobs = await Job.find({ status: 'Active' }).select('company companyId').lean();
 
     const companyIds = companyUsers.map((u) => u._id.toString());
-    const profiles = await UserProfile.find({ userId: { $in: companyIds } });
+    const profiles = await UserProfile.find({ userId: { $in: companyIds } }).lean();
     const profileMap = new Map();
     profiles.forEach((p: any) => profileMap.set(p.userId, p));
 

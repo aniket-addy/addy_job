@@ -140,14 +140,16 @@ export default function AdminHeader({
     loadNotifications();
 
     const handleUpdate = () => loadNotifications();
-    window.addEventListener("storage", handleUpdate);
     window.addEventListener("companies_updated", handleUpdate);
     window.addEventListener("plans_updated", handleUpdate);
 
-    // Refresh every 6 seconds to keep notifications real-time
-    const interval = setInterval(loadNotifications, 6000);
+    // Refresh every 30 seconds when visible
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadNotifications();
+    }, 30000);
+
     return () => {
-      window.removeEventListener("storage", handleUpdate);
       window.removeEventListener("companies_updated", handleUpdate);
       window.removeEventListener("plans_updated", handleUpdate);
       clearInterval(interval);

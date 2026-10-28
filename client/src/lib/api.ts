@@ -246,6 +246,88 @@ export const getAuthHeaders = (contentType: boolean = false): Record<string, str
   return headers;
 };
 
+// ================= CACHING & IN-FLIGHT REQUEST DEDUPLICATION =================
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const memoryCache = new Map<string, CacheEntry<any>>();
+const inFlightRequests = new Map<string, Promise<any>>();
+
+/**
+ * Deduplicated & memory-cached fetch utility.
+ * - In-flight deduplication: Returns existing promise if identical GET request is currently pending.
+ * - TTL memory cache: Returns cached response if within ttlMs.
+ * - forceRefresh: Ignores cache and fetches fresh data.
+ */
+export async function cachedFetch<T>(
+  url: string,
+  options?: RequestInit,
+  ttlMs: number = 0,
+  forceRefresh: boolean = false
+): Promise<T> {
+  const method = (options?.method || 'GET').toUpperCase();
+  // Only cache/dedup idempotent GET requests
+  if (method !== 'GET') {
+    const res = await fetch(url, options);
+    return res.json();
+  }
+
+  const cacheKey = url;
+  const now = Date.now();
+
+  if (!forceRefresh && ttlMs > 0) {
+    const cached = memoryCache.get(cacheKey);
+    if (cached && now - cached.timestamp < ttlMs) {
+      return typeof structuredClone === 'function' ? structuredClone(cached.data) : JSON.parse(JSON.stringify(cached.data));
+    }
+  }
+
+  // Deduplicate concurrent in-flight requests
+  const existingPromise = inFlightRequests.get(cacheKey);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const fetchOptions: RequestInit = typeof window === 'undefined' && ttlMs > 0
+        ? ({ ...options, next: { revalidate: Math.max(10, Math.floor(ttlMs / 1000)) } } as any)
+        : (options || {});
+      const res = await fetch(url, fetchOptions);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      const data = await res.json();
+      if (ttlMs > 0) {
+        memoryCache.set(cacheKey, { data, timestamp: Date.now() });
+      }
+      return data;
+    } finally {
+      inFlightRequests.delete(cacheKey);
+    }
+  })();
+
+  inFlightRequests.set(cacheKey, requestPromise);
+  return requestPromise;
+}
+
+/**
+ * Invalidate specific cached endpoints or prefixes upon mutations
+ */
+export function invalidateApiCache(pattern?: string | RegExp): void {
+  if (!pattern) {
+    memoryCache.clear();
+    return;
+  }
+  for (const key of memoryCache.keys()) {
+    if (typeof pattern === 'string' ? key.includes(pattern) : pattern.test(key)) {
+      memoryCache.delete(key);
+    }
+  }
+}
+
 // Register API call
 export async function registerUser(payload: {
   role: 'job_seeker' | 'company';
@@ -434,14 +516,15 @@ export interface AdminOverviewStats {
   totalRevenue: string;
 }
 
-export async function fetchAdminOverview(): Promise<AdminOverviewStats | null> {
+export async function fetchAdminOverview(forceRefresh = false): Promise<AdminOverviewStats | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/overview`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.data || null;
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/overview`,
+      { headers: getAuthHeaders() },
+      10000,
+      forceRefresh
+    );
+    return json?.data || null;
   } catch (error) {
     console.error('fetchAdminOverview error:', error);
     return null;
@@ -486,28 +569,30 @@ export interface AdminReportsData {
   }>;
 }
 
-export async function fetchAdminReports(): Promise<AdminReportsData | null> {
+export async function fetchAdminReports(forceRefresh = false): Promise<AdminReportsData | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/reports`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.data || null;
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/reports`,
+      { headers: getAuthHeaders() },
+      25000,
+      forceRefresh
+    );
+    return json?.data || null;
   } catch (error) {
     console.error('fetchAdminReports error:', error);
     return null;
   }
 }
 
-export async function fetchAdminCompanies(): Promise<any[]> {
+export async function fetchAdminCompanies(forceRefresh = false): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/companies`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.companies || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/companies`,
+      { headers: getAuthHeaders() },
+      15000,
+      forceRefresh
+    );
+    return json?.companies || [];
   } catch (error) {
     console.error('fetchAdminCompanies error:', error);
     return [];
@@ -551,6 +636,9 @@ export async function updateCompanyStatus(
       headers: getAuthHeaders(true),
       body: JSON.stringify({ status, reason, rejectionReason: reason }),
     });
+    invalidateApiCache('/companies');
+    invalidateApiCache('/admin/companies');
+    invalidateApiCache('/admin/overview');
     return await res.json();
   } catch (error: any) {
     console.error('updateCompanyStatus error:', error);
@@ -566,6 +654,9 @@ export async function deleteAdminCompany(
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
+    invalidateApiCache('/companies');
+    invalidateApiCache('/admin/companies');
+    invalidateApiCache('/admin/overview');
     return await res.json();
   } catch (error: any) {
     console.error('deleteAdminCompany error:', error);
@@ -605,14 +696,15 @@ export interface JobSeekerRecord {
   avatarLetter?: string;
 }
 
-export async function fetchAdminJobSeekers(): Promise<JobSeekerRecord[]> {
+export async function fetchAdminJobSeekers(forceRefresh = false): Promise<JobSeekerRecord[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/jobseekers`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.jobSeekers || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/jobseekers`,
+      { headers: getAuthHeaders() },
+      15000,
+      forceRefresh
+    );
+    return json?.jobSeekers || [];
   } catch (error) {
     console.error('fetchAdminJobSeekers error:', error);
     return [];
@@ -627,6 +719,8 @@ export async function deleteAdminJobSeeker(
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
+    invalidateApiCache('/admin/jobseekers');
+    invalidateApiCache('/admin/overview');
     return await res.json();
   } catch (error: any) {
     console.error('deleteAdminJobSeeker error:', error);
@@ -634,14 +728,15 @@ export async function deleteAdminJobSeeker(
   }
 }
 
-export async function fetchAdminJobs(): Promise<any[]> {
+export async function fetchAdminJobs(forceRefresh = false): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/jobs`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.jobs || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/jobs`,
+      { headers: getAuthHeaders() },
+      15000,
+      forceRefresh
+    );
+    return json?.jobs || [];
   } catch (error) {
     console.error('fetchAdminJobs error:', error);
     return [];
@@ -657,9 +752,15 @@ export async function createCompanyJob(jobData: any): Promise<{ success: boolean
       body: JSON.stringify(jobData),
     });
     const data = await res.json();
-    if (data.success && typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('job_created'));
-      window.dispatchEvent(new Event('storage'));
+    if (data.success) {
+      invalidateApiCache('/jobs');
+      invalidateApiCache('/admin/jobs');
+      invalidateApiCache('/admin/overview');
+      invalidateApiCache('/admin/reports');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('job_created'));
+        window.dispatchEvent(new Event('storage'));
+      }
     }
     return data;
   } catch (error: any) {
@@ -669,17 +770,15 @@ export async function createCompanyJob(jobData: any): Promise<{ success: boolean
 }
 
 // Fetch jobs for a specific company or all jobs
-export async function fetchCompanyJobs(params?: { companyId?: string; company?: string }): Promise<any[]> {
+export async function fetchCompanyJobs(params?: { companyId?: string; company?: string }, forceRefresh = false): Promise<any[]> {
   try {
     const query = new URLSearchParams();
     if (params?.companyId) query.set("companyId", params.companyId);
     if (params?.company) query.set("company", params.company);
     const qs = query.toString();
     const url = qs ? `${API_BASE_URL}/jobs?${qs}` : `${API_BASE_URL}/jobs`;
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.jobs || [];
+    const json = await cachedFetch<any>(url, { headers: getAuthHeaders() }, 10000, forceRefresh);
+    return json?.jobs || [];
   } catch (error) {
     console.error('fetchCompanyJobs error:', error);
     return [];
@@ -695,9 +794,15 @@ export async function updateCompanyJob(id: string, jobData: any): Promise<{ succ
       body: JSON.stringify(jobData),
     });
     const data = await res.json();
-    if (data.success && typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('job_updated'));
-      window.dispatchEvent(new Event('storage'));
+    if (data.success) {
+      invalidateApiCache('/jobs');
+      invalidateApiCache('/admin/jobs');
+      invalidateApiCache('/admin/overview');
+      invalidateApiCache('/admin/reports');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('job_updated'));
+        window.dispatchEvent(new Event('storage'));
+      }
     }
     return data;
   } catch (error: any) {
@@ -715,9 +820,15 @@ export async function updateCompanyJobStatus(id: string, status: string): Promis
       body: JSON.stringify({ status }),
     });
     const data = await res.json();
-    if (data.success && typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('job_updated'));
-      window.dispatchEvent(new Event('storage'));
+    if (data.success) {
+      invalidateApiCache('/jobs');
+      invalidateApiCache('/admin/jobs');
+      invalidateApiCache('/admin/overview');
+      invalidateApiCache('/admin/reports');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('job_updated'));
+        window.dispatchEvent(new Event('storage'));
+      }
     }
     return data;
   } catch (error: any) {
@@ -734,9 +845,15 @@ export async function deleteCompanyJob(id: string): Promise<{ success: boolean; 
       headers: getAuthHeaders(),
     });
     const data = await res.json();
-    if (data.success && typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('job_updated'));
-      window.dispatchEvent(new Event('storage'));
+    if (data.success) {
+      invalidateApiCache('/jobs');
+      invalidateApiCache('/admin/jobs');
+      invalidateApiCache('/admin/overview');
+      invalidateApiCache('/admin/reports');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('job_updated'));
+        window.dispatchEvent(new Event('storage'));
+      }
     }
     return data;
   } catch (error: any) {
@@ -755,6 +872,10 @@ export async function updateAdminJobStatus(
       headers: getAuthHeaders(true),
       body: JSON.stringify({ status }),
     });
+    invalidateApiCache('/jobs');
+    invalidateApiCache('/admin/jobs');
+    invalidateApiCache('/admin/overview');
+    invalidateApiCache('/admin/reports');
     return await res.json();
   } catch (error: any) {
     console.error('updateAdminJobStatus error:', error);
@@ -770,6 +891,10 @@ export async function deleteAdminJob(
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
+    invalidateApiCache('/jobs');
+    invalidateApiCache('/admin/jobs');
+    invalidateApiCache('/admin/overview');
+    invalidateApiCache('/admin/reports');
     return await res.json();
   } catch (error: any) {
     console.error('deleteAdminJob error:', error);
@@ -777,33 +902,30 @@ export async function deleteAdminJob(
   }
 }
 
-export async function fetchAdminApplications(): Promise<any[]> {
+export async function fetchAdminApplications(forceRefresh = false): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/applications`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.applications || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/applications`,
+      { headers: getAuthHeaders() },
+      15000,
+      forceRefresh
+    );
+    return json?.applications || [];
   } catch (error) {
     console.error('fetchAdminApplications error:', error);
     return [];
   }
 }
 
-export async function fetchJobApplicants(jobId: string): Promise<any[]> {
+export async function fetchJobApplicants(jobId: string, forceRefresh = false): Promise<any[]> {
   try {
-    let res = await fetch(`${API_BASE_URL}/jobs/${jobId}/applicants`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      res = await fetch(`${API_BASE_URL}/admin/jobs/${jobId}/applicants`, {
-        headers: getAuthHeaders(),
-      });
-    }
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.applicants || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/jobs/${jobId}/applicants`,
+      { headers: getAuthHeaders() },
+      10000,
+      forceRefresh
+    );
+    return json?.applicants || [];
   } catch (error) {
     console.error('fetchJobApplicants error:', error);
     return [];
@@ -813,17 +935,18 @@ export async function fetchJobApplicants(jobId: string): Promise<any[]> {
 export async function fetchCompanyApplications(params: {
   company?: string;
   companyId?: string;
-}): Promise<any[]> {
+}, forceRefresh = false): Promise<any[]> {
   try {
     const q = new URLSearchParams();
     if (params.company) q.append('company', params.company);
     if (params.companyId) q.append('companyId', params.companyId);
-    const res = await fetch(`${API_BASE_URL}/jobs/applied/company?${q.toString()}`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.applications || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/jobs/applied/company?${q.toString()}`,
+      { headers: getAuthHeaders() },
+      8000,
+      forceRefresh
+    );
+    return json?.applications || [];
   } catch (error) {
     console.error('fetchCompanyApplications error:', error);
     return [];
@@ -841,6 +964,10 @@ export async function updateAdminApplicationStatus(
       body: JSON.stringify({ status }),
     });
     const data = await res.json();
+    invalidateApiCache('/jobs/applied');
+    invalidateApiCache('/admin/applications');
+    invalidateApiCache('/admin/overview');
+    invalidateApiCache('/admin/reports');
     notifyApplicationSync();
     return data;
   } catch (error: any) {
@@ -869,6 +996,10 @@ export async function createAdminApplication(payload: {
       headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
     });
+    invalidateApiCache('/jobs/applied');
+    invalidateApiCache('/admin/applications');
+    invalidateApiCache('/admin/overview');
+    invalidateApiCache('/admin/reports');
     return await res.json();
   } catch (error: any) {
     console.error('createAdminApplication error:', error);
@@ -876,14 +1007,15 @@ export async function createAdminApplication(payload: {
   }
 }
 
-export async function fetchAdminPlans(): Promise<any[]> {
+export async function fetchAdminPlans(forceRefresh = false): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/plans`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.plans || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/plans`,
+      { headers: getAuthHeaders() },
+      30000,
+      forceRefresh
+    );
+    return json?.plans || [];
   } catch (error) {
     console.error('fetchAdminPlans error:', error);
     return [];
@@ -905,6 +1037,7 @@ export async function createAdminPlan(payload: {
       headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
     });
+    invalidateApiCache('/admin/plans');
     return await res.json();
   } catch (error: any) {
     console.error('createAdminPlan error:', error);
@@ -930,6 +1063,7 @@ export async function updateAdminPlan(
       headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
     });
+    invalidateApiCache('/admin/plans');
     return await res.json();
   } catch (error: any) {
     console.error('updateAdminPlan error:', error);
@@ -945,6 +1079,7 @@ export async function deleteAdminPlan(
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
+    invalidateApiCache('/admin/plans');
     return await res.json();
   } catch (error: any) {
     console.error('deleteAdminPlan error:', error);
@@ -1109,14 +1244,15 @@ export async function activateCompanyTrial(data?: { companyId?: string; email?: 
   }
 }
 
-export async function fetchAdminPermissionsSettings(): Promise<any> {
+export async function fetchAdminPermissionsSettings(forceRefresh = false): Promise<any> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/permissions-settings`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.settings || null;
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/permissions-settings`,
+      { headers: getAuthHeaders() },
+      30000,
+      forceRefresh
+    );
+    return json?.settings || null;
   } catch (error) {
     console.error('fetchAdminPermissionsSettings error:', error);
     return null;
@@ -1130,6 +1266,7 @@ export async function updateAdminPermissionsSettings(settings: any): Promise<{ s
       headers: getAuthHeaders(true),
       body: JSON.stringify({ settings }),
     });
+    invalidateApiCache('/admin/permissions-settings');
     return await res.json();
   } catch (error: any) {
     console.error('updateAdminPermissionsSettings error:', error);
@@ -1177,39 +1314,58 @@ export function getMatchingPlanRule(planName?: string): Partial<CompanyPermissio
   return undefined;
 }
 
+// Deduplication guard for syncGlobalPermissionsRules
+let lastPermissionsSyncTime = 0;
+let pendingPermissionsSync: Promise<Record<string, Partial<CompanyPermissions>>> | null = null;
+
 // Sync global permission settings from server or localStorage
-export async function syncGlobalPermissionsRules(): Promise<Record<string, Partial<CompanyPermissions>>> {
-  // First sync from localStorage if available
-  if (typeof window !== 'undefined') {
-    const cachedSettings = localStorage.getItem('addyjob_permissions_settings');
-    if (cachedSettings) {
-      try {
-        const parsed = JSON.parse(cachedSettings);
-        if (parsed.planRules) {
-          Object.keys(parsed.planRules).forEach((k) => {
-            PLAN_AUTO_PERMISSIONS[k] = parsed.planRules[k];
-          });
-        }
-      } catch (e) {}
-    }
+export async function syncGlobalPermissionsRules(force = false): Promise<Record<string, Partial<CompanyPermissions>>> {
+  const now = Date.now();
+  if (!force && now - lastPermissionsSyncTime < 25000 && Object.keys(PLAN_AUTO_PERMISSIONS).length > 2) {
+    return PLAN_AUTO_PERMISSIONS;
+  }
+  if (pendingPermissionsSync) {
+    return pendingPermissionsSync;
   }
 
-  // Then fetch authoritative settings from backend
-  try {
-    const remote = await fetchAdminPermissionsSettings();
-    if (remote?.planRules) {
-      Object.keys(remote.planRules).forEach((k) => {
-        PLAN_AUTO_PERMISSIONS[k] = remote.planRules[k];
-      });
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('addyjob_permissions_settings', JSON.stringify(remote));
-        window.dispatchEvent(new Event('company_permissions_updated'));
+  pendingPermissionsSync = (async () => {
+    // First sync from localStorage if available
+    if (typeof window !== 'undefined') {
+      const cachedSettings = localStorage.getItem('addyjob_permissions_settings');
+      if (cachedSettings) {
+        try {
+          const parsed = JSON.parse(cachedSettings);
+          if (parsed.planRules) {
+            Object.keys(parsed.planRules).forEach((k) => {
+              PLAN_AUTO_PERMISSIONS[k] = parsed.planRules[k];
+            });
+          }
+        } catch (e) {}
       }
     }
-  } catch (e) {
-    console.warn('syncGlobalPermissionsRules failed:', e);
-  }
-  return PLAN_AUTO_PERMISSIONS;
+
+    // Then fetch authoritative settings from backend
+    try {
+      const remote = await fetchAdminPermissionsSettings(force);
+      if (remote?.planRules) {
+        Object.keys(remote.planRules).forEach((k) => {
+          PLAN_AUTO_PERMISSIONS[k] = remote.planRules[k];
+        });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('addyjob_permissions_settings', JSON.stringify(remote));
+          window.dispatchEvent(new Event('company_permissions_updated'));
+        }
+      }
+      lastPermissionsSyncTime = Date.now();
+    } catch (e) {
+      console.warn('syncGlobalPermissionsRules failed:', e);
+    } finally {
+      pendingPermissionsSync = null;
+    }
+    return PLAN_AUTO_PERMISSIONS;
+  })();
+
+  return pendingPermissionsSync;
 }
 
 export function getEffectiveCompanyPermissions(company?: {
@@ -1349,29 +1505,31 @@ export function getEffectiveCompanyPermissions(company?: {
 
 // ================= PUBLIC JOBS & COMPANIES APIs =================
 
-export async function fetchPublicJobs(params?: Record<string, string>): Promise<any[]> {
+export async function fetchPublicJobs(params?: Record<string, string>, forceRefresh = false): Promise<any[]> {
   try {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    const res = await fetch(`${API_BASE_URL}/jobs${query}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.jobs || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/jobs${query}`,
+      { cache: 'no-store' },
+      15000,
+      forceRefresh
+    );
+    return json?.jobs || [];
   } catch (error) {
     console.error('fetchPublicJobs error:', error);
     return [];
   }
 }
 
-export async function fetchPublicJobById(id: string): Promise<any | null> {
+export async function fetchPublicJobById(id: string, forceRefresh = false): Promise<any | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/jobs/${id}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.job || null;
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/jobs/${id}`,
+      { cache: 'no-store' },
+      15000,
+      forceRefresh
+    );
+    return json?.job || null;
   } catch (error) {
     console.error('fetchPublicJobById error:', error);
     return null;
@@ -1385,6 +1543,9 @@ export async function createPublicJob(payload: any): Promise<{ success: boolean;
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    invalidateApiCache('/jobs');
+    invalidateApiCache('/admin/jobs');
+    invalidateApiCache('/admin/overview');
     return await res.json();
   } catch (error: any) {
     console.error('createPublicJob error:', error);
@@ -1392,29 +1553,31 @@ export async function createPublicJob(payload: any): Promise<{ success: boolean;
   }
 }
 
-export async function fetchPublicCompanies(params?: Record<string, string>): Promise<any[]> {
+export async function fetchPublicCompanies(params?: Record<string, string>, forceRefresh = false): Promise<any[]> {
   try {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    const res = await fetch(`${API_BASE_URL}/companies${query}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.companies || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/companies${query}`,
+      { cache: 'no-store' },
+      25000,
+      forceRefresh
+    );
+    return json?.companies || [];
   } catch (error) {
     console.error('fetchPublicCompanies error:', error);
     return [];
   }
 }
 
-export async function fetchPublicCompanyById(id: string): Promise<{ company: any; jobs: any[] } | null> {
+export async function fetchPublicCompanyById(id: string, forceRefresh = false): Promise<{ company: any; jobs: any[] } | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/companies/${id}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data;
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/companies/${id}`,
+      { cache: 'no-store' },
+      25000,
+      forceRefresh
+    );
+    return json || null;
   } catch (error) {
     console.error('fetchPublicCompanyById error:', error);
     return null;
@@ -1431,6 +1594,11 @@ export async function submitJobApplication(jobId: string, payload: any): Promise
       body: JSON.stringify(payload),
     });
     const data = await res.json();
+    invalidateApiCache('/jobs/applied');
+    invalidateApiCache('/admin/applications');
+    invalidateApiCache('/admin/overview');
+    invalidateApiCache('/admin/reports');
+    invalidateApiCache('/jobs');
     notifyApplicationSync();
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('job_application_submitted', { detail: { jobId, application: data.application } }));
@@ -1452,11 +1620,11 @@ export async function fetchJobActivityAPI(
     if (title) params.append('title', title);
     if (company) params.append('company', company);
     const q = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/activity${q}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    return await res.json();
+    return await cachedFetch<any>(
+      `${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/activity${q}`,
+      { cache: 'no-store' },
+      15000
+    );
   } catch (err) {
     return null;
   }
@@ -1466,7 +1634,8 @@ export async function fetchCandidateApplicationsFromDB(
   email?: string | string[],
   candidateId?: string,
   _phone?: string | string[],
-  _jobIds?: string | string[]
+  _jobIds?: string | string[],
+  forceRefresh = false
 ): Promise<any[]> {
   try {
     const params = new URLSearchParams();
@@ -1478,33 +1647,39 @@ export async function fetchCandidateApplicationsFromDB(
 
     const qs = params.toString();
     const url = qs ? `${API_BASE_URL}/jobs/applied/candidate?${qs}` : `${API_BASE_URL}/jobs/applied/candidate`;
-    const res = await fetch(url, {
-      cache: 'no-store',
-      headers: getAuthHeaders(true),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.applications || [];
+    const json = await cachedFetch<any>(
+      url,
+      {
+        cache: 'no-store',
+        headers: getAuthHeaders(true),
+      },
+      8000,
+      forceRefresh
+    );
+    return json?.applications || [];
   } catch (err) {
     console.error('fetchCandidateApplications error:', err);
     return [];
   }
 }
 
-export async function fetchCompanyApplicationsFromDB(companyId?: string, companyName?: string): Promise<any[]> {
+export async function fetchCompanyApplicationsFromDB(companyId?: string, companyName?: string, forceRefresh = false): Promise<any[]> {
   try {
     if (!companyId && !companyName) return [];
     const params = new URLSearchParams();
     if (companyId) params.append('companyId', companyId);
     if (companyName) params.append('companyName', companyName);
 
-    const res = await fetch(`${API_BASE_URL}/jobs/applied/company?${params.toString()}`, {
-      cache: 'no-store',
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.applications || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/jobs/applied/company?${params.toString()}`,
+      {
+        cache: 'no-store',
+        headers: getAuthHeaders(),
+      },
+      8000,
+      forceRefresh
+    );
+    return json?.applications || [];
   } catch (err) {
     console.error('fetchCompanyApplications error:', err);
     return [];

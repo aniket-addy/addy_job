@@ -6,9 +6,13 @@ import { Star, Building2, Briefcase } from "lucide-react";
 import { fetchPublicCompanies } from "@/lib/api";
 import { companiesList } from "@/data/companiesData";
 
-export default function TopCompaniesCards() {
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function TopCompaniesCards({ initialCompanies }: { initialCompanies?: any[] }) {
+  const [companies, setCompanies] = useState<any[]>(
+    Array.isArray(initialCompanies) && initialCompanies.length > 0 ? initialCompanies : []
+  );
+  const [isLoading, setIsLoading] = useState(
+    !Array.isArray(initialCompanies) || initialCompanies.length === 0
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,12 +38,10 @@ export default function TopCompaniesCards() {
     };
 
     load();
-    window.addEventListener("applied_jobs_change", load);
-    window.addEventListener("storage", load);
+    window.addEventListener("companies_updated", load);
     return () => {
       isMounted = false;
-      window.removeEventListener("applied_jobs_change", load);
-      window.removeEventListener("storage", load);
+      window.removeEventListener("companies_updated", load);
     };
   }, []);
 

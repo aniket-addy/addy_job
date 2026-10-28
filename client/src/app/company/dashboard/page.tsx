@@ -407,7 +407,7 @@ export default function CompanyDashboardPage() {
   const handleTabSwitch = (
     tab: "dashboard" | "profile" | "jobs" | "applicants" | "resumes" | "subscription" | "settings"
   ) => {
-    if (tab !== "profile" && tab !== "subscription" && !permissions[tab]) {
+    if (tab !== "profile" && tab !== "subscription" && tab !== "jobs" && !permissions[tab]) {
       setToastMessage("🔒 This feature is currently locked under your company trial permissions.");
       setTimeout(() => setToastMessage(null), 3500);
       return;
@@ -478,6 +478,10 @@ export default function CompanyDashboardPage() {
   const [companyStatus, setCompanyStatus] = useState<"Pending" | "Approved" | "Rejected">("Pending");
   const [rejectionReason, setRejectionReason] = useState<string>("");
   const [isApprovalRequiredModalOpen, setIsApprovalRequiredModalOpen] = useState(false);
+
+  // Live Job Posting Permission: Only approved companies with jobs permission can post directly to Active
+  const isCompanyApproved = companyStatus === "Approved";
+  const canPostLiveJobs = isCompanyApproved && Boolean(permissions.jobs);
 
   // Portal / Company Notification Settings
   const [emailNotificationOnApplication, setEmailNotificationOnApplication] = useState<boolean>(true);
@@ -701,17 +705,10 @@ export default function CompanyDashboardPage() {
     };
 
     window.addEventListener("plans_updated", handleSync);
-    window.addEventListener("storage", handleSync);
-    window.addEventListener("focus", handleSync);
-
-    const interval = setInterval(loadSubscriptionPlans, 4000);
 
     return () => {
       isMounted = false;
       window.removeEventListener("plans_updated", handleSync);
-      window.removeEventListener("storage", handleSync);
-      window.removeEventListener("focus", handleSync);
-      clearInterval(interval);
     };
   }, []);
 
@@ -726,10 +723,10 @@ export default function CompanyDashboardPage() {
       });
       setPermissions(perms);
 
-      // Guard activeTab: profile and subscription are ALWAYS accessible.
+      // Guard activeTab: profile, subscription, and jobs are ALWAYS accessible.
       // Other tabs require explicit permission (via manual grant or plan auto-approval)
       setActiveTab((current) => {
-        if (current === "profile" || current === "subscription") return current;
+        if (current === "profile" || current === "subscription" || current === "jobs") return current;
         if (perms[current as keyof CompanyPermissions]) return current;
         return "profile";
       });
@@ -777,17 +774,11 @@ export default function CompanyDashboardPage() {
       });
     };
 
-    syncPermissionsAndTrial();
-    // Sync latest global plan rules configured by Super Admin
     syncGlobalPermissionsRules().then(() => syncPermissionsAndTrial());
 
     window.addEventListener("company_permissions_updated", syncPermissionsAndTrial);
-    window.addEventListener("storage", syncPermissionsAndTrial);
-    window.addEventListener("focus", syncPermissionsAndTrial);
     return () => {
       window.removeEventListener("company_permissions_updated", syncPermissionsAndTrial);
-      window.removeEventListener("storage", syncPermissionsAndTrial);
-      window.removeEventListener("focus", syncPermissionsAndTrial);
     };
   }, [currentPlan]);
 
@@ -1962,10 +1953,6 @@ export default function CompanyDashboardPage() {
 
   // Modal Handlers: Open New Job / Edit Existing Job
   const openNewJobModal = () => {
-    if (!permissions.jobs) {
-      showToast("🔒 Job posting is locked under your company trial permissions.");
-      return;
-    }
     setEditingJobId(null);
     setJobTitle("");
     setJobDepartment("Engineering");
@@ -1985,10 +1972,6 @@ export default function CompanyDashboardPage() {
   };
 
   const openEditJobModal = (job: PostedJob) => {
-    if (!permissions.jobs) {
-      showToast("🔒 Job posting is locked under your company trial permissions.");
-      return;
-    }
     setEditingJobId(job.id);
     setJobTitle(job.title || "");
     setJobDepartment(job.department || "Engineering");
@@ -2081,7 +2064,9 @@ export default function CompanyDashboardPage() {
         console.error("Backend update job error:", err);
       });
     } else {
-      // Create new job
+      // Create new job: If company is Approved AND has direct job permission -> Active (Live), otherwise -> Pending
+      const targetStatus: "Active" | "Pending" = canPostLiveJobs ? "Active" : "Pending";
+
       const jobPayload = {
         title: jobTitle,
         company: compName,
@@ -2100,7 +2085,7 @@ export default function CompanyDashboardPage() {
         responsibilities: parsedResponsibilities,
         requirements: parsedRequirements,
         benefits: parsedBenefits,
-        status: "Pending" as const,
+        status: targetStatus,
       };
 
       const tempId = `temp-${Date.now()}`;
@@ -2109,7 +2094,7 @@ export default function CompanyDashboardPage() {
         id: tempId,
         applicantsCount: 0,
         postedOn: "Just now",
-        status: "Pending",
+        status: targetStatus,
       };
 
       setJobs((prev) => {
@@ -2119,7 +2104,12 @@ export default function CompanyDashboardPage() {
         } catch (err) {}
         return updated;
       });
-      showToast(`Job posting "${jobTitle}" submitted! It will go live once approved by Super Admin.`);
+
+      if (canPostLiveJobs) {
+        showToast(`🎉 Job opening "${jobTitle}" has been posted directly as LIVE!`);
+      } else {
+        showToast(`📋 Job posting "${jobTitle}" submitted! Since company is not approved / live permission is pending, it has been placed in Pending status awaiting Super Admin approval.`);
+      }
 
       // Persist to MongoDB backend and sync real id
       createCompanyJob(jobPayload)
@@ -2129,7 +2119,7 @@ export default function CompanyDashboardPage() {
             const realId = saved.id || saved._id?.toString() || tempId;
             setJobs((prev) => {
               const updated = prev.map((j) =>
-                j.id === tempId ? { ...saved, id: realId } : j
+                j.id === tempId ? { ...saved, id: realId, status: saved.status || targetStatus } : j
               );
               try {
                 if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
@@ -2582,25 +2572,30 @@ export default function CompanyDashboardPage() {
             <span className="flex-1 text-left">Company Profile</span>
           </button>
 
-          {/* Job Postings - Visible only if permitted */}
-          {permissions.jobs && (
-            <button
-              onClick={() => handleTabSwitch("jobs")}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
-                activeTab === "jobs"
-                  ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <div className="flex items-center gap-3.5">
-                <Briefcase className={`w-4 h-4 shrink-0 ${activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500"}`} />
-                <span>Job Postings</span>
-              </div>
+          {/* Job Postings - Always accessible to companies */}
+          <button
+            onClick={() => handleTabSwitch("jobs")}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition cursor-pointer ${
+              activeTab === "jobs"
+                ? "bg-[#EDE9FE]/80 text-[#7C3AED] font-extrabold border border-[#DDD6FE]/70 shadow-2xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            <div className="flex items-center gap-3.5">
+              <Briefcase className={`w-4 h-4 shrink-0 ${activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500"}`} />
+              <span>Job Postings</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {!canPostLiveJobs && (
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                  Pending Mode
+                </span>
+              )}
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
                 {totalJobsCount}
               </span>
-            </button>
-          )}
+            </div>
+          </button>
 
           {/* Applications - Visible only if permitted */}
           {permissions.applicants && (
@@ -3805,13 +3800,30 @@ export default function CompanyDashboardPage() {
                     Total {totalJobsCount} job openings created ({activeJobsCount} currently active)
                   </p>
                 </div>
-                <button
-                  onClick={openNewJobModal}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-violet-500/20 flex items-center justify-center gap-2 cursor-pointer transition hover:scale-102"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Post a New Job</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                  {!canPostLiveJobs ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      Pending Approval Mode
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      Direct Live Posting
+                    </span>
+                  )}
+                  <button
+                    onClick={openNewJobModal}
+                    className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer transition hover:scale-102 ${
+                      canPostLiveJobs
+                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/20"
+                        : "bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-violet-500/20"
+                    }`}
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>{canPostLiveJobs ? "Post a New Job (Live)" : "Post a New Job"}</span>
+                  </button>
+                </div>
               </div>
 
               {/* HORIZONTALLY SCROLLABLE JOBS TABLE: Single-row scrollable across all mobile & desktop screens */}
@@ -5209,22 +5221,20 @@ export default function CompanyDashboardPage() {
             <span>Profile</span>
           </button>
 
-          {permissions.jobs && (
-            <button
-              onClick={() => handleTabSwitch("jobs")}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer relative ${
-                activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <Briefcase className="w-5 h-5" />
-              <span>Jobs</span>
-              {totalJobsCount > 0 && (
-                <span className="absolute top-0 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#EDE9FE] text-[#7C3AED]">
-                  {totalJobsCount}
-                </span>
-              )}
-            </button>
-          )}
+          <button
+            onClick={() => handleTabSwitch("jobs")}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition cursor-pointer relative ${
+              activeTab === "jobs" ? "text-[#7C3AED]" : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Briefcase className="w-5 h-5" />
+            <span>Jobs</span>
+            {totalJobsCount > 0 && (
+              <span className="absolute top-0 right-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#EDE9FE] text-[#7C3AED]">
+                {totalJobsCount}
+              </span>
+            )}
+          </button>
 
           {permissions.applicants && (
             <button
@@ -5305,6 +5315,41 @@ export default function CompanyDashboardPage() {
 
             {/* Scrollable Form Body */}
             <form onSubmit={handleSaveJob} className="overflow-y-auto pr-1 sm:pr-2 pt-5 space-y-6 text-xs flex-1">
+              {/* Permission Status Notice Banner */}
+              {!canPostLiveJobs ? (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-amber-950">Pending Approval Mode</span>
+                      <span className="text-[10px] font-bold bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300">
+                        {companyStatus !== "Approved" ? `Company Status: ${companyStatus}` : "Admin Approval Required"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      {companyStatus !== "Approved"
+                        ? `Your company verification status is currently "${companyStatus}". New job postings will be submitted in Pending status until your company verification is approved by the Super Admin.`
+                        : "Your company does not currently have direct live posting permissions. This job will be submitted to the Super Admin for review and set to Pending status until approved."}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-emerald-950">Direct Live Posting Enabled</span>
+                      <span className="text-[10px] font-bold bg-emerald-200/70 text-emerald-900 px-2 py-0.5 rounded-full border border-emerald-300">
+                        Verified Live Post
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      Your company is approved and has direct job posting permission. This job opening will be published <strong>LIVE</strong> immediately upon posting.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* SECTION 1: ROLE IDENTITY & CLASSIFICATION */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -5523,10 +5568,28 @@ export default function CompanyDashboardPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 sm:flex-initial justify-center px-6 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold shadow-md shadow-violet-500/20 transition cursor-pointer flex items-center gap-2"
+                  className={`flex-1 sm:flex-initial justify-center px-6 py-2.5 rounded-xl text-white font-bold shadow-md transition cursor-pointer flex items-center gap-2 ${
+                    canPostLiveJobs
+                      ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/20"
+                      : "bg-[#7C3AED] hover:bg-[#6D28D9] shadow-violet-500/20"
+                  }`}
                 >
-                  <Check className="w-4 h-4" />
-                  <span>{editingJobId ? "Save Changes" : "Publish Job Opening"}</span>
+                  {editingJobId ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Save Changes</span>
+                    </>
+                  ) : canPostLiveJobs ? (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Publish Live Job</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="w-4 h-4" />
+                      <span>Submit for Approval (Pending)</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

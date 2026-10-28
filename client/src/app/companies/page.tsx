@@ -56,12 +56,12 @@ export default function CompaniesPage() {
     };
 
     load();
-    window.addEventListener("applied_jobs_change", load);
-    window.addEventListener("storage", load);
+    window.addEventListener("companies_updated", load);
+    window.addEventListener("company_profile_updated", load);
     return () => {
       isMounted = false;
-      window.removeEventListener("applied_jobs_change", load);
-      window.removeEventListener("storage", load);
+      window.removeEventListener("companies_updated", load);
+      window.removeEventListener("company_profile_updated", load);
     };
   }, []);
 

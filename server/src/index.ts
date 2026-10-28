@@ -32,7 +32,8 @@ app.use(cors({
     }
     return callback(null, true); // Permissive in dev to avoid CORS blocking
   },
-  credentials: true
+  credentials: true,
+  maxAge: 86400, // Cache preflight OPTIONS responses in browsers for 24 hours
 }));
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));

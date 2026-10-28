@@ -126,5 +126,11 @@ const jobSchema = new Schema<IJob>(
   }
 );
 
+// Performance Indexes for fast filtering & sorting
+jobSchema.index({ status: 1, createdAt: -1 });
+jobSchema.index({ companyId: 1, status: 1 });
+jobSchema.index({ company: 1 });
+jobSchema.index({ department: 1, location: 1 });
+
 export const Job = mongoose.models.Job || mongoose.model<IJob>('Job', jobSchema);
 export default Job;
