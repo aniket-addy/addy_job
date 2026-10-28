@@ -4,9 +4,20 @@ import {
   getCompanyById,
   updateCompanyById,
   testCompanyNotification,
+  activateCompanyTrial,
 } from '../controllers/company.controller.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// Activate Free Trial for company (supports token or companyId/email body)
+router.post('/activate-trial', (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authenticate(req as any, res, next);
+  }
+  next();
+}, activateCompanyTrial);
 
 router.get('/', getCompanies);
 router.get('/:id', getCompanyById);

@@ -20,6 +20,7 @@ import {
   getLocalSavedJobs,
   toggleLocalSavedJob,
 } from "@/lib/api";
+import { jobsList } from "@/data/jobsData";
 
 export default function RecommendedJobs() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -30,11 +31,16 @@ export default function RecommendedJobs() {
   const loadJobs = () => {
     fetchPublicJobs()
       .then((data) => {
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           setJobs(data);
+        } else {
+          setJobs(jobsList.slice(0, 8));
         }
       })
-      .catch((err) => console.error("Error fetching recommended jobs:", err))
+      .catch((err) => {
+        console.error("Error fetching recommended jobs:", err);
+        setJobs(jobsList.slice(0, 8));
+      })
       .finally(() => {
         setIsLoading(false);
       });

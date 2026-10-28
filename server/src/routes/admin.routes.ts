@@ -30,7 +30,10 @@ import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
-// 🔒 All admin routes require valid JWT + admin/sadmin role
+// Public read for system permissions & Free Trial configuration (used by company dashboard & pricing)
+router.get('/permissions-settings', getAdminPermissionsSettings);
+
+// 🔒 All remaining admin routes require valid JWT + admin/sadmin role
 router.use(authenticate);
 router.use(requireAdmin);
 
@@ -49,8 +52,7 @@ router.delete('/companies/:id', deleteCompany);
 router.get('/jobseekers', getAdminJobSeekers);
 router.delete('/jobseekers/:id', deleteAdminJobSeeker);
 
-// Permissions & Auto-approval Settings
-router.get('/permissions-settings', getAdminPermissionsSettings);
+// Permissions & Auto-approval Settings (Super Admin update)
 router.put('/permissions-settings', updateAdminPermissionsSettings);
 
 // Jobs moderation

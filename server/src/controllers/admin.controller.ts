@@ -1205,6 +1205,7 @@ let globalPermissionsSettings: {
   freeTrialEnabled?: boolean;
   trialDays?: number;
   trialCredits?: number;
+  trialPoints?: string[];
   enableDefaultPermissions?: boolean;
   defaultNewCompanyPerms?: Record<string, boolean>;
   planRules: Record<string, any>;
@@ -1223,6 +1224,13 @@ let globalPermissionsSettings: {
   freeTrialEnabled: true,
   trialDays: 14,
   trialCredits: 15,
+  trialPoints: [
+    'Instant access to Candidate Search & Talent Pool',
+    'Direct Candidate CV Downloads with Complimentary Credits',
+    'Post & Manage Job Openings on the platform',
+    'Real-time Applicant Pipeline & Status Tracking',
+    'Direct Messaging & Company Dashboard Access',
+  ],
   enableDefaultPermissions: true,
   defaultNewCompanyPerms: {
     dashboard: true,
@@ -1313,7 +1321,7 @@ export const updateCompanyPermissions = async (req: Request, res: Response) => {
     await ensureDBConnection();
     await seedInitialAdminData();
     const id = String(req.params.id);
-    const { permissions, email, name, companyName, plan } = req.body;
+    const { permissions, email, name, companyName, plan, resumeCredits } = req.body;
 
     let company = null;
     if (mongoose.isValidObjectId(id)) {
@@ -1355,6 +1363,13 @@ export const updateCompanyPermissions = async (req: Request, res: Response) => {
       });
     }
 
+    const assignedCredits =
+      typeof resumeCredits === 'number'
+        ? resumeCredits
+        : plan === 'Free Trial' && typeof globalPermissionsSettings.trialCredits === 'number'
+        ? globalPermissionsSettings.trialCredits
+        : 0;
+
     // If company not in database yet (e.g. demo mock), upsert it directly
     if (!company) {
       const compName = name || companyName || `Company ${id}`;
@@ -1371,6 +1386,7 @@ export const updateCompanyPermissions = async (req: Request, res: Response) => {
         location: 'India',
         status: 'Approved',
         plan: plan || '',
+        resumeCredits: assignedCredits,
         permissions: {
           dashboard: false,
           jobs: false,
@@ -1384,6 +1400,11 @@ export const updateCompanyPermissions = async (req: Request, res: Response) => {
     } else {
       if (plan && typeof plan === 'string') {
         company.plan = plan;
+      }
+      if (typeof resumeCredits === 'number') {
+        company.resumeCredits = resumeCredits;
+      } else if (plan === 'Free Trial' && typeof globalPermissionsSettings.trialCredits === 'number' && (!company.resumeCredits || company.resumeCredits === 0)) {
+        company.resumeCredits = globalPermissionsSettings.trialCredits;
       }
       company.permissions = {
         dashboard: false,
@@ -1403,11 +1424,13 @@ export const updateCompanyPermissions = async (req: Request, res: Response) => {
       message: `Permissions updated successfully for ${company.companyName || company.name}`,
       permissions: company.permissions,
       plan: company.plan,
+      resumeCredits: company.resumeCredits,
       company: {
         id: company._id.toString(),
         userId: company.userId || company.customId,
         name: company.companyName || company.name,
         plan: company.plan,
+        resumeCredits: company.resumeCredits,
       },
     });
   } catch (error: any) {
@@ -1475,41 +1498,65 @@ export const updateAdminPermissionsSettings = async (req: Request, res: Response
         }
 
         const compPlan = comp.plan || '';
-        const matchedRule =
-          findMatchingPlanRule(compPlan, planRules) ||
-          (compPlan.toLowerCase().includes('trial') || (!compPlan && globalPermissionsSettings.enableDefaultPermissions)
-            ? globalPermissionsSettings.defaultNewCompanyPerms
-            : null);
+        const isTrialComp = compPlan.toLowerCase().includes('trial') || compPlan === 'Free Trial';
+        const isUnsubscribed = !compPlan || compPlan === 'No Active Plan';
 
-        if (matchedRule) {
-          comp.permissions = {
-            dashboard: false,
-            jobs: false,
-            applicants: false,
+        if (isTrialComp) {
+          const trialPerms = globalPermissionsSettings.defaultNewCompanyPerms || {
+            dashboard: true,
+            jobs: true,
+            applicants: true,
             resumes: false,
             settings: false,
-            ...(comp.permissions || {}),
-            ...matchedRule,
+          };
+          comp.permissions = {
+            profile: true,
+            subscription: true,
+            dashboard: Boolean(trialPerms.dashboard),
+            jobs: Boolean(trialPerms.jobs),
+            applicants: Boolean(trialPerms.applicants),
+            resumes: Boolean(trialPerms.resumes),
+            settings: Boolean(trialPerms.settings),
             autoApproveFromSubscription: true,
           };
           await comp.save();
           updatedCompaniesCount++;
-        } else if (
-          globalPermissionsSettings.enableDefaultPermissions &&
-          (globalPermissionsSettings as any).defaultNewCompanyPerms
-        ) {
-          comp.permissions = {
-            dashboard: false,
-            jobs: false,
-            applicants: false,
+        } else if (isUnsubscribed && globalPermissionsSettings.enableDefaultPermissions) {
+          const basePerms = globalPermissionsSettings.defaultNewCompanyPerms || {
+            dashboard: true,
+            jobs: true,
+            applicants: true,
             resumes: false,
             settings: false,
-            ...(comp.permissions || {}),
-            ...(globalPermissionsSettings as any).defaultNewCompanyPerms,
+          };
+          comp.permissions = {
+            profile: true,
+            subscription: true,
+            dashboard: Boolean(basePerms.dashboard),
+            jobs: Boolean(basePerms.jobs),
+            applicants: Boolean(basePerms.applicants),
+            resumes: Boolean(basePerms.resumes),
+            settings: Boolean(basePerms.settings),
             autoApproveFromSubscription: true,
           };
           await comp.save();
           updatedCompaniesCount++;
+        } else {
+          const matchedRule = findMatchingPlanRule(compPlan, planRules);
+          if (matchedRule) {
+            comp.permissions = {
+              profile: true,
+              subscription: true,
+              dashboard: Boolean(matchedRule.dashboard),
+              jobs: Boolean(matchedRule.jobs),
+              applicants: Boolean(matchedRule.applicants),
+              resumes: Boolean(matchedRule.resumes),
+              settings: Boolean(matchedRule.settings),
+              autoApproveFromSubscription: true,
+            };
+            await comp.save();
+            updatedCompaniesCount++;
+          }
         }
       }
     }

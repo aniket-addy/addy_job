@@ -397,6 +397,37 @@ function SignupContent() {
         }, 1000);
       } else {
         // Employer Registration
+        if (!companyForm.phone?.trim()) {
+          setApiErrorMsg("Please enter your contact phone number.");
+          setIsLoading(false);
+          return;
+        }
+        if (!companyForm.password || companyForm.password.length < 8) {
+          setApiErrorMsg("Password must be at least 8 characters long.");
+          setIsLoading(false);
+          return;
+        }
+        if (!/^[A-Z]/.test(companyForm.password)) {
+          setApiErrorMsg("Password must start with a Capital letter (A-Z).");
+          setIsLoading(false);
+          return;
+        }
+        if (!/[a-z]/.test(companyForm.password)) {
+          setApiErrorMsg("Password must contain at least one lowercase letter (a-z).");
+          setIsLoading(false);
+          return;
+        }
+        if (!/[0-9]/.test(companyForm.password)) {
+          setApiErrorMsg("Password must contain at least one number (0-9).");
+          setIsLoading(false);
+          return;
+        }
+        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(companyForm.password)) {
+          setApiErrorMsg("Password must contain at least one special character (@, #, $, %, etc.).");
+          setIsLoading(false);
+          return;
+        }
+
         const res = await registerUser({
           role: "company",
           email: companyForm.workEmail.trim().toLowerCase(),

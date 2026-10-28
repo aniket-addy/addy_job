@@ -1009,8 +1009,8 @@ export const PLAN_AUTO_PERMISSIONS: Record<string, Partial<CompanyPermissions>> 
 export async function updateCompanyPermissions(
   id: string,
   permissions: Partial<CompanyPermissions>,
-  extra?: { name?: string; email?: string; plan?: string }
-): Promise<{ success: boolean; message: string; permissions?: CompanyPermissions; company?: any; plan?: string }> {
+  extra?: { name?: string; email?: string; plan?: string; resumeCredits?: number }
+): Promise<{ success: boolean; message: string; permissions?: CompanyPermissions; company?: any; plan?: string; resumeCredits?: number }> {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/companies/${id}/permissions`, {
       method: 'PATCH',
@@ -1020,6 +1020,7 @@ export async function updateCompanyPermissions(
         name: extra?.name,
         email: extra?.email,
         plan: extra?.plan,
+        resumeCredits: extra?.resumeCredits,
       }),
     });
     const json = await res.json();
@@ -1035,7 +1036,20 @@ export async function updateCompanyPermissions(
         localStorage.setItem('company_active_plan', extra.plan);
         const storedUser = getStoredUser();
         if (storedUser) {
-          setStoredUser({ ...storedUser, plan: extra.plan, permissions });
+          setStoredUser({
+            ...storedUser,
+            plan: extra.plan,
+            permissions,
+            ...(typeof extra.resumeCredits === 'number' ? { resumeCredits: extra.resumeCredits } : {}),
+          });
+        }
+      }
+      if (typeof extra?.resumeCredits === 'number') {
+        const storedUser = getStoredUser();
+        const uid = (storedUser as any)?._id || storedUser?.id || (storedUser as any)?.userId || storedUser?.email;
+        if (uid) {
+          localStorage.setItem(`company_total_credits_${uid}`, String(extra.resumeCredits));
+          localStorage.setItem(`company_resumes_used_${uid}`, '0');
         }
       }
       window.dispatchEvent(new Event('company_permissions_updated'));
@@ -1045,6 +1059,49 @@ export async function updateCompanyPermissions(
   } catch (error: any) {
     console.error('updateCompanyPermissions error:', error);
     return { success: false, message: 'Failed to update company permissions' };
+  }
+}
+
+export async function activateCompanyTrial(data?: { companyId?: string; email?: string }): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/companies/activate-trial`, {
+      method: 'POST',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(data || {}),
+    });
+    const json = await res.json();
+    if (json.success && typeof window !== 'undefined') {
+      localStorage.setItem('company_active_plan', 'Free Trial');
+      if (json.trialDays) {
+        localStorage.setItem('company_plan_validity', `Valid for ${json.trialDays} Days (Trial)`);
+      }
+      if (json.permissions) {
+        localStorage.setItem('company_permissions_active', JSON.stringify(json.permissions));
+        const storedUser = getStoredUser();
+        const uid = (storedUser as any)?._id || storedUser?.id || (storedUser as any)?.userId || storedUser?.email;
+        if (uid) {
+          localStorage.setItem(`company_permissions_${uid}`, JSON.stringify(json.permissions));
+          if (typeof json.resumeCredits === 'number') {
+            localStorage.setItem(`company_total_credits_${uid}`, String(json.resumeCredits));
+            localStorage.setItem(`company_resumes_used_${uid}`, '0');
+          }
+        }
+        if (storedUser) {
+          setStoredUser({
+            ...storedUser,
+            plan: 'Free Trial',
+            permissions: json.permissions,
+            ...(typeof json.resumeCredits === 'number' ? { resumeCredits: json.resumeCredits } : {}),
+          });
+        }
+      }
+      window.dispatchEvent(new Event('company_permissions_updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+    return json;
+  } catch (error: any) {
+    console.error('activateCompanyTrial error:', error);
+    return { success: false, message: error.message || 'Failed to activate trial' };
   }
 }
 
@@ -1193,49 +1250,84 @@ export function getEffectiveCompanyPermissions(company?: {
     const isTrial = Boolean(activePlan && activePlan.toLowerCase().includes('trial'));
     const isUnsubscribed = !activePlan || activePlan === 'No Active Plan';
 
-    // 2. If company is on Free Trial or Unsubscribed with default permissions enabled
-    if (isTrial || (isUnsubscribed && cachedSettings?.enableDefaultPermissions)) {
-      const trialPerms = cachedSettings?.defaultNewCompanyPerms || {
-        dashboard: true,
-        jobs: true,
-        applicants: true,
-        resumes: false,
-        settings: false,
+    // 2. If company is on Free Trial: strictly apply Super Admin's Section 3 trial permissions!
+    if (isTrial) {
+      const trialPerms =
+        cachedSettings?.defaultNewCompanyPerms ||
+        cachedSettings?.planRules?.['Free Trial'] ||
+        PLAN_AUTO_PERMISSIONS['Free Trial'] || {
+          dashboard: true,
+          jobs: true,
+          applicants: true,
+          resumes: false,
+          settings: false,
+        };
+      return {
+        profile: true,
+        subscription: true,
+        dashboard: Boolean(trialPerms.dashboard),
+        jobs: Boolean(trialPerms.jobs),
+        applicants: Boolean(trialPerms.applicants),
+        resumes: Boolean(trialPerms.resumes),
+        settings: Boolean(trialPerms.settings),
+        autoApproveFromSubscription: true,
       };
-      result = { ...result, ...trialPerms };
     }
 
-    // 3. If auto-approval is enabled, apply plan permissions
-    if (autoApprove && activePlan && !isTrial) {
-      const planRule = getMatchingPlanRule(activePlan);
-      if (planRule) {
-        result = {
-          ...result,
-          ...currentPermissions,
-          ...planRule, // Plan rule MUST take priority so Super Admin's plan rules stay active!
+    // 2b. If company is unsubscribed without an active plan:
+    if (isUnsubscribed) {
+      if (cachedSettings?.enableDefaultPermissions !== false) {
+        const trialPerms =
+          cachedSettings?.defaultNewCompanyPerms ||
+          PLAN_AUTO_PERMISSIONS['Free Trial'] || {
+            dashboard: true,
+            jobs: true,
+            applicants: true,
+            resumes: false,
+            settings: false,
+          };
+        return {
+          profile: true,
+          subscription: true,
+          dashboard: Boolean(trialPerms.dashboard),
+          jobs: Boolean(trialPerms.jobs),
+          applicants: Boolean(trialPerms.applicants),
+          resumes: Boolean(trialPerms.resumes),
+          settings: Boolean(trialPerms.settings),
           autoApproveFromSubscription: true,
         };
-        return result;
+      } else {
+        return {
+          profile: true,
+          subscription: true,
+          dashboard: false,
+          jobs: false,
+          applicants: false,
+          resumes: false,
+          settings: false,
+          autoApproveFromSubscription: true,
+        };
       }
     }
 
-    // 2b. If company is unsubscribed, check if Super Admin enabled default permissions
-    if (cachedSettings) {
-      try {
-        const parsed = typeof cachedSettings === 'string' ? JSON.parse(cachedSettings) : cachedSettings;
-        if (parsed.enableDefaultPermissions && parsed.defaultNewCompanyPerms) {
-          result = {
-            ...result,
-            ...currentPermissions,
-            ...parsed.defaultNewCompanyPerms,
-            autoApproveFromSubscription: autoApprove,
-          };
-          return result;
-        }
-      } catch (e) {}
+    // 3. If auto-approval is enabled, apply plan permissions
+    if (autoApprove && activePlan) {
+      const planRule = getMatchingPlanRule(activePlan);
+      if (planRule) {
+        return {
+          profile: true,
+          subscription: true,
+          dashboard: Boolean(planRule.dashboard),
+          jobs: Boolean(planRule.jobs),
+          applicants: Boolean(planRule.applicants),
+          resumes: Boolean(planRule.resumes),
+          settings: Boolean(planRule.settings),
+          autoApproveFromSubscription: true,
+        };
+      }
     }
 
-    // 3. Fallback to manual / company permissions overrides
+    // 4. Fallback to manual / company permissions overrides
     result = {
       ...result,
       ...currentPermissions,

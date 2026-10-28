@@ -75,6 +75,7 @@ import {
   getMatchingPlanRule,
   syncGlobalPermissionsRules,
   updateCompanyPermissions,
+  activateCompanyTrial,
   fetchAdminPermissionsSettings,
   fetchCurrentUser,
   updateUserProfile,
@@ -406,6 +407,11 @@ export default function CompanyDashboardPage() {
   const handleTabSwitch = (
     tab: "dashboard" | "profile" | "jobs" | "applicants" | "resumes" | "subscription" | "settings"
   ) => {
+    if (tab !== "profile" && tab !== "subscription" && !permissions[tab]) {
+      setToastMessage("🔒 This feature is currently locked under your company trial permissions.");
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
     setActiveTab(tab);
     setIsMobileSidebarOpen(false);
     setIsProfileDropdownOpen(false);
@@ -491,11 +497,21 @@ export default function CompanyDashboardPage() {
   const [adminPlans, setAdminPlans] = useState<any[]>([]);
   const [subscriptionBillingCycle, setSubscriptionBillingCycle] = useState<"monthly" | "yearly" | "trial">("monthly");
 
+  // Default trial benefit points if not customized by admin yet
+  const DEFAULT_TRIAL_POINTS = [
+    "Instant access to Candidate Search & Talent Pool",
+    "Direct Candidate CV Downloads with Complimentary Credits",
+    "Post & Manage Job Openings on the platform",
+    "Real-time Applicant Pipeline & Status Tracking",
+    "Direct Messaging & Company Dashboard Access",
+  ];
+
   // Free Trial settings configured by Super Admin (Section 3)
   const [trialSettings, setTrialSettings] = useState<{
     enabled: boolean;
     trialDays: number;
     trialCredits: number;
+    trialPoints: string[];
     permissions: {
       dashboard: boolean;
       jobs: boolean;
@@ -513,6 +529,7 @@ export default function CompanyDashboardPage() {
             enabled: parsed.freeTrialEnabled !== false,
             trialDays: typeof parsed.trialDays === "number" ? parsed.trialDays : 14,
             trialCredits: typeof parsed.trialCredits === "number" ? parsed.trialCredits : 15,
+            trialPoints: Array.isArray(parsed.trialPoints) && parsed.trialPoints.length > 0 ? parsed.trialPoints : DEFAULT_TRIAL_POINTS,
             permissions: {
               dashboard: parsed.defaultNewCompanyPerms?.dashboard ?? true,
               jobs: parsed.defaultNewCompanyPerms?.jobs ?? true,
@@ -528,6 +545,7 @@ export default function CompanyDashboardPage() {
       enabled: true,
       trialDays: 14,
       trialCredits: 15,
+      trialPoints: DEFAULT_TRIAL_POINTS,
       permissions: {
         dashboard: true,
         jobs: true,
@@ -726,6 +744,7 @@ export default function CompanyDashboardPage() {
               enabled: parsed.freeTrialEnabled !== false,
               trialDays: typeof parsed.trialDays === "number" ? parsed.trialDays : 14,
               trialCredits: typeof parsed.trialCredits === "number" ? parsed.trialCredits : 15,
+              trialPoints: Array.isArray(parsed.trialPoints) && parsed.trialPoints.length > 0 ? parsed.trialPoints : DEFAULT_TRIAL_POINTS,
               permissions: {
                 dashboard: parsed.defaultNewCompanyPerms?.dashboard ?? true,
                 jobs: parsed.defaultNewCompanyPerms?.jobs ?? true,
@@ -745,6 +764,7 @@ export default function CompanyDashboardPage() {
             enabled: remote.freeTrialEnabled !== false,
             trialDays: typeof remote.trialDays === "number" ? remote.trialDays : 14,
             trialCredits: typeof remote.trialCredits === "number" ? remote.trialCredits : 15,
+            trialPoints: Array.isArray(remote.trialPoints) && remote.trialPoints.length > 0 ? remote.trialPoints : DEFAULT_TRIAL_POINTS,
             permissions: {
               dashboard: remote.defaultNewCompanyPerms?.dashboard ?? true,
               jobs: remote.defaultNewCompanyPerms?.jobs ?? true,
@@ -1004,7 +1024,8 @@ export default function CompanyDashboardPage() {
 
     // Feature permissions configured by Super Admin in Section 3
     const trialPerms: CompanyPermissions = {
-      ...permissions,
+      profile: true,
+      subscription: true,
       dashboard: Boolean(trialSettings.permissions.dashboard),
       jobs: Boolean(trialSettings.permissions.jobs),
       applicants: Boolean(trialSettings.permissions.applicants),
@@ -1026,17 +1047,16 @@ export default function CompanyDashboardPage() {
       if (uid) {
         localStorage.setItem(`company_total_credits_${uid}`, String(credits));
         localStorage.setItem(`company_resumes_used_${uid}`, "0");
+        localStorage.setItem(`company_permissions_${uid}`, JSON.stringify(trialPerms));
       }
       if (storedUser) {
         const updatedUser = {
           ...storedUser,
           plan: "Free Trial",
+          resumeCredits: credits,
           permissions: trialPerms,
         };
         setStoredUser(updatedUser);
-        if (storedUser.id) {
-          localStorage.setItem(`company_permissions_${storedUser.id}`, JSON.stringify(trialPerms));
-        }
       }
       localStorage.setItem("company_active_plan", "Free Trial");
       localStorage.setItem("company_plan_validity", validityText);
@@ -1048,11 +1068,27 @@ export default function CompanyDashboardPage() {
     const user = getStoredUser();
     const companyId = (user as any)?._id || user?.id || "c1";
     try {
-      await updateCompanyPermissions(companyId, trialPerms, {
-        name: companyName,
+      const res = await activateCompanyTrial({
+        companyId,
         email: contactEmail,
-        plan: "Free Trial",
       });
+      if (res?.permissions) {
+        const confirmedPerms: CompanyPermissions = {
+          profile: true,
+          subscription: true,
+          dashboard: Boolean(res.permissions.dashboard),
+          jobs: Boolean(res.permissions.jobs),
+          applicants: Boolean(res.permissions.applicants),
+          resumes: Boolean(res.permissions.resumes),
+          settings: Boolean(res.permissions.settings),
+          autoApproveFromSubscription: true,
+        };
+        setPermissions(confirmedPerms);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`company_permissions_${companyId}`, JSON.stringify(confirmedPerms));
+          localStorage.setItem("company_permissions_active", JSON.stringify(confirmedPerms));
+        }
+      }
     } catch (e) {
       console.warn("Background trial sync error:", e);
     }
@@ -1624,6 +1660,10 @@ export default function CompanyDashboardPage() {
   };
 
   const handleDownloadPurchasedResume = (res: PurchasedResume) => {
+    if (!permissions.resumes) {
+      showToast("🔒 Candidate Resumes access is locked under your company trial permissions.");
+      return;
+    }
     const downloadSource = res.downloadUrl || res.pdfData;
     if (downloadSource && typeof window !== "undefined") {
       const link = document.createElement("a");
@@ -1640,6 +1680,10 @@ export default function CompanyDashboardPage() {
 
   // Action: Unlock a candidate resume using 1 credit
   const handleUnlockResume = async (resume: PurchasedResume) => {
+    if (!permissions.resumes) {
+      showToast("🔒 Candidate Resumes access is locked under your company trial permissions.");
+      return;
+    }
     const availableCredits = totalResumesPurchased - resumesUsed;
     if (availableCredits <= 0) {
       showToast("⚠️ Insufficient credits! Please purchase more credits to unlock this candidate.");
@@ -1870,6 +1914,10 @@ export default function CompanyDashboardPage() {
 
   // Modal Handlers: Open New Job / Edit Existing Job
   const openNewJobModal = () => {
+    if (!permissions.jobs) {
+      showToast("🔒 Job posting is locked under your company trial permissions.");
+      return;
+    }
     setEditingJobId(null);
     setJobTitle("");
     setJobDepartment("Engineering");
@@ -1889,6 +1937,10 @@ export default function CompanyDashboardPage() {
   };
 
   const openEditJobModal = (job: PostedJob) => {
+    if (!permissions.jobs) {
+      showToast("🔒 Job posting is locked under your company trial permissions.");
+      return;
+    }
     setEditingJobId(job.id);
     setJobTitle(job.title || "");
     setJobDepartment(job.department || "Engineering");
@@ -2580,39 +2632,41 @@ export default function CompanyDashboardPage() {
             </button>
           )}
 
-          {/* Resume Balance Mini Card in Sidebar */}
-          <div className="pt-4">
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 shadow-2xs">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-bold text-slate-700">Resume Credits</span>
-                <span className="font-black text-emerald-600">
-                  {remainingCredits} / {totalResumesPurchased}
-                </span>
-              </div>
-              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-emerald-500 h-full rounded-full transition-all"
-                  style={{
-                    width: `${
-                      totalResumesPurchased > 0
-                        ? Math.min(100, Math.max(0, (remainingCredits / totalResumesPurchased) * 100))
-                        : 0
-                    }%`,
+          {/* Resume Balance Mini Card in Sidebar (Visible only when resumes module is permitted) */}
+          {permissions.resumes && (
+            <div className="pt-4">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 shadow-2xs">
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="font-bold text-slate-700">Resume Credits</span>
+                  <span className="font-black text-emerald-600">
+                    {remainingCredits} / {totalResumesPurchased}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-emerald-500 h-full rounded-full transition-all"
+                    style={{
+                      width: `${
+                        totalResumesPurchased > 0
+                          ? Math.min(100, Math.max(0, (remainingCredits / totalResumesPurchased) * 100))
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    setIsMobileSidebarOpen(false);
+                    setIsBuyCreditsModalOpen(true);
                   }}
-                />
+                  className="mt-3 w-full py-1.5 px-3 rounded-xl bg-white hover:bg-[#F5F3FF] text-[#7C3AED] text-[11px] font-bold border border-slate-200 hover:border-[#DDD6FE] transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Buy More Credits</span>
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setIsMobileSidebarOpen(false);
-                  setIsBuyCreditsModalOpen(true);
-                }}
-                className="mt-3 w-full py-1.5 px-3 rounded-xl bg-white hover:bg-[#F5F3FF] text-[#7C3AED] text-[11px] font-bold border border-slate-200 hover:border-[#DDD6FE] transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Buy More Credits</span>
-              </button>
             </div>
-          </div>
+          )}
         </div>
       </aside>
 
@@ -4440,104 +4494,54 @@ export default function CompanyDashboardPage() {
                             </div>
                           </div>
 
-                          {/* Features List governed by Super Admin */}
+                          {/* Points Provided by Super Admin in Points Format */}
                           <div className="space-y-3 pt-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-black text-slate-800 uppercase tracking-wider block">
-                                Included Features (Super Admin Controlled)
+                                Trial Benefits & Provided Features
                               </span>
-                              <span className="text-[11px] font-bold text-slate-500">
-                                {Object.values(trialSettings.permissions).filter(Boolean).length} of 5 Features Unlocked
+                              <span className="text-[11px] font-extrabold text-[#7C3AED] bg-purple-50 border border-purple-100 px-2.5 py-0.5 rounded-full">
+                                {(trialSettings.trialPoints || DEFAULT_TRIAL_POINTS).length} Benefits Provided
                               </span>
                             </div>
+
+                            {/* Dynamic Points List configured by Super Admin */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              {/* 1. Dashboard Overview */}
-                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                                {trialSettings.permissions.dashboard ? (
-                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
-                                ) : (
-                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
-                                )}
-                                <span
-                                  className={`text-xs ${
-                                    trialSettings.permissions.dashboard
-                                      ? "font-bold text-slate-800"
-                                      : "text-slate-400 line-through"
-                                  }`}
+                              {(trialSettings.trialPoints || DEFAULT_TRIAL_POINTS).map((point: string, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-start gap-2.5 p-3 rounded-2xl bg-white/90 border border-purple-100/80 hover:border-purple-300 hover:shadow-xs transition-all shadow-[0_1px_4px_rgba(0,0,0,0.02)]"
                                 >
-                                  Dashboard Overview
-                                </span>
-                              </div>
+                                  <div className="w-5 h-5 rounded-md bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-800 leading-snug">
+                                    {point}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
 
-                              {/* 2. Job Postings */}
-                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                                {trialSettings.permissions.jobs ? (
-                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
-                                ) : (
-                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
-                                )}
-                                <span
-                                  className={`text-xs ${
-                                    trialSettings.permissions.jobs
-                                      ? "font-bold text-slate-800"
-                                      : "text-slate-400 line-through"
-                                  }`}
-                                >
-                                  Job Postings & Listings
+                            {/* Included Portal Access Badges governed by permissions */}
+                            <div className="pt-3 border-t border-slate-100/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                                Included Portal Access:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${trialSettings.permissions.dashboard ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs" : "bg-slate-100 text-slate-400 border-slate-200 line-through"}`}>
+                                  {trialSettings.permissions.dashboard ? "✓" : "🔒"} Dashboard {!trialSettings.permissions.dashboard && "(Locked)"}
                                 </span>
-                              </div>
-
-                              {/* 3. Applications & Candidates */}
-                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                                {trialSettings.permissions.applicants ? (
-                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
-                                ) : (
-                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
-                                )}
-                                <span
-                                  className={`text-xs ${
-                                    trialSettings.permissions.applicants
-                                      ? "font-bold text-slate-800"
-                                      : "text-slate-400 line-through"
-                                  }`}
-                                >
-                                  Applications & Candidates
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${trialSettings.permissions.jobs ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs" : "bg-slate-100 text-slate-400 border-slate-200 line-through"}`}>
+                                  {trialSettings.permissions.jobs ? "✓" : "🔒"} Job Postings {!trialSettings.permissions.jobs && "(Locked)"}
                                 </span>
-                              </div>
-
-                              {/* 4. Candidate Resumes */}
-                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                                {trialSettings.permissions.resumes ? (
-                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
-                                ) : (
-                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
-                                )}
-                                <span
-                                  className={`text-xs ${
-                                    trialSettings.permissions.resumes
-                                      ? "font-bold text-slate-800"
-                                      : "text-slate-400 line-through"
-                                  }`}
-                                >
-                                  Candidate Resumes Purchased
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${trialSettings.permissions.applicants ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs" : "bg-slate-100 text-slate-400 border-slate-200 line-through"}`}>
+                                  {trialSettings.permissions.applicants ? "✓" : "🔒"} Applicant Tracking {!trialSettings.permissions.applicants && "(Locked)"}
                                 </span>
-                              </div>
-
-                              {/* 5. Company Settings */}
-                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100 sm:col-span-2">
-                                {trialSettings.permissions.settings ? (
-                                  <Check className="w-4 h-4 text-emerald-500 shrink-0 stroke-[3]" />
-                                ) : (
-                                  <X className="w-4 h-4 text-slate-400 shrink-0 stroke-[2.5]" />
-                                )}
-                                <span
-                                  className={`text-xs ${
-                                    trialSettings.permissions.settings
-                                      ? "font-bold text-slate-800"
-                                      : "text-slate-400 line-through"
-                                  }`}
-                                >
-                                  Company Account Settings
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${trialSettings.permissions.resumes ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs" : "bg-slate-100 text-slate-400 border-slate-200 line-through"}`}>
+                                  {trialSettings.permissions.resumes ? "✓" : "🔒"} Candidate Resumes {!trialSettings.permissions.resumes && "(Locked)"}
+                                </span>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${trialSettings.permissions.settings ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs" : "bg-slate-100 text-slate-400 border-slate-200 line-through"}`}>
+                                  {trialSettings.permissions.settings ? "✓" : "🔒"} Settings {!trialSettings.permissions.settings && "(Locked)"}
                                 </span>
                               </div>
                             </div>

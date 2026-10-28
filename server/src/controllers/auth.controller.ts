@@ -191,9 +191,36 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (!password || password.length < 6) {
-      res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
-      return;
+    if (role === 'company') {
+      if (!phone || !String(phone).trim()) {
+        res.status(400).json({ success: false, message: 'Phone number is required for company registration' });
+        return;
+      }
+      if (!password || password.length < 8) {
+        res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
+        return;
+      }
+      if (!/^[A-Z]/.test(password)) {
+        res.status(400).json({ success: false, message: 'Password must start with a Capital letter (A-Z)' });
+        return;
+      }
+      if (!/[a-z]/.test(password)) {
+        res.status(400).json({ success: false, message: 'Password must contain at least one lowercase letter (a-z)' });
+        return;
+      }
+      if (!/[0-9]/.test(password)) {
+        res.status(400).json({ success: false, message: 'Password must contain at least one number (0-9)' });
+        return;
+      }
+      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) {
+        res.status(400).json({ success: false, message: 'Password must contain at least one special character' });
+        return;
+      }
+    } else {
+      if (!password || password.length < 6) {
+        res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+        return;
+      }
     }
 
     // Ensure database connection is active and healthy

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Building2 } from "lucide-react";
 import { fetchPublicCompanies } from "@/lib/api";
+import { companiesList } from "@/data/companiesData";
 
 export default function TopCompanies() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -12,11 +13,18 @@ export default function TopCompanies() {
     const load = () => {
       fetchPublicCompanies()
         .then((data) => {
-          if (isMounted && Array.isArray(data) && data.length > 0) {
-            setCompanies(data);
+          if (isMounted) {
+            if (Array.isArray(data) && data.length > 0) {
+              setCompanies(data);
+            } else {
+              setCompanies(companiesList);
+            }
           }
         })
-        .catch((err) => console.error("Error fetching companies:", err));
+        .catch((err) => {
+          console.error("Error fetching companies:", err);
+          if (isMounted) setCompanies(companiesList);
+        });
     };
 
     load();
