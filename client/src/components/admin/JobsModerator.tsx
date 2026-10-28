@@ -14,16 +14,19 @@ import {
   ShieldAlert,
   Users,
   ExternalLink,
+  Mail,
 } from "lucide-react";
 import JobDetailModal from "./JobDetailModal";
 import JobApplicantsModal from "./JobApplicantsModal";
 import { ApplicationItem } from "./RecentApplications";
+import { CompanyRecord } from "./CompaniesManager";
 import { fetchJobApplicants } from "@/lib/api";
 
 export interface JobPosting {
   id: string;
   title: string;
   company: string;
+  companyEmail?: string;
   companyId?: string;
   type: string;
   location: string;
@@ -46,6 +49,7 @@ export interface JobPosting {
 
 interface JobsModeratorProps {
   jobs: JobPosting[];
+  companies?: CompanyRecord[];
   applications?: ApplicationItem[];
   onToggleStatus: (id: string, newStatus: JobPosting["status"]) => void;
   onDeleteJob: (id: string) => void;
@@ -55,6 +59,7 @@ interface JobsModeratorProps {
 
 export default function JobsModerator({
   jobs,
+  companies = [],
   applications = [],
   onToggleStatus,
   onDeleteJob,
@@ -117,11 +122,11 @@ export default function JobsModerator({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <Briefcase className="w-6 h-6 text-blue-600" />
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 shrink-0" />
               <span>Job Postings Moderation</span>
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -130,23 +135,50 @@ export default function JobsModerator({
           </div>
 
           {/* Status Filter Tabs (Segmented Control matching Image 2) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
-            {(["All", "Active", "Pending", "Paused", "Expired", "Closed"] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setFilter(f)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
-                  filter === f
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {f}
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-200 no-scrollbar">
+            {(["All", "Active", "Pending", "Paused", "Expired", "Closed"] as const).map((f) => {
+              const pendingCount = jobs.filter((j) => j.status === "Pending").length;
+              return (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFilter(f)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center ${
+                    filter === f
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span>{f}</span>
+                  {f === "Pending" && pendingCount > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-extrabold">
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {/* Pending Approval Banner */}
+        {jobs.filter((j) => j.status === "Pending").length > 0 && filter !== "Pending" && (
+          <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-800">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>{jobs.filter((j) => j.status === "Pending").length} job posting(s)</strong> require Super Admin review and approval before becoming visible to job seekers.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFilter("Pending")}
+              className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition shrink-0 cursor-pointer self-start sm:self-auto"
+            >
+              Review Pending Jobs
+            </button>
+          </div>
+        )}
 
         {/* Search */}
         <div className="mt-5 relative">
@@ -168,7 +200,6 @@ export default function JobsModerator({
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                 <th className="py-3 px-4">Job Title & Company</th>
-                <th className="py-3 px-4">Job Type</th>
                 <th className="py-3 px-4">Location</th>
                 <th className="py-3 px-4">Compensation</th>
                 <th className="py-3 px-4">Applicants</th>
@@ -179,35 +210,55 @@ export default function JobsModerator({
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
                     No job postings found.
                   </td>
                 </tr>
               ) : (
-                filteredJobs.map((j) => (
-                  <tr key={j.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div
-                        onClick={() => handleViewJob(j)}
-                        className="flex items-center gap-2 whitespace-nowrap cursor-pointer group"
-                        title="Click to view full job details"
-                      >
-                        <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                          {j.title}
-                        </span>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-xs text-slate-500 font-medium flex items-center gap-1 group-hover:text-slate-700 transition-colors">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          {j.company}
-                        </span>
-                      </div>
-                    </td>
+                filteredJobs.map((j) => {
+                  const matchedComp = companies?.find(
+                    (c) =>
+                      (j.companyId && (c.id === j.companyId || c.userId === j.companyId)) ||
+                      (c.name && j.company && c.name.toLowerCase() === j.company.toLowerCase()) ||
+                      (c.email && j.company && c.email.toLowerCase() === j.company.toLowerCase())
+                  );
+                  const displayCompany = matchedComp?.name || (j.company?.includes("@") ? (matchedComp?.name || j.company.split("@")[0]) : j.company);
+                  const displayEmail = j.companyEmail || matchedComp?.email || (j.company?.includes("@") ? j.company : (j.postedBy?.includes("@") ? j.postedBy : ""));
 
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 whitespace-nowrap">
-                        {j.type}
-                      </span>
-                    </td>
+                  return (
+                    <tr key={j.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div
+                          onClick={() => handleViewJob(j)}
+                          className="flex flex-col gap-1 cursor-pointer group"
+                          title="Click to view full job details"
+                        >
+                          {/* 1. Job Title */}
+                          <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-sm">
+                            {j.title}
+                          </span>
+
+                          {/* 2. Company Name */}
+                          <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{displayCompany}</span>
+                          </div>
+
+                          {/* 3. Under Company Name: Company Mail & Job Type */}
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {displayEmail ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-medium hover:text-slate-700 transition-colors">
+                                <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{displayEmail}</span>
+                              </span>
+                            ) : null}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/70">
+                              <Briefcase className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+                              <span>{j.type}</span>
+                            </span>
+                          </div>
+                        </div>
+                      </td>
 
                     <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
                       <span className="flex items-center gap-1">
@@ -267,25 +318,41 @@ export default function JobsModerator({
                           <Eye className="w-3.5 h-3.5" />
                         </button>
 
-                        {j.status === "Pending" && (
+                        {j.status === "Pending" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onToggleStatus(j.id, "Active")}
+                              className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+                              title="Approve job and make it live for job seekers"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onToggleStatus(j.id, "Closed")}
+                              className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all cursor-pointer"
+                              title="Reject / Close job posting"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        ) : j.status === "Active" ? (
                           <button
-                            onClick={() => onToggleStatus(j.id, "Active")}
-                            className="px-2.5 py-1 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all cursor-pointer"
-                          >
-                            Approve
-                          </button>
-                        )}
-                        {j.status === "Active" ? (
-                          <button
+                            type="button"
                             onClick={() => onToggleStatus(j.id, "Closed")}
-                            className="px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all cursor-pointer"
+                            className="px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all cursor-pointer"
+                            title="Close active job"
                           >
                             Close
                           </button>
                         ) : (
                           <button
+                            type="button"
                             onClick={() => onToggleStatus(j.id, "Active")}
-                            className="px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-all cursor-pointer"
+                            className="px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-all cursor-pointer"
+                            title="Reactivate job"
                           >
                             Reactivate
                           </button>
@@ -301,8 +368,9 @@ export default function JobsModerator({
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>

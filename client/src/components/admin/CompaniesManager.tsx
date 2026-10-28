@@ -311,10 +311,10 @@ export default function CompaniesManager({
   return (
     <div className="space-y-6">
       {/* Header and Controls (Styled exactly like Image 1) */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
           <div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
               Company Management
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -323,7 +323,7 @@ export default function CompaniesManager({
           </div>
 
           {/* Status Filter Tabs (Pill wrapper matching Image 1) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full bg-slate-100 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-200 no-scrollbar">
             {(["ALL", "Pending", "Approved", "Rejected"] as const).map((tab) => (
               <button
                 key={tab}
@@ -383,34 +383,39 @@ export default function CompaniesManager({
               ) : (
                 filteredCompanies.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2.5 whitespace-nowrap">
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3 whitespace-nowrap">
                         {c.logo || c.profileImage ? (
                           <img
                             src={c.logo || c.profileImage}
                             alt={c.name}
-                            className="w-7 h-7 rounded-lg object-cover shrink-0 border border-slate-200"
+                            className="w-8 h-8 rounded-lg object-cover shrink-0 border border-slate-200"
                           />
                         ) : (
                           <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-xs ${c.logoBg}`}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-xs ${c.logoBg}`}
                           >
                             {c.logoLetter}
                           </div>
                         )}
-                        <span className="font-bold text-slate-900 leading-tight">
-                          {c.name}
-                        </span>
-                        {c.userId && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono">
-                            {c.userId}
-                          </span>
-                        )}
-                        <span className="text-slate-300">•</span>
-                        <span className="text-xs text-slate-400 flex items-center gap-1 font-normal">
-                          <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                          {c.email}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 leading-tight">
+                              {c.name}
+                            </span>
+                            {c.userId && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono">
+                                {c.userId}
+                              </span>
+                            )}
+                          </div>
+                          {c.email && (
+                            <span className="text-xs text-slate-500 flex items-center gap-1 font-normal">
+                              <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{c.email}</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
 

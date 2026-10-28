@@ -36,3 +36,12 @@ body {
   touch-action: manipulation;
   user-select: none;
 }
+
+/* Utility to hide scrollbars while allowing touch/wheel scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

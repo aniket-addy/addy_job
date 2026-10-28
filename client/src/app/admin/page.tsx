@@ -61,6 +61,7 @@ export default function SuperAdminPage() {
   const [overviewStats, setOverviewStats] = useState<AdminOverviewStats | null>(null);
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [currentDateStr, setCurrentDateStr] = useState<string>("");
 
   useEffect(() => {
@@ -74,13 +75,11 @@ export default function SuperAdminPage() {
     );
     const user = getStoredUser();
     const token = getAuthToken();
-    if (!user || !token) {
+    if (!user || !token || (user.role && user.role !== "admin")) {
       window.location.href = "/login";
       return;
     }
-    if (user.role && user.role !== "admin") {
-      window.location.href = "/login";
-    }
+    setIsAuthorized(true);
   }, []);
 
   const loadDatabaseData = async () => {
@@ -341,6 +340,15 @@ export default function SuperAdminPage() {
 
   const pendingCount = pendingCompanies.filter((c) => c.status === "Pending").length;
 
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center text-slate-500 font-semibold text-xs gap-3">
+        <div className="w-6 h-6 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin" />
+        <span>Verifying admin authorization...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-800 antialiased selection:bg-blue-600 selection:text-white">
       {/* Toast Alert System */}
@@ -537,6 +545,7 @@ export default function SuperAdminPage() {
             {activeTab === "jobs" && (
               <JobsModerator
                 jobs={jobs}
+                companies={allCompanies}
                 applications={applications}
                 onToggleStatus={handleToggleJobStatus}
                 onDeleteJob={handleDeleteJob}

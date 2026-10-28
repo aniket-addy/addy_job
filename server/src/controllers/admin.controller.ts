@@ -382,29 +382,104 @@ export const getAdminJobs = async (req: Request, res: Response) => {
 
     const jobs = await Job.find(filter).sort({ createdAt: -1 });
 
-    const formatted = jobs.map((j) => ({
-      id: j._id.toString(),
-      title: j.title,
-      company: j.company,
-      companyId: j.companyId ? j.companyId.toString() : undefined,
-      type: j.type,
-      location: j.location,
-      salary: j.salary,
-      status: j.status,
-      postedOn: j.postedOn || 'Recent',
-      applicantsCount: j.applicantsCount || 0,
-      department: j.department || 'Engineering',
-      workplace: j.workplace || 'Hybrid',
-      experience: j.experience || '2-4 years',
-      openings: j.openings || 1,
-      postedBy: j.postedBy || 'Talent Acquisition Team',
-      tags: j.tags && j.tags.length > 0 ? j.tags : j.skills || [],
-      skills: j.skills || [],
-      description: j.description || '',
-      responsibilities: j.responsibilities || [],
-      requirements: j.requirements || [],
-      benefits: j.benefits || [],
-    }));
+    // Look up company users to enrich company displayName and companyEmail
+    const compIds = jobs.map((j) => j.companyId).filter(Boolean);
+    const companyNamesOrEmails = jobs.map((j) => j.company).filter(Boolean);
+
+    const orUserConditions: any[] = [];
+    const validObjectIds = compIds.filter((id) => mongoose.isValidObjectId(id));
+    if (validObjectIds.length > 0) {
+      orUserConditions.push({ _id: { $in: validObjectIds } });
+    }
+    if (compIds.length > 0) {
+      orUserConditions.push({ customId: { $in: compIds } });
+      orUserConditions.push({ userId: { $in: compIds } });
+    }
+    const emailMatches = companyNamesOrEmails.filter((c) => c && c.includes('@'));
+    if (emailMatches.length > 0) {
+      orUserConditions.push({ email: { $in: emailMatches.map((e) => e.toLowerCase()) } });
+    }
+    const nonEmailNames = companyNamesOrEmails.filter((c) => c && !c.includes('@'));
+    if (nonEmailNames.length > 0) {
+      orUserConditions.push({ companyName: { $in: nonEmailNames } });
+      orUserConditions.push({ name: { $in: nonEmailNames } });
+    }
+
+    const userMap = new Map<string, any>();
+    if (orUserConditions.length > 0) {
+      try {
+        const users = await User.find({ $or: orUserConditions })
+          .select('_id customId userId email workEmail companyName name')
+          .lean();
+        users.forEach((u: any) => {
+          if (u._id) userMap.set(u._id.toString(), u);
+          if (u.customId) userMap.set(String(u.customId), u);
+          if (u.userId) userMap.set(String(u.userId), u);
+          if (u.email) userMap.set(u.email.toLowerCase(), u);
+          if (u.companyName) userMap.set(u.companyName.toLowerCase(), u);
+          if (u.name) userMap.set(u.name.toLowerCase(), u);
+        });
+      } catch (err) {
+        console.warn('Admin jobs user mapping warning:', err);
+      }
+    }
+
+    // Aggregate real application counts from Application collection
+    const appCounts = await Application.aggregate([
+      { $group: { _id: '$jobId', count: { $sum: 1 } } },
+    ]);
+    const appCountMap = new Map<string, number>();
+    appCounts.forEach((c: any) => {
+      if (c._id) appCountMap.set(String(c._id), c.count);
+    });
+
+    const formatted = jobs.map((j) => {
+      const matchedUser =
+        (j.companyId && userMap.get(String(j.companyId))) ||
+        (j.company && userMap.get(j.company.toLowerCase()));
+
+      const companyEmail =
+        matchedUser?.workEmail ||
+        matchedUser?.email ||
+        (j.company && j.company.includes('@') ? j.company : '') ||
+        (j.postedBy && j.postedBy.includes('@') ? j.postedBy : '');
+
+      const companyDisplayName =
+        matchedUser?.companyName ||
+        (j.company && !j.company.includes('@')
+          ? j.company
+          : matchedUser?.name || j.company);
+
+      const realApplicantsCount = Math.max(
+        j.applicantsCount || 0,
+        appCountMap.get(j._id.toString()) || 0
+      );
+
+      return {
+        id: j._id.toString(),
+        title: j.title,
+        company: companyDisplayName || j.company,
+        companyEmail: companyEmail || '',
+        companyId: j.companyId ? j.companyId.toString() : undefined,
+        type: j.type,
+        location: j.location,
+        salary: j.salary,
+        status: j.status,
+        postedOn: j.postedOn || 'Recent',
+        applicantsCount: realApplicantsCount,
+        department: j.department || 'Engineering',
+        workplace: j.workplace || 'Hybrid',
+        experience: j.experience || '2-4 years',
+        openings: j.openings || 1,
+        postedBy: j.postedBy || 'Talent Acquisition Team',
+        tags: j.tags && j.tags.length > 0 ? j.tags : j.skills || [],
+        skills: j.skills || [],
+        description: j.description || '',
+        responsibilities: j.responsibilities || [],
+        requirements: j.requirements || [],
+        benefits: j.benefits || [],
+      };
+    });
 
     res.json({ success: true, jobs: formatted });
   } catch (error: any) {

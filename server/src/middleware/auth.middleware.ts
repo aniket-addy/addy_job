@@ -48,6 +48,26 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 };
 
 /**
+ * Middleware: Optionally verify JWT token from Authorization header if present.
+ * Never throws 401; attaches decoded user if valid, then proceeds.
+ */
+export const optionalAuthenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      if (token) {
+        const decoded = jwt.verify(token, JWT_SECRET) as AuthRequest['user'];
+        req.user = decoded;
+      }
+    }
+  } catch (err) {
+    // optional token, continue
+  }
+  next();
+};
+
+/**
  * Middleware: Require admin role
  * Must be used AFTER authenticate middleware
  */

@@ -368,6 +368,22 @@ export const updateCompanyById = async (req: Request, res: Response) => {
       return;
     }
 
+    const reqUser = (req as any).user;
+    if (!reqUser) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
+    }
+
+    const isAdmin = reqUser.role === 'admin' || reqUser.role === 'sadmin';
+    const isOwner = companyUser._id.toString() === reqUser.id ||
+      (companyUser.userId && companyUser.userId === reqUser.userId) ||
+      (companyUser.email && companyUser.email.toLowerCase() === reqUser.email?.toLowerCase());
+
+    if (!isAdmin && !isOwner) {
+      res.status(403).json({ success: false, message: 'Access forbidden. You can only update your own company profile.' });
+      return;
+    }
+
     const {
       companyName,
       name,
@@ -438,15 +454,17 @@ export const updateCompanyById = async (req: Request, res: Response) => {
         : [];
     }
 
-    if (status !== undefined) {
-      companyUser.status = status;
-      if (status === 'Pending') companyUser.rejectionReason = '';
+    if (isAdmin) {
+      if (status !== undefined) {
+        companyUser.status = status;
+        if (status === 'Pending') companyUser.rejectionReason = '';
+      }
+      if (rejectionReason !== undefined) {
+        companyUser.rejectionReason = rejectionReason;
+      }
     } else if (companyUser.status === 'Rejected') {
       companyUser.status = 'Pending';
       companyUser.rejectionReason = '';
-    }
-    if (rejectionReason !== undefined) {
-      companyUser.rejectionReason = rejectionReason;
     }
 
     if (req.body.notificationSettings !== undefined) {

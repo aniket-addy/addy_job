@@ -332,7 +332,7 @@ interface PostedJob {
   requirements?: string[];
   benefits?: string[];
   applicantsCount: number;
-  status: "Active" | "Paused" | "Closed";
+  status: "Active" | "Pending" | "Paused" | "Closed";
   postedOn: string;
 }
 
@@ -1082,6 +1082,15 @@ export default function CompanyDashboardPage() {
   const [jobApplicantsList, setJobApplicantsList] = useState<CompanyCandidateApplicant[]>([]);
   const [isLoadingJobApplicants, setIsLoadingJobApplicants] = useState(false);
 
+  const getJobApplicantCount = (job: PostedJob) => {
+    const fromApplicants = applicants.filter(
+      (a) =>
+        (a.jobId && String(a.jobId) === String(job.id)) ||
+        (a.appliedRole && a.appliedRole.toLowerCase().trim() === job.title.toLowerCase().trim())
+    ).length;
+    return Math.max(job.applicantsCount || 0, fromApplicants);
+  };
+
   const handleOpenJobApplicants = async (job: PostedJob) => {
     setSelectedApplicantsJob(job);
     setIsJobApplicantsModalOpen(true);
@@ -1590,6 +1599,41 @@ export default function CompanyDashboardPage() {
               }
             })
             .catch(() => {});
+
+          fetchCompanyApplications({ company: compName, companyId: uid })
+            .then((dbApps) => {
+              if (Array.isArray(dbApps)) {
+                const formatted: RecruiterApplicant[] = dbApps.map((a: any) => ({
+                  id: a._id || a.id,
+                  candidateName: a.candidateName || "Candidate",
+                  appliedRole: a.appliedRole || a.position || (typeof a.jobId === "object" ? a.jobId?.title : "") || "Applicant",
+                  jobId: (typeof a.jobId === "object" ? a.jobId?._id : a.jobId) || "",
+                  experience: a.experience || "Fresher",
+                  location: a.location || (typeof a.jobId === "object" ? a.jobId?.location : "") || "Remote",
+                  appliedDate: a.appliedDate || a.appliedOn || (a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "Recent"),
+                  resumeFileName: a.resumeFileName || a.fileName || "Resume.pdf",
+                  skills: Array.isArray(a.skills) && a.skills.length > 0 ? a.skills : ["General"],
+                  status: (["Shortlisted", "Interview", "Hired", "Rejected"].includes(a.status) ? a.status : a.resumeViewed ? "Reviewing" : "Applied") as any,
+                  matchScore: a.matchScore || 88,
+                  email: a.email || a.candidateEmail || "candidate@example.com",
+                  phone: a.phone || a.candidatePhone || "+91 9876543210",
+                  notes: a.notes || (a.recruiterAction ? `Status: ${a.recruiterAction}` : undefined),
+                  resumeUrl: a.resumeUrl || a.pdfData || "",
+                  pdfData: a.pdfData || a.resumeUrl || "",
+                  education: a.education || "",
+                  university: a.university || "",
+                  passingYear: a.passingYear || "",
+                  headline: a.headline || "",
+                  bio: a.bio || "",
+                  languages: a.languages || "",
+                }));
+                setApplicants(formatted);
+                try {
+                  localStorage.setItem(`company_applicants_data_${uid}`, JSON.stringify(formatted));
+                } catch (e) {}
+              }
+            })
+            .catch(() => {});
         }
       };
 
@@ -1601,6 +1645,8 @@ export default function CompanyDashboardPage() {
       window.addEventListener("purchased_resumes_updated", handleVaultSync);
       window.addEventListener("job_created", handleJobSync);
       window.addEventListener("job_updated", handleJobSync);
+      window.addEventListener("applied_jobs_change", handleJobSync);
+      window.addEventListener("job_application_submitted", handleJobSync);
       window.addEventListener("auth_change", handleUserSync);
       window.addEventListener("storage", handleVaultSync);
       window.addEventListener("storage", handleJobSync);
@@ -1610,6 +1656,8 @@ export default function CompanyDashboardPage() {
         window.removeEventListener("purchased_resumes_updated", handleVaultSync);
         window.removeEventListener("job_created", handleJobSync);
         window.removeEventListener("job_updated", handleJobSync);
+        window.removeEventListener("applied_jobs_change", handleJobSync);
+        window.removeEventListener("job_application_submitted", handleJobSync);
         window.removeEventListener("auth_change", handleUserSync);
         window.removeEventListener("storage", handleVaultSync);
         window.removeEventListener("storage", handleJobSync);
@@ -2000,7 +2048,7 @@ export default function CompanyDashboardPage() {
         responsibilities: parsedResponsibilities,
         requirements: parsedRequirements,
         benefits: parsedBenefits,
-        status: "Active" as const,
+        status: "Pending" as const,
       };
 
       const tempId = `temp-${Date.now()}`;
@@ -2009,6 +2057,7 @@ export default function CompanyDashboardPage() {
         id: tempId,
         applicantsCount: 0,
         postedOn: "Just now",
+        status: "Pending",
       };
 
       setJobs((prev) => {
@@ -2018,7 +2067,7 @@ export default function CompanyDashboardPage() {
         } catch (err) {}
         return updated;
       });
-      showToast(`Job posting "${jobTitle}" is now LIVE!`);
+      showToast(`Job posting "${jobTitle}" submitted! It will go live once approved by Super Admin.`);
 
       // Persist to MongoDB backend and sync real id
       createCompanyJob(jobPayload)
@@ -3146,7 +3195,7 @@ export default function CompanyDashboardPage() {
                               className="text-[#7C3AED] hover:text-[#6D28D9] font-bold hover:underline cursor-pointer flex items-center gap-1 transition-colors"
                               title={`View applicants for "${job.title}"`}
                             >
-                              <span>{job.applicantsCount || 0} Applicants</span>
+                              <span>{getJobApplicantCount(job)} Applicants</span>
                               <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                             </button>
                             <span className="text-slate-400">{job.postedOn}</span>
@@ -3778,7 +3827,7 @@ export default function CompanyDashboardPage() {
                               title={`Click to view candidates who applied for "${job.title}"`}
                             >
                               <Users className="w-3.5 h-3.5 text-[#7C3AED] group-hover:scale-110 transition-transform" />
-                              <span>{job.applicantsCount || 0} Candidates</span>
+                              <span>{getJobApplicantCount(job)} Candidates</span>
                               <ExternalLink className="w-2.5 h-2.5 text-[#7C3AED] opacity-70 group-hover:opacity-100 transition-opacity ml-0.5" />
                             </button>
                           </td>
@@ -3787,10 +3836,12 @@ export default function CompanyDashboardPage() {
                               className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
                                 job.status === "Active"
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : job.status === "Pending"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
                                   : "bg-slate-100 text-slate-600 border border-slate-200"
                               }`}
                             >
-                              {job.status}
+                              {job.status === "Pending" ? "Pending Approval" : job.status}
                             </span>
                           </td>
                           <td className="py-4 px-4 sm:px-6 text-right whitespace-nowrap">
@@ -3804,36 +3855,47 @@ export default function CompanyDashboardPage() {
                                 <Pencil className="w-3.5 h-3.5" />
                                 <span>Edit</span>
                               </button>
-                              <button
-                                onClick={async () => {
-                                  const newStatus = (job.status === "Active" ? "Paused" : "Active") as "Active" | "Paused" | "Closed";
-                                  setJobs((prev) => {
-                                    const updated = prev.map((j) =>
-                                      j.id === job.id
-                                        ? {
-                                            ...j,
-                                            status: newStatus,
-                                          }
-                                        : j
-                                    );
+                              {job.status === "Pending" ? (
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200 shadow-2xs cursor-not-allowed opacity-90"
+                                  title="Job is awaiting Super Admin approval before going live"
+                                >
+                                  In Review
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={async () => {
+                                    const newStatus = (job.status === "Active" ? "Paused" : "Active") as "Active" | "Pending" | "Paused" | "Closed";
+                                    setJobs((prev) => {
+                                      const updated = prev.map((j) =>
+                                        j.id === job.id
+                                          ? {
+                                              ...j,
+                                              status: newStatus,
+                                            }
+                                          : j
+                                      );
+                                      try {
+                                        const user = getStoredUser();
+                                        const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
+                                        if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
+                                      } catch (err) {}
+                                      return updated;
+                                    });
+                                    showToast(`Job status updated for ${job.title}`);
                                     try {
-                                      const user = getStoredUser();
-                                      const uid = (user as any)?._id || user?.id || user?.userId || user?.email;
-                                      if (uid) localStorage.setItem(`company_posted_jobs_${uid}`, JSON.stringify(updated));
-                                    } catch (err) {}
-                                    return updated;
-                                  });
-                                  showToast(`Job status updated for ${job.title}`);
-                                  try {
-                                    await updateCompanyJobStatus(job.id, newStatus);
-                                  } catch (err) {
-                                    console.error("Failed to update status on backend:", err);
-                                  }
-                                }}
-                                className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition border border-slate-200/60 shadow-2xs"
-                              >
-                                {job.status === "Active" ? "Pause" : "Activate"}
-                              </button>
+                                      await updateCompanyJobStatus(job.id, newStatus);
+                                    } catch (err) {
+                                      console.error("Failed to update status on backend:", err);
+                                    }
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition border border-slate-200/60 shadow-2xs"
+                                >
+                                  {job.status === "Active" ? "Pause" : "Activate"}
+                                </button>
+                              )}
                               <button
                                 onClick={async () => {
                                   if (!confirm(`Are you sure you want to delete job "${job.title}"?`)) return;

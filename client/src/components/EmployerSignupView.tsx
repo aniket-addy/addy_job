@@ -380,7 +380,24 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                 )}
 
                 {/* Registration Form */}
-                <form onSubmit={handleFormSubmit} className="space-y-3.5">
+                <form onSubmit={handleFormSubmit} className="space-y-3.5" autoComplete="off">
+                  {/* Hidden fields to deflect browser autofill heuristics */}
+                  <input
+                    type="text"
+                    name="fake_employer_username"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    autoComplete="off"
+                    className="sr-only opacity-0 w-0 h-0 absolute -z-10 pointer-events-none"
+                  />
+                  <input
+                    type="password"
+                    name="fake_employer_password"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    autoComplete="new-password"
+                    className="sr-only opacity-0 w-0 h-0 absolute -z-10 pointer-events-none"
+                  />
 
                   {/* Field 1: Company Name */}
                   <div>
@@ -391,6 +408,12 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                       <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
+                        name="employer_companyName"
+                        id="employer_companyName"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-bwignore="true"
                         required
                         placeholder="e.g. AddyJob Technologies Pvt. Ltd."
                         value={form.companyName}
@@ -409,6 +432,12 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type="email"
+                        name="employer_workEmail"
+                        id="employer_workEmail"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-bwignore="true"
                         required
                         placeholder="hr@company.com"
                         value={form.workEmail}
@@ -492,6 +521,12 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type={showPassword ? "text" : "password"}
+                        name="employer_new_password"
+                        id="employer_new_password"
+                        autoComplete="new-password"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-bwignore="true"
                         required
                         placeholder="••••••••"
                         value={form.password}

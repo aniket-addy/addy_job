@@ -611,17 +611,19 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         ? perks.split('\n').map((s: string) => s.trim()).filter(Boolean)
         : [];
     }
-    if (status !== undefined) {
-      user.status = status;
-      if (status === 'Pending') {
-        user.rejectionReason = '';
+    const isAdmin = decoded.role === 'admin' || decoded.role === 'sadmin';
+
+    if (isAdmin) {
+      if (status !== undefined) {
+        user.status = status;
+        if (status === 'Pending') user.rejectionReason = '';
+      }
+      if (rejectionReason !== undefined) {
+        user.rejectionReason = rejectionReason;
       }
     } else if (user.role === 'company' && user.status === 'Rejected') {
       user.status = 'Pending';
       user.rejectionReason = '';
-    }
-    if (rejectionReason !== undefined) {
-      user.rejectionReason = rejectionReason;
     }
     if (headline !== undefined) user.headline = headline;
     if (targetRole !== undefined) user.targetRole = targetRole;
@@ -666,9 +668,13 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         : [];
     }
 
-    if (req.body.purchasedResumes !== undefined) user.purchasedResumes = req.body.purchasedResumes;
-    if (req.body.resumeCredits !== undefined) user.resumeCredits = req.body.resumeCredits;
-    if (req.body.resumesUsed !== undefined) user.resumesUsed = req.body.resumesUsed;
+    if (isAdmin) {
+      if (req.body.purchasedResumes !== undefined) user.purchasedResumes = req.body.purchasedResumes;
+      if (req.body.resumeCredits !== undefined) user.resumeCredits = req.body.resumeCredits;
+      if (req.body.resumesUsed !== undefined) user.resumesUsed = req.body.resumesUsed;
+      if (req.body.plan !== undefined) user.plan = req.body.plan;
+      if (req.body.permissions !== undefined) user.permissions = req.body.permissions;
+    }
     if (req.body.notificationSettings !== undefined) {
       user.notificationSettings = {
         ...(user.notificationSettings || {

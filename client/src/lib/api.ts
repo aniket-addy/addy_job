@@ -1331,11 +1331,14 @@ export async function submitJobApplication(jobId: string, payload: any): Promise
   try {
     const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/apply`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
     });
     const data = await res.json();
     notifyApplicationSync();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('job_application_submitted', { detail: { jobId, application: data.application } }));
+    }
     return data;
   } catch (err: any) {
     console.error('submitJobApplication error:', err);
@@ -1366,8 +1369,8 @@ export async function fetchJobActivityAPI(
 export async function fetchCandidateApplicationsFromDB(
   email?: string | string[],
   candidateId?: string,
-  phone?: string | string[],
-  jobIds?: string | string[]
+  _phone?: string | string[],
+  _jobIds?: string | string[]
 ): Promise<any[]> {
   try {
     const params = new URLSearchParams();
@@ -1376,20 +1379,12 @@ export async function fetchCandidateApplicationsFromDB(
       if (emailStr) params.append('email', emailStr);
     }
     if (candidateId) params.append('candidateId', candidateId);
-    if (phone) {
-      const phoneStr = Array.isArray(phone) ? phone.filter(Boolean).join(',') : phone;
-      if (phoneStr) params.append('phone', phoneStr);
-    }
-    if (jobIds) {
-      const jobIdsStr = Array.isArray(jobIds) ? jobIds.filter(Boolean).join(',') : jobIds;
-      if (jobIdsStr) params.append('jobIds', jobIdsStr);
-    }
 
-    if ([...params.keys()].length === 0) return [];
-
-    const res = await fetch(`${API_BASE_URL}/jobs/applied/candidate?${params.toString()}`, {
+    const qs = params.toString();
+    const url = qs ? `${API_BASE_URL}/jobs/applied/candidate?${qs}` : `${API_BASE_URL}/jobs/applied/candidate`;
+    const res = await fetch(url, {
       cache: 'no-store',
-      headers: getAuthHeaders(),
+      headers: getAuthHeaders(true),
     });
     if (!res.ok) return [];
     const data = await res.json();

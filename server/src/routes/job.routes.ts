@@ -13,7 +13,7 @@ import {
   markResumeViewed,
 } from '../controllers/job.controller.js';
 import { updateJobStatus, getJobApplicants, updateApplicationStatus } from '../controllers/admin.controller.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -29,7 +29,7 @@ router.get('/:id/applicants', authenticate, getJobApplicants);
 router.patch('/applications/:id/status', authenticate, updateJobApplicationStatus);
 router.patch('/applications/:id/view-resume', authenticate, markResumeViewed);
 router.post('/', authenticate, createJob);
-router.post('/:id/apply', authenticate, applyToJob);
+router.post('/:id/apply', optionalAuthenticate, applyToJob);
 router.put('/:id', authenticate, updateJob);
 router.patch('/:id/status', authenticate, updateJobStatus);
 router.patch('/:id', authenticate, updateJob);

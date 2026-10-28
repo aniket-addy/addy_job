@@ -113,12 +113,22 @@ export default function Navbar({
     const localJobs = getLocalAppliedJobs(uid);
     let dbJobs: any[] = [];
     try {
-      dbJobs = await fetchCandidateApplicationsFromDB(user.email, uid, user.phone);
+      dbJobs = await fetchCandidateApplicationsFromDB(user.email, uid);
     } catch {}
 
+    const candEmail = (user.email || "").trim().toLowerCase();
+    const candId = String(user.id || user.userId || "");
     const allApps = [...dbJobs, ...localJobs];
     const map = new Map<string, any>();
     allApps.forEach((app) => {
+      const appEmail = (app.candidateEmail || "").trim().toLowerCase();
+      const appCandId = app.candidateId ? String(app.candidateId) : "";
+      if (candEmail && appEmail && appEmail !== candEmail) {
+        return;
+      }
+      if (candId && appCandId && appCandId !== candId) {
+        return;
+      }
       const key = String(app.id || app._id || app.jobId || "");
       if (key && !map.has(key)) {
         map.set(key, app);

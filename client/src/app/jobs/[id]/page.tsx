@@ -14,6 +14,8 @@ import {
   saveLocalAppliedJob,
   toggleLocalSavedJob,
   getLocalSavedJobs,
+  getLocalAppliedJobs,
+  fetchCandidateApplicationsFromDB,
 } from "@/lib/api";
 import { jobsList, JobDetail } from "@/data/jobsData";
 import {
@@ -65,6 +67,51 @@ function JobDetailPageContent() {
           const currentTargetId = data?.id || data?._id || jobId;
           const foundSaved = savedList.some((s: any) => (s.id || s._id) === currentTargetId);
           setIsSaved(foundSaved);
+
+          const appliedList = getLocalAppliedJobs(uid);
+          const foundApplied = appliedList.some((a: any) =>
+            String(a.jobId) === String(currentTargetId) ||
+            String(a.id) === String(currentTargetId) ||
+            String(a.jobId) === String(jobId) ||
+            (data && a.title === data.title && a.company === data.company)
+          );
+          if (foundApplied) {
+            setIsAlreadyApplied(true);
+          }
+
+          const checkDbApplied = (userEmail?: string, userId?: string, userPhone?: string) => {
+            if (userEmail || userId) {
+              fetchCandidateApplicationsFromDB(userEmail, userId, userPhone)
+                .then((dbApps) => {
+                  if (!isMounted) return;
+                  const dbHasApplied = Array.isArray(dbApps) && dbApps.some((a: any) => {
+                    const aJobId = (a.jobId && typeof a.jobId === "object") ? (a.jobId._id || a.jobId.id) : a.jobId;
+                    return (
+                      String(aJobId) === String(currentTargetId) ||
+                      String(aJobId) === String(jobId) ||
+                      (data && a.position?.toLowerCase().trim() === data.title?.toLowerCase().trim() &&
+                        a.company?.toLowerCase().trim() === data.company?.toLowerCase().trim())
+                    );
+                  });
+                  if (dbHasApplied) {
+                    setIsAlreadyApplied(true);
+                  }
+                })
+                .catch(() => {});
+            }
+          };
+
+          if (storedUser?.email || storedUser?.id) {
+            checkDbApplied(storedUser.email, storedUser.id, storedUser.phone);
+          } else {
+            fetchCurrentUser()
+              .then((u) => {
+                if (u && (u.email || (u as any)._id || u.id)) {
+                  checkDbApplied(u.email, (u as any)._id || u.id, u.phone);
+                }
+              })
+              .catch(() => {});
+          }
         })
         .catch((err) => {
           console.error("Error fetching job:", err);
@@ -99,6 +146,8 @@ function JobDetailPageContent() {
   }, [jobId]);
 
   const [isSaved, setIsSaved] = useState(false);
+  const [isAlreadyApplied, setIsAlreadyApplied] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [applicationSubmitted, setApplicationSubmitted] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -156,6 +205,13 @@ function JobDetailPageContent() {
     setResumeError("");
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const validExtensions = [".pdf", ".doc", ".docx"];
+    const fileExt = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    if (!validExtensions.includes(fileExt)) {
+      setResumeError("Please select a valid resume document (.pdf, .doc, or .docx)");
+      return;
+    }
 
     if (file.size > 12 * 1024 * 1024) {
       setResumeError("Resume must be smaller than 12MB");
@@ -219,14 +275,22 @@ function JobDetailPageContent() {
     })
     .slice(0, 4);
 
-  const handleSubmitApplication = (e: React.FormEvent) => {
+  const handleSubmitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!job) return;
+    if (!job || isSubmitting) return;
+
+    if (isAlreadyApplied) {
+      setResumeError("You have already submitted an application for this position.");
+      return;
+    }
 
     if (resumeChoice === "custom" && !customFileName) {
       setResumeError("Please choose a resume file to upload or switch to your profile resume.");
       return;
     }
+
+    setIsSubmitting(true);
+    setResumeError("");
 
     const storedUser = getStoredUser();
     const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
@@ -269,34 +333,58 @@ function JobDetailPageContent() {
       skills: storedUser?.skills || job.tags || job.skills || [],
     };
 
-    saveLocalAppliedJob(uid, appData);
-    submitJobApplication(currentId, {
-      candidateName: appData.candidateName,
-      candidateEmail: appData.candidateEmail,
-      candidatePhone: appData.candidatePhone,
-      candidateId: storedUser?.id || storedUser?.userId || undefined,
-      resumeUrl: appData.resumeUrl,
-      pdfData: appData.pdfData,
-      fileName: appData.fileName,
-      experience: appData.experience,
-      skills: appData.skills,
-    })
-      .then((res) => {
-        if (res?.application?._id) {
-          saveLocalAppliedJob(uid, {
+    const userKeys = Array.from(
+      new Set(
+        [
+          storedUser?.id,
+          (storedUser as any)?._id,
+          storedUser?.userId,
+          storedUser?.email,
+          email,
+          uid,
+          "candidate",
+        ]
+          .filter(Boolean)
+          .map(String)
+      )
+    );
+    userKeys.forEach((k) => {
+      saveLocalAppliedJob(k, appData);
+    });
+
+    try {
+      const res = await submitJobApplication(currentId, {
+        candidateName: appData.candidateName,
+        candidateEmail: appData.candidateEmail,
+        candidatePhone: appData.candidatePhone,
+        candidateId: storedUser?.id || storedUser?.userId || undefined,
+        resumeUrl: appData.resumeUrl,
+        pdfData: appData.pdfData,
+        fileName: appData.fileName,
+        experience: appData.experience,
+        skills: appData.skills,
+      });
+
+      if (res?.application?._id) {
+        userKeys.forEach((k) => {
+          saveLocalAppliedJob(k, {
             ...appData,
             id: String(res.application._id),
             _id: String(res.application._id),
           });
-        }
-      })
-      .catch((err) => console.warn("Backend submit error:", err));
+        });
+      }
+    } catch (err: any) {
+      console.warn("Backend submit notice:", err);
+    }
 
+    setIsAlreadyApplied(true);
     setApplicationSubmitted(true);
     setTimeout(() => {
       setIsApplyModalOpen(false);
       setApplicationSubmitted(false);
-    }, 2400);
+      setIsSubmitting(false);
+    }, 2000);
   };
 
   if (isLoading) {
@@ -331,6 +419,39 @@ function JobDetailPageContent() {
               className="mt-6 inline-block px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition"
             >
               Browse All Jobs
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  const currentUser = getStoredUser();
+  const isOwnerOrAdmin =
+    currentUser &&
+    (currentUser.role === "admin" ||
+      (job.companyId &&
+        (currentUser.id === job.companyId || currentUser.userId === job.companyId)));
+
+  if (job.status && job.status !== "Active" && !isOwnerOrAdmin) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans">
+        <Navbar activeTab="Jobs" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex-1 w-full text-center">
+          <div className="bg-white rounded-3xl p-12 border border-slate-200/80 shadow-xs max-w-lg mx-auto">
+            <div className="w-12 h-12 bg-amber-50 rounded-2xl border border-amber-200 flex items-center justify-center text-amber-600 mx-auto mb-3">
+              <Clock className="w-6 h-6" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-800">Job Awaiting Super Admin Approval</h2>
+            <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+              This job posting has been submitted by {job.company || "the employer"} and is currently under review. It will become visible and open for applications once approved by the Super Admin.
+            </p>
+            <Link
+              href="/jobs"
+              className="mt-6 inline-block px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition"
+            >
+              Browse Active Jobs
             </Link>
           </div>
         </div>
@@ -518,13 +639,24 @@ function JobDetailPageContent() {
                   >
                     {isSaved ? "Saved" : "Save"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsApplyModalOpen(true)}
-                    className="px-8 py-2 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold shadow-sm transition cursor-pointer"
-                  >
-                    Apply
-                  </button>
+                  {isAlreadyApplied ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="px-7 py-2 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-semibold flex items-center gap-1.5 cursor-default shadow-xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Applied</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsApplyModalOpen(true)}
+                      className="px-8 py-2 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold shadow-sm transition cursor-pointer"
+                    >
+                      Apply
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -646,12 +778,19 @@ function JobDetailPageContent() {
                 <h3 className="text-lg sm:text-xl font-bold">Ready to apply for {job.title}?</h3>
                 <p className="text-xs sm:text-sm text-blue-100 mt-1">Submit your profile now to get directly connected with the hiring team.</p>
               </div>
-              <button
-                onClick={() => setIsApplyModalOpen(true)}
-                className="px-8 py-3.5 rounded-full bg-white text-blue-600 hover:bg-blue-50 font-bold text-sm shadow-md transition active:scale-98 shrink-0 cursor-pointer"
-              >
-                Apply Now
-              </button>
+              {isAlreadyApplied ? (
+                <span className="px-7 py-3 rounded-full bg-emerald-500/20 text-white font-bold text-sm border border-emerald-300/40 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Already Applied</span>
+                </span>
+              ) : (
+                <button
+                  onClick={() => setIsApplyModalOpen(true)}
+                  className="px-8 py-3.5 rounded-full bg-white text-blue-600 hover:bg-blue-50 font-bold text-sm shadow-md transition active:scale-98 shrink-0 cursor-pointer"
+                >
+                  Apply Now
+                </button>
+              )}
             </div>
           </div>
 
@@ -1003,9 +1142,17 @@ function JobDetailPageContent() {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition cursor-pointer"
+                    disabled={isSubmitting}
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Submit Application
+                    {isSubmitting ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <span>Submit Application</span>
+                    )}
                   </button>
                 </div>
               </form>

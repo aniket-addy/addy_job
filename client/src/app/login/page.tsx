@@ -116,9 +116,17 @@ export default function LoginPage() {
                 <label className="block text-xs font-bold text-slate-700">
                   Password
                 </label>
-                <a href="#" className="text-xs text-blue-600 hover:underline">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setErrorMsg(
+                      "Password reset is managed by system administrators. Please contact support@addyjob.com or your administrator."
+                    )
+                  }
+                  className="text-xs text-blue-600 hover:underline cursor-pointer"
+                >
                   Forgot password?
-                </a>
+                </button>
               </div>
               <div className="relative">
                 <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />

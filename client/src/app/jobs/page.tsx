@@ -11,6 +11,8 @@ import {
   getStoredUser,
   getLocalSavedJobs,
   toggleLocalSavedJob,
+  getLocalAppliedJobs,
+  fetchCandidateApplicationsFromDB,
 } from "@/lib/api";
 import { jobsList } from "@/data/jobsData";
 import {
@@ -27,6 +29,7 @@ import {
   ArrowUpRight,
   ChevronDown,
   Check,
+  CheckCircle2,
 } from "lucide-react";
 
 function JobsContent() {
@@ -43,6 +46,7 @@ function JobsContent() {
   const [selectedJobType, setSelectedJobType] = useState(initialType);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [savedJobs, setSavedJobs] = useState<Record<string, boolean>>({});
+  const [appliedJobsMap, setAppliedJobsMap] = useState<Record<string, boolean>>({});
   const [onlySaved, setOnlySaved] = useState(initialFilter === "saved");
 
   useEffect(() => {
@@ -60,7 +64,44 @@ function JobsContent() {
       setSavedJobs(map);
     };
 
+    const syncAppliedMap = () => {
+      const storedUser = getStoredUser();
+      const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
+      const applied = getLocalAppliedJobs(uid);
+      const map: Record<string, boolean> = {};
+      applied.forEach((a: any) => {
+        const id = a.jobId || a.id || a._id;
+        if (id) {
+          map[String(id)] = true;
+        }
+        if (a.title && a.company) {
+          map[`${String(a.title).toLowerCase().trim()}:::${String(a.company).toLowerCase().trim()}`] = true;
+        }
+      });
+      setAppliedJobsMap(map);
+
+      if (storedUser?.email || storedUser?.id) {
+        fetchCandidateApplicationsFromDB(storedUser.email, storedUser.id, storedUser.phone)
+          .then((dbApps) => {
+            if (!isMounted || !Array.isArray(dbApps)) return;
+            setAppliedJobsMap((prev) => {
+              const nextMap = { ...prev };
+              dbApps.forEach((a: any) => {
+                const jId = (a.jobId && typeof a.jobId === "object") ? (a.jobId._id || a.jobId.id) : a.jobId;
+                if (jId) nextMap[String(jId)] = true;
+                if (a.position && a.company) {
+                  nextMap[`${String(a.position).toLowerCase().trim()}:::${String(a.company).toLowerCase().trim()}`] = true;
+                }
+              });
+              return nextMap;
+            });
+          })
+          .catch(() => {});
+      }
+    };
+
     syncSavedMap();
+    syncAppliedMap();
 
     const loadJobs = () => {
       fetchPublicJobs()
@@ -78,7 +119,9 @@ function JobsContent() {
                 existingIds.add(sId);
               }
             });
-            setJobs(combined);
+            // Job seekers only see Active jobs approved by Super Admin
+            const activeOnly = combined.filter((j: any) => !j.status || j.status === "Active");
+            setJobs(activeOnly);
           }
         })
         .catch((err) => {
@@ -92,15 +135,22 @@ function JobsContent() {
 
     loadJobs();
 
+    const handleAppliedSync = () => {
+      syncAppliedMap();
+      loadJobs();
+    };
+
     window.addEventListener("job_created", loadJobs);
     window.addEventListener("job_updated", loadJobs);
-    window.addEventListener("applied_jobs_change", loadJobs);
+    window.addEventListener("applied_jobs_change", handleAppliedSync);
+    window.addEventListener("job_application_submitted", handleAppliedSync);
     window.addEventListener("saved_jobs_change", () => {
       syncSavedMap();
       loadJobs();
     });
     window.addEventListener("storage", () => {
       syncSavedMap();
+      syncAppliedMap();
       loadJobs();
     });
 
@@ -108,7 +158,8 @@ function JobsContent() {
       isMounted = false;
       window.removeEventListener("job_created", loadJobs);
       window.removeEventListener("job_updated", loadJobs);
-      window.removeEventListener("applied_jobs_change", loadJobs);
+      window.removeEventListener("applied_jobs_change", handleAppliedSync);
+      window.removeEventListener("job_application_submitted", handleAppliedSync);
     };
   }, []);
 
@@ -894,6 +945,7 @@ function JobsContent() {
             {filteredJobs.map((job) => {
             const jId = job.id || job._id;
             const isSaved = !!savedJobs[jId];
+            const isApplied = !!appliedJobsMap[String(jId)] || !!appliedJobsMap[`${String(job.title || "").toLowerCase().trim()}:::${String(job.company || "").toLowerCase().trim()}`];
             const jTags = Array.isArray(job.tags) && job.tags.length > 0 ? job.tags : Array.isArray(job.skills) ? job.skills : [];
             const jPosted = job.postedOn || job.posted || "Recently";
             const jWorkplace = job.workplace || "Remote";
@@ -928,22 +980,30 @@ function JobsContent() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={(e) => toggleSave(e, jId)}
-                      aria-label="Save Job"
-                      title={isSaved ? "Saved" : "Save Job"}
-                      className={`p-2 rounded-xl transition cursor-pointer shrink-0 ${
-                        isSaved
-                          ? "bg-blue-50 text-blue-600"
-                          : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <Bookmark
-                        className={`w-4 h-4 ${
-                          isSaved ? "fill-blue-600 text-blue-600" : ""
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isApplied && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                          <span>Applied</span>
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => toggleSave(e, jId)}
+                        aria-label="Save Job"
+                        title={isSaved ? "Saved" : "Save Job"}
+                        className={`p-2 rounded-xl transition cursor-pointer shrink-0 ${
+                          isSaved
+                            ? "bg-blue-50 text-blue-600"
+                            : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
                         }`}
-                      />
-                    </button>
+                      >
+                        <Bookmark
+                          className={`w-4 h-4 ${
+                            isSaved ? "fill-blue-600 text-blue-600" : ""
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Location & Meta info */}

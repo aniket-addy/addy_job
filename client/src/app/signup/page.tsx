@@ -1268,7 +1268,25 @@ function SignupContent() {
                 <div className="bg-white rounded-[28px] sm:rounded-[32px] border border-slate-100 shadow-[0_12px_45px_rgba(37,99,235,0.06)] p-6 sm:p-8 xl:p-9 transition-all">
                   {/* ---------------- STEP 1 FORM: EXACT DESIGN MATCH TO IMAGE 1 ---------------- */}
                   {(jobSeekerStep === 1 || !isBasicDetailsFilled()) && (
-                    <form onSubmit={handleStep1Submit} className="space-y-6">
+                    <form onSubmit={handleStep1Submit} className="space-y-6" autoComplete="off">
+                      {/* Hidden fields to deflect browser autofill heuristics */}
+                      <input
+                        type="text"
+                        name="fake_username_autofill"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        autoComplete="off"
+                        className="sr-only opacity-0 w-0 h-0 absolute -z-10 pointer-events-none"
+                      />
+                      <input
+                        type="password"
+                        name="fake_password_autofill"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        autoComplete="new-password"
+                        className="sr-only opacity-0 w-0 h-0 absolute -z-10 pointer-events-none"
+                      />
+
                       {/* 1. Personal Details Section */}
                       <div className="space-y-3">
                         <div className="flex items-center gap-2">
@@ -1295,6 +1313,12 @@ function SignupContent() {
                               <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                               <input
                                 type="text"
+                                name="candidate_fullName"
+                                id="candidate_fullName"
+                                autoComplete="off"
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-bwignore="true"
                                 required
                                 placeholder="e.g. Shivam Kumar"
                                 value={basicDetails.fullName}
@@ -1315,6 +1339,12 @@ function SignupContent() {
                               <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                               <input
                                 type="email"
+                                name="candidate_email"
+                                id="candidate_email"
+                                autoComplete="off"
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-bwignore="true"
                                 required
                                 placeholder="you@example.com"
                                 value={basicDetails.email}
@@ -1335,6 +1365,12 @@ function SignupContent() {
                               <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                               <input
                                 type="tel"
+                                name="candidate_mobile"
+                                id="candidate_mobile"
+                                autoComplete="off"
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-bwignore="true"
                                 required
                                 placeholder="+91 98765 43210"
                                 value={basicDetails.mobile}
@@ -1374,6 +1410,12 @@ function SignupContent() {
                               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                               <input
                                 type={showPassword ? "text" : "password"}
+                                name="candidate_password"
+                                id="candidate_password"
+                                autoComplete="new-password"
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-bwignore="true"
                                 required
                                 placeholder="••••••••"
                                 value={basicDetails.password}
@@ -1401,6 +1443,12 @@ function SignupContent() {
                               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                               <input
                                 type={showConfirmPassword ? "text" : "password"}
+                                name="candidate_confirm_password"
+                                id="candidate_confirm_password"
+                                autoComplete="new-password"
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-bwignore="true"
                                 required
                                 placeholder="Re-enter your password"
                                 value={basicDetails.confirmPassword}

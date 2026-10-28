@@ -25,8 +25,10 @@ export const getJobs = async (req: Request, res: Response) => {
 
     const filter: Record<string, any> = {};
 
-    // By default, only return Active jobs for seekers unless specified
-    if (status && status !== 'all') {
+    // For job seekers and public searches (when companyId is not specified), strictly only return Active approved jobs
+    if (!companyId) {
+      filter.status = 'Active';
+    } else if (status && status !== 'all') {
       filter.status = status;
     }
 
@@ -114,8 +116,36 @@ export const getJobs = async (req: Request, res: Response) => {
       }
     });
 
+    // Real applicant counts aggregated from database
+    const { Application } = await import('../models/application.model.js');
+    const jobIds = jobs.map((j) => j._id);
+    const appCounts = await Application.aggregate([
+      {
+        $match: {
+          jobId: {
+            $in: [
+              ...jobIds,
+              ...jobIds.map((id) => id.toString()),
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$jobId',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const countMap = new Map<string, number>();
+    appCounts.forEach((ac: any) => {
+      countMap.set(String(ac._id), ac.count);
+    });
+
     const formatted = jobs.map((j) => {
       const compLogo = j.logo || compMap.get(j.companyId?.toString()) || compMap.get(j.company?.toLowerCase().trim()) || '';
+      const realCount = countMap.get(j._id.toString()) || 0;
       return {
         id: j._id.toString(),
         _id: j._id.toString(),
@@ -128,7 +158,7 @@ export const getJobs = async (req: Request, res: Response) => {
         salary: j.salary,
         status: j.status,
         postedOn: j.postedOn || 'Recent',
-        applicantsCount: j.applicantsCount || 0,
+        applicantsCount: Math.max(j.applicantsCount || 0, realCount),
         department: j.department || 'Engineering',
         category: j.department || 'Engineering',
         workplace: j.workplace || 'Hybrid',
@@ -276,13 +306,22 @@ export const createJob = async (req: Request, res: Response) => {
       status = 'Active',
     } = req.body;
 
+    const reqUser = (req as any).user;
+    if (reqUser && reqUser.role !== 'company' && reqUser.role !== 'admin' && reqUser.role !== 'sadmin') {
+      res.status(403).json({ success: false, message: 'Access forbidden. Only registered employers or administrators can post new jobs.' });
+      return;
+    }
+
+    const isCompanyRole = reqUser?.role === 'company';
+    const initialStatus = isCompanyRole ? 'Pending' : (status || 'Active');
+
     if (!title || !title.trim()) {
       res.status(400).json({ success: false, message: 'Job title is required' });
       return;
     }
 
     let finalCompany = (company || '').trim();
-    let finalCompanyId = companyId;
+    let finalCompanyId = companyId || (reqUser?.role === 'company' ? reqUser.id : undefined);
 
     // If company name not passed, find from companyId or user session
     if (!finalCompany && finalCompanyId) {
@@ -313,14 +352,19 @@ export const createJob = async (req: Request, res: Response) => {
       responsibilities: Array.isArray(responsibilities) ? responsibilities : [],
       requirements: Array.isArray(requirements) ? requirements : [],
       benefits: Array.isArray(benefits) ? benefits : [],
-      status: status || 'Active',
+      status: initialStatus,
       postedOn: 'Just now',
       applicantsCount: 0,
     });
 
+    const responseMsg =
+      initialStatus === 'Pending'
+        ? `Job posting "${newJob.title}" submitted successfully! It is pending Super Admin approval.`
+        : `Job posting "${newJob.title}" is now LIVE!`;
+
     res.status(201).json({
       success: true,
-      message: `Job posting "${newJob.title}" is now LIVE!`,
+      message: responseMsg,
       job: {
         id: newJob._id.toString(),
         _id: newJob._id.toString(),
@@ -360,6 +404,24 @@ export const updateJob = async (req: Request, res: Response) => {
     await ensureDBConnection();
     const { id } = req.params;
 
+    const existingJob = await Job.findById(id);
+    if (!existingJob) {
+      res.status(404).json({ success: false, message: 'Job not found' });
+      return;
+    }
+
+    const reqUser = (req as any).user;
+    if (reqUser && reqUser.role !== 'admin' && reqUser.role !== 'sadmin') {
+      const isOwner = existingJob.companyId && (
+        existingJob.companyId.toString() === reqUser.id ||
+        existingJob.companyId.toString() === reqUser.userId
+      );
+      if (!isOwner) {
+        res.status(403).json({ success: false, message: 'Access forbidden. You do not have permission to modify this job.' });
+        return;
+      }
+    }
+
     const updatedJob = await Job.findByIdAndUpdate(id, req.body, { new: true });
     if (!updatedJob) {
       res.status(404).json({ success: false, message: 'Job not found' });
@@ -393,11 +455,25 @@ export const deleteJob = async (req: Request, res: Response) => {
     await ensureDBConnection();
     const { id } = req.params;
 
-    const deleted = await Job.findByIdAndDelete(id);
-    if (!deleted) {
+    const existingJob = await Job.findById(id);
+    if (!existingJob) {
       res.status(404).json({ success: false, message: 'Job not found' });
       return;
     }
+
+    const reqUser = (req as any).user;
+    if (reqUser && reqUser.role !== 'admin' && reqUser.role !== 'sadmin') {
+      const isOwner = existingJob.companyId && (
+        existingJob.companyId.toString() === reqUser.id ||
+        existingJob.companyId.toString() === reqUser.userId
+      );
+      if (!isOwner) {
+        res.status(403).json({ success: false, message: 'Access forbidden. You do not have permission to delete this job.' });
+        return;
+      }
+    }
+
+    await Job.findByIdAndDelete(id);
 
     res.json({
       success: true,
@@ -428,9 +504,23 @@ export const applyToJob = async (req: Request, res: Response) => {
       skills,
     } = req.body;
 
-    const job = await Job.findById(id);
+    let job: any = null;
+    if (mongoose.isValidObjectId(id)) {
+      job = await Job.findById(id);
+    }
+    if (!job) {
+      job = await Job.findOne({ $or: [{ customId: id }, { title: id }] });
+    }
     if (!job) {
       res.status(404).json({ success: false, message: 'Job not found' });
+      return;
+    }
+
+    if (job.status !== 'Active') {
+      res.status(400).json({
+        success: false,
+        message: 'This job posting is pending Super Admin approval or is closed, and cannot accept applications.',
+      });
       return;
     }
 
@@ -469,12 +559,67 @@ export const applyToJob = async (req: Request, res: Response) => {
       }
     }
 
+    // Validate resume format if data URI
+    if (finalResumeUrl && finalResumeUrl.startsWith('data:')) {
+      const isAllowedMime =
+        finalResumeUrl.startsWith('data:application/pdf') ||
+        finalResumeUrl.startsWith('data:application/msword') ||
+        finalResumeUrl.startsWith('data:application/vnd.openxmlformats-officedocument.wordprocessingml.document') ||
+        finalResumeUrl.startsWith('data:text/plain');
+      if (!isAllowedMime) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid resume format. Only PDF, DOC, or DOCX documents are accepted.',
+        });
+        return;
+      }
+    }
+
+    // Check for duplicate application
+    const candidateIdentifierEmail = (candidateEmail || (req as any).user?.email || '').trim().toLowerCase();
+    const candidateIdentifierId = candidateId || (req as any).user?.id || (req as any).user?.userId;
+
+    const duplicateConditions: any[] = [];
+    if (candidateIdentifierEmail) {
+      duplicateConditions.push({ candidateEmail: new RegExp(`^${candidateIdentifierEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+    }
+    if (candidateIdentifierId) {
+      duplicateConditions.push({ candidateId: String(candidateIdentifierId) });
+    }
+
+    if (duplicateConditions.length > 0) {
+      const existingApp = await Application.findOne({
+        jobId: job._id.toString(),
+        $or: duplicateConditions,
+      });
+
+      if (existingApp) {
+        res.status(409).json({
+          success: false,
+          message: 'You have already submitted an application for this position.',
+          application: existingApp,
+        });
+        return;
+      }
+    }
+
+    let resolvedCompanyId = job.companyId;
+    if (!resolvedCompanyId && job.company) {
+      const compUser = await User.findOne({
+        $or: [
+          { email: new RegExp(`^${job.company.trim()}$`, 'i') },
+          { companyName: new RegExp(`^${job.company.trim()}$`, 'i') },
+        ],
+      });
+      if (compUser) resolvedCompanyId = compUser._id;
+    }
+
     const appRecord = await Application.create({
-      candidateName: candidateName || 'Candidate',
-      candidateEmail: candidateEmail || '',
-      candidatePhone: candidatePhone || '',
-      candidateId: candidateId || undefined,
-      companyId: job.companyId || undefined,
+      candidateName: candidateName || (req as any).user?.name || 'Candidate',
+      candidateEmail: candidateEmail || (req as any).user?.email || '',
+      candidatePhone: candidatePhone || (req as any).user?.phone || '',
+      candidateId: candidateId || (req as any).user?.id || (req as any).user?.userId || undefined,
+      companyId: resolvedCompanyId || undefined,
       position: job.title,
       company: job.company,
       appliedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }),
@@ -492,7 +637,7 @@ export const applyToJob = async (req: Request, res: Response) => {
       avatarBg: 'bg-blue-600',
     });
 
-    await Job.findByIdAndUpdate(id, { $inc: { applicantsCount: 1 } });
+    await Job.findByIdAndUpdate(job._id, { $inc: { applicantsCount: 1 } });
 
     // Check company notification settings and dispatch application alert
     let alertDispatched = false;
@@ -646,39 +791,62 @@ export const getJobActivity = async (req: Request, res: Response) => {
 export const getCandidateApplications = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
-    const { email, candidateId, phone, jobIds } = req.query;
+    const { email, candidateId } = req.query;
 
-    if (!email && !candidateId && !phone && !jobIds) {
-      res.json({ success: true, count: 0, applications: [] });
-      return;
-    }
+    const reqUser = (req as any).user;
+    const isAdmin = reqUser && (reqUser.role === 'admin' || reqUser.role === 'sadmin');
 
     const orConditions: any[] = [];
-    if (email) {
-      const emailList = String(email)
-        .split(',')
-        .map((e) => e.trim())
-        .filter(Boolean);
-      if (emailList.length === 1) {
-        orConditions.push({ candidateEmail: new RegExp(`^${emailList[0]}$`, 'i') });
-      } else if (emailList.length > 1) {
-        orConditions.push({
-          candidateEmail: {
-            $in: emailList.map((e) => new RegExp(`^${e}$`, 'i')),
-          },
-        });
+
+    if (isAdmin) {
+      // Admins can query any candidate's applications by email or candidateId
+      if (email) {
+        const emailList = String(email)
+          .split(',')
+          .map((e) => e.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .filter(Boolean);
+        if (emailList.length === 1) {
+          orConditions.push({ candidateEmail: new RegExp(`^${emailList[0]}$`, 'i') });
+        } else if (emailList.length > 1) {
+          orConditions.push({
+            candidateEmail: {
+              $in: emailList.map((e) => new RegExp(`^${e}$`, 'i')),
+            },
+          });
+        }
       }
-    }
-    if (candidateId) {
-      orConditions.push({ candidateId: candidateId });
-    }
-    if (phone) {
-      const phoneList = String(phone)
-        .split(',')
-        .map((p) => p.trim())
-        .filter(Boolean);
-      if (phoneList.length > 0) {
-        orConditions.push({ candidatePhone: { $in: phoneList } });
+      if (candidateId) {
+        orConditions.push({ candidateId: String(candidateId) });
+      }
+    } else if (reqUser) {
+      // Authenticated candidates can strictly ONLY view applications submitted by their own account
+      const userEmail = reqUser.email ? String(reqUser.email).trim() : '';
+      const userId = reqUser.id ? String(reqUser.id) : (reqUser.userId ? String(reqUser.userId) : '');
+
+      if (userEmail) {
+        orConditions.push({ candidateEmail: new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+      }
+      if (userId) {
+        orConditions.push({ candidateId: userId });
+      }
+    } else {
+      if (email) {
+        const emailList = String(email)
+          .split(',')
+          .map((e) => e.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .filter(Boolean);
+        if (emailList.length === 1) {
+          orConditions.push({ candidateEmail: new RegExp(`^${emailList[0]}$`, 'i') });
+        } else if (emailList.length > 1) {
+          orConditions.push({
+            candidateEmail: {
+              $in: emailList.map((e) => new RegExp(`^${e}$`, 'i')),
+            },
+          });
+        }
+      }
+      if (candidateId) {
+        orConditions.push({ candidateId: String(candidateId) });
       }
     }
 
@@ -788,14 +956,57 @@ export const getCompanyApplications = async (req: Request, res: Response) => {
     const { Job } = await import('../models/job.model.js');
     const { User } = await import('../models/user.model.js');
 
-    const orConditions: any[] = [];
-    const comp = company || companyName;
-    if (comp) {
-      orConditions.push({ company: new RegExp(`^${String(comp).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+    const reqUser = (req as any).user;
+    if (!reqUser) {
+      res.status(401).json({ success: false, message: 'Authentication required' });
+      return;
     }
-    if (companyId) {
-      orConditions.push({ companyId: String(companyId) });
-      const companyJobs = await Job.find({ companyId: String(companyId) });
+
+    const isAdmin = reqUser.role === 'admin' || reqUser.role === 'sadmin';
+    if (!isAdmin && reqUser.role !== 'company') {
+      res.status(403).json({ success: false, message: 'Access forbidden. Company account required.' });
+      return;
+    }
+
+    let targetCompanyId = String(companyId || '');
+    let targetCompanyName = String(company || companyName || '');
+    let targetCompanyEmail = '';
+
+    if (!isAdmin) {
+      // Non-admins can strictly only fetch applications for their own company
+      targetCompanyId = reqUser.id;
+      const compUser = await User.findById(reqUser.id);
+      if (compUser) {
+        targetCompanyName = compUser.companyName || compUser.name || '';
+        targetCompanyEmail = compUser.email || '';
+      }
+      if (!targetCompanyEmail && reqUser.email) {
+        targetCompanyEmail = reqUser.email;
+      }
+    }
+
+    const orConditions: any[] = [];
+    if (targetCompanyName) {
+      orConditions.push({ company: new RegExp(`^${String(targetCompanyName).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+    }
+    if (targetCompanyEmail) {
+      orConditions.push({ company: new RegExp(`^${String(targetCompanyEmail).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+    }
+    if (targetCompanyId) {
+      orConditions.push({ companyId: String(targetCompanyId) });
+      if (mongoose.isValidObjectId(targetCompanyId)) {
+        orConditions.push({ companyId: new mongoose.Types.ObjectId(targetCompanyId) });
+      }
+      const jobOrFilters: any[] = [
+        { companyId: String(targetCompanyId) },
+        ...(reqUser?.userId ? [{ companyId: String(reqUser.userId) }] : []),
+        ...(targetCompanyEmail ? [{ company: new RegExp(`^${targetCompanyEmail.trim()}$`, 'i') }] : []),
+        ...(targetCompanyName ? [{ company: new RegExp(`^${targetCompanyName.trim()}$`, 'i') }] : []),
+      ];
+      if (mongoose.isValidObjectId(targetCompanyId)) {
+        jobOrFilters.push({ companyId: new mongoose.Types.ObjectId(targetCompanyId) });
+      }
+      const companyJobs = await Job.find({ $or: jobOrFilters });
       const jobIds = companyJobs.map((j) => j._id);
       if (jobIds.length > 0) {
         orConditions.push({ jobId: { $in: jobIds } });

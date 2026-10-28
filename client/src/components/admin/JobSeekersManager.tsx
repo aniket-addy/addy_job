@@ -409,14 +409,14 @@ export default function JobSeekersManager({
   return (
     <div className="space-y-6">
       {/* Top Banner Card */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-200/80">
           <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                Job Seekers & Candidates
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                Job Seekers &amp; Candidates
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap shrink-0">
                 {hasActiveFilters || filter !== "ALL"
                   ? `${filteredCandidates.length} of ${totalCount} Shown`
                   : `${filteredCandidates.length} Registered`}
@@ -428,9 +428,9 @@ export default function JobSeekersManager({
           </div>
 
           {/* Action Row: Filter Pills + Circular Send Resumes Button */}
-          <div className="flex items-center gap-2 max-w-full">
+          <div className="flex items-center gap-2 w-full lg:w-auto min-w-0">
             {/* Filter Pills */}
-            <div className="flex items-center gap-1 overflow-x-auto max-w-full bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+            <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1 lg:flex-initial bg-slate-100 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-200 no-scrollbar">
               {[
                 { id: "ALL", label: "All Candidates" },
                 { id: "WITH_RESUME", label: "With Resume" },
@@ -444,7 +444,7 @@ export default function JobSeekersManager({
                     key={tab.id}
                     type="button"
                     onClick={() => setFilter(tab.id as any)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0 ${
                       isActive
                         ? "bg-white text-blue-700 shadow-sm"
                         : "text-slate-600 hover:text-slate-900"

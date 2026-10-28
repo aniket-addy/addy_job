@@ -1170,80 +1170,64 @@ export default function CandidateDashboardPage() {
   // Synchronize applied jobs, saved jobs, recruiter messages, and job alerts
   const loadAppliedAndSaved = async (u?: UserSession | null) => {
     const userObj = u || currentUser || getStoredUser();
-    const uid = userObj?.id || userObj?.userId || userObj?.email || "candidate";
-    const userEmail = userObj?.email;
+    const isRealUser = Boolean(userObj?.id || userObj?.userId || userObj?.email);
+    const userEmail = (userObj?.email || "").trim().toLowerCase();
+    const userId = userObj?.id || userObj?.userId;
+    const uid = userId || userEmail || "candidate";
 
-    // 1. Load Local Applied Jobs (including any saved under different candidate keys)
-    const localApplied = getLocalAppliedJobs(uid);
-    let allLocalApplied = [...localApplied];
-    if (typeof window !== "undefined") {
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith("candidate_applied_jobs_") && k !== `candidate_applied_jobs_${uid}`) {
-            const raw = localStorage.getItem(k);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) {
-                allLocalApplied.push(...parsed);
-              }
-            }
+    // Collect all identity keys for the logged-in candidate (strictly isolate to current user)
+    const userKeys = isRealUser
+      ? Array.from(
+          new Set(
+            [userObj?.id, (userObj as any)?._id, userObj?.userId, userEmail]
+              .filter(Boolean)
+              .map(String)
+          )
+        )
+      : [uid];
+
+    // 1. Load Local Applied Jobs strictly for this candidate from their identity keys
+    const localAppliedMap = new Map<string, any>();
+    userKeys.forEach((k) => {
+      const list = getLocalAppliedJobs(k);
+      if (Array.isArray(list)) {
+        list.forEach((item: any) => {
+          // Verify that this local item actually belongs to this candidate
+          if (userEmail && item.candidateEmail && String(item.candidateEmail).trim().toLowerCase() !== userEmail) {
+            return;
           }
-        }
-      } catch {}
-    }
+          if (userId && item.candidateId && String(item.candidateId) !== String(userId)) {
+            return;
+          }
+          const key = item.jobId || item.id || item._id;
+          if (key && !localAppliedMap.has(String(key))) {
+            localAppliedMap.set(String(key), item);
+          }
+        });
+      }
+    });
+
+    const localApplied = Array.from(localAppliedMap.values());
 
     // Filter out any previous dummy items from local storage
-    const cleanLocalApplied = allLocalApplied.filter((item: any) => {
+    const cleanLocalApplied = localApplied.filter((item: any) => {
       const isDefaultDummy = ["app-default-1", "app-default-2", "app-default-3", "app-default-4", "app-default-5"].includes(item.id);
       const isProfileUploadDummy = item.company === "Candidate Profile Upload" && !item.jobId;
       return !isDefaultDummy && !isProfileUploadDummy;
     });
 
-    // Collect all candidate email identities across session, profile state, and applied jobs
-    const candidateEmails = Array.from(
-      new Set(
-        [
-          userEmail,
-          email,
-          ...cleanLocalApplied.map((a: any) => a.candidateEmail),
-        ]
-          .filter(Boolean)
-          .map((e) => String(e).trim().toLowerCase())
-      )
-    );
+    // Only query backend for THIS candidate's email identity
+    const candidateEmails = userEmail ? [userEmail] : [];
 
-    // Collect all candidate phones across session, profile state, and applied jobs
-    const candidatePhones = Array.from(
-      new Set(
-        [
-          userObj?.phone,
-          phone,
-          ...cleanLocalApplied.map((a: any) => a.candidatePhone),
-        ]
-          .filter(Boolean)
-          .map((p) => String(p).trim())
-      )
-    );
-
-    // Collect applied job IDs
-    const localJobIds = Array.from(
-      new Set(
-        cleanLocalApplied
-          .map((a: any) => a.jobId || a.id)
-          .filter((id: any) => id && !String(id).startsWith("app-"))
-      )
-    );
-
-    // 2. Load DB Applications using all candidate identifiers
+    // 2. Load DB Applications strictly for this candidate
     let dbApplications: any[] = [];
-    if (candidateEmails.length > 0 || userObj?.id || candidatePhones.length > 0 || localJobIds.length > 0) {
+    if (candidateEmails.length > 0 || userId) {
       try {
         dbApplications = await fetchCandidateApplicationsFromDB(
           candidateEmails,
-          userObj?.id || userObj?.userId,
-          candidatePhones,
-          localJobIds
+          userId,
+          undefined,
+          undefined
         );
       } catch (e) {
         console.warn("Could not fetch DB applications:", e);
@@ -1280,90 +1264,102 @@ export default function CandidateDashboardPage() {
       return Boolean((normId && validCompanyIds.has(normId)) || (normName && validCompanyNames.has(normName)));
     };
 
-    // Merge DB & Local applications (no hardcoded fallback)
+    // Merge DB & Local applications
     const mergedAppliedMap = new Map<string, AppliedJobItem>();
 
     // Add DB applications
-    dbApplications.forEach((app: any) => {
-      // Exclude profile upload placeholders that are not job applications
-      if (app.company === "Candidate Profile Upload" && !app.jobId) {
-        return;
-      }
+    if (Array.isArray(dbApplications)) {
+      dbApplications.forEach((app: any) => {
+        // Exclude profile upload placeholders that are not job applications
+        if (app.company === "Candidate Profile Upload" && !app.jobId) {
+          return;
+        }
 
-      const jComp = (typeof app.jobId === "object" ? app.jobId?.company : "") || app.company || "Company";
-      const jCompId = app.companyId || (typeof app.jobId === "object" ? app.jobId?.companyId : undefined);
+        const appCandEmail = (app.candidateEmail || "").trim().toLowerCase();
+        const appCandId = app.candidateId ? String(app.candidateId) : "";
+        const emailMatches = Boolean(userEmail && appCandEmail && appCandEmail === userEmail);
+        const idMatches = Boolean(userId && appCandId && (appCandId === String(userObj?.id) || appCandId === String(userObj?.userId)));
 
-      // Skip applications for non-existent companies
-      if (!isCompanyValid(jComp, jCompId)) {
-        return;
-      }
+        // Strict verification: skip any application that belongs to another candidate
+        if (isRealUser && !emailMatches && !idMatches) {
+          return;
+        }
 
-      const rawJobId = typeof app.jobId === "object" ? (app.jobId?._id || app.jobId?.id) : app.jobId;
-      const jId = String(rawJobId || app._id || "");
-      const jTitle = (typeof app.jobId === "object" ? app.jobId?.title : "") || app.position || app.jobTitle || app.title || "Applied Role";
-      const jLoc = (typeof app.jobId === "object" ? app.jobId?.location : "") || app.location || "Remote";
-      const jSal = (typeof app.jobId === "object" ? app.jobId?.salary : "") || app.salary || "Competitive";
-      const jApplicantsCount = app.totalApplicants || (typeof app.jobId === "object" ? app.jobId?.applicantsCount : 0) || 1;
-      const jRating = (typeof app.jobId === "object" ? app.jobId?.rating : 0) || app.rating || 4.8;
-      const jReviewsCount = (typeof app.jobId === "object" ? app.jobId?.reviewsCount : "") || app.reviewsCount || "120 Reviews";
+        const jComp = (typeof app.jobId === "object" ? app.jobId?.company : "") || app.company || "Company";
+        const jCompId = app.companyId || (typeof app.jobId === "object" ? app.jobId?.companyId : undefined);
 
-      const st = (app.status || "New").trim();
-      const recAction = (app.recruiterAction || (["Shortlisted", "Interview", "Hired", "Rejected"].includes(st) ? st : "")).trim();
-      const isHired = recAction.toLowerCase() === "hired" || st.toLowerCase() === "hired";
-      const isShortlisted = recAction.toLowerCase() === "shortlisted" || st.toLowerCase() === "shortlisted";
-      const isInterview = recAction.toLowerCase() === "interview" || st.toLowerCase() === "interview";
-      const isRejected = recAction.toLowerCase() === "rejected" || st.toLowerCase() === "rejected";
-      const hasAction = isHired || isShortlisted || isInterview || isRejected;
+        // Skip applications for non-existent / deleted companies
+        if (!isCompanyValid(jComp, jCompId)) {
+          return;
+        }
 
-      const isResumeViewed = Boolean(
-        app.resumeViewed ||
-        hasAction ||
-        ["Reviewed", "Reviewing", "Resume Viewed"].includes(st)
-      );
+        const rawJobId = typeof app.jobId === "object" ? (app.jobId?._id || app.jobId?.id) : app.jobId;
+        const jId = String(rawJobId || app._id || "");
+        const jTitle = (typeof app.jobId === "object" ? app.jobId?.title : "") || app.position || app.jobTitle || app.title || "Applied Role";
+        const jLoc = (typeof app.jobId === "object" ? app.jobId?.location : "") || app.location || "Remote";
+        const jSal = (typeof app.jobId === "object" ? app.jobId?.salary : "") || app.salary || "Competitive";
+        const jApplicantsCount = app.totalApplicants || (typeof app.jobId === "object" ? app.jobId?.applicantsCount : 0) || 1;
+        const jRating = (typeof app.jobId === "object" ? app.jobId?.rating : 0) || app.rating || 4.8;
+        const jReviewsCount = (typeof app.jobId === "object" ? app.jobId?.reviewsCount : "") || app.reviewsCount || "120 Reviews";
 
-      const jViewedCount = typeof app.viewedCount === "number" ? app.viewedCount : (isResumeViewed ? 1 : 0);
-      const statusStep = hasAction ? 3 : isResumeViewed ? 2 : 1;
-      const recruiterStatus = hasAction
-        ? (isHired ? "Offer / Hired by Recruiter" : isShortlisted ? "Shortlisted for next round" : isInterview ? "Interview Scheduled" : "Application closed")
-        : isResumeViewed
-        ? "Resume reviewed by recruiter"
-        : "Recruiter received application";
+        const st = (app.status || "New").trim();
+        const recAction = (app.recruiterAction || (["Shortlisted", "Interview", "Hired", "Rejected"].includes(st) ? st : "")).trim();
+        const isHired = recAction.toLowerCase() === "hired" || st.toLowerCase() === "hired";
+        const isShortlisted = recAction.toLowerCase() === "shortlisted" || st.toLowerCase() === "shortlisted";
+        const isInterview = recAction.toLowerCase() === "interview" || st.toLowerCase() === "interview";
+        const isRejected = recAction.toLowerCase() === "rejected" || st.toLowerCase() === "rejected";
+        const hasAction = isHired || isShortlisted || isInterview || isRejected;
 
-      const viewedDays = app.resumeViewedAt
-        ? new Date(app.resumeViewedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })
-        : isResumeViewed
-        ? "Recently"
-        : undefined;
+        const isResumeViewed = Boolean(
+          app.resumeViewed ||
+          hasAction ||
+          ["Reviewed", "Reviewing", "Resume Viewed"].includes(st)
+        );
 
-      if (jId) {
-        mergedAppliedMap.set(jId, {
-          id: String(app._id || jId),
-          jobId: jId,
-          title: jTitle,
-          company: jComp,
-          companyId: jCompId,
-          logo: (typeof app.jobId === "object" ? app.jobId?.logo : "") || app.logo || (typeof app.jobId === "object" ? app.jobId?.companyLogo : "") || "",
-          location: jLoc,
-          salary: jSal,
-          appliedDate: app.appliedDate || (app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "Today"),
-          appliedOn: app.createdAt ? new Date(app.createdAt).toLocaleDateString() : "Recently",
-          status: st,
-          statusStep,
-          resumeViewed: isResumeViewed,
-          resumeViewedAt: app.resumeViewedAt,
-          recruiterAction: recAction || (hasAction ? st : undefined),
-          recruiterActionAt: app.recruiterActionAt,
-          recruiterStatus,
-          totalApplicants: jApplicantsCount,
-          viewedCount: jViewedCount,
-          rating: jRating,
-          reviewsCount: jReviewsCount,
-          viewedDays,
-          candidateName: app.candidateName || userObj?.name,
-          candidateEmail: app.candidateEmail || userObj?.email,
-        });
-      }
-    });
+        const jViewedCount = typeof app.viewedCount === "number" ? app.viewedCount : (isResumeViewed ? 1 : 0);
+        const statusStep = hasAction ? 3 : isResumeViewed ? 2 : 1;
+        const recruiterStatus = hasAction
+          ? (isHired ? "Offer / Hired by Recruiter" : isShortlisted ? "Shortlisted for next round" : isInterview ? "Interview Scheduled" : "Application closed")
+          : isResumeViewed
+          ? "Resume reviewed by recruiter"
+          : "Recruiter received application";
+
+        const viewedDays = app.resumeViewedAt
+          ? new Date(app.resumeViewedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })
+          : isResumeViewed
+          ? "Recently"
+          : undefined;
+
+        if (jId) {
+          mergedAppliedMap.set(jId, {
+            id: String(app._id || jId),
+            jobId: jId,
+            title: jTitle,
+            company: jComp,
+            companyId: jCompId,
+            logo: (typeof app.jobId === "object" ? app.jobId?.logo : "") || app.logo || (typeof app.jobId === "object" ? app.jobId?.companyLogo : "") || "",
+            location: jLoc,
+            salary: jSal,
+            appliedDate: app.appliedDate || (app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "Today"),
+            appliedOn: app.createdAt ? new Date(app.createdAt).toLocaleDateString() : "Recently",
+            status: st,
+            statusStep,
+            resumeViewed: isResumeViewed,
+            resumeViewedAt: app.resumeViewedAt,
+            recruiterAction: recAction || (hasAction ? st : undefined),
+            recruiterActionAt: app.recruiterActionAt,
+            recruiterStatus,
+            totalApplicants: jApplicantsCount,
+            viewedCount: jViewedCount,
+            rating: jRating,
+            reviewsCount: jReviewsCount,
+            viewedDays,
+            candidateName: app.candidateName || userObj?.name,
+            candidateEmail: app.candidateEmail || userObj?.email,
+          });
+        }
+      });
+    }
 
     // Add local applied jobs (merges matching DB entries using String comparisons)
     cleanLocalApplied.forEach((item: any) => {
@@ -1434,26 +1430,16 @@ export default function CandidateDashboardPage() {
     setAppliedList(finalApplied);
     setAppliedJobsCount(finalApplied.length);
 
-    try {
-      safeSetLocalStorage(`candidate_applied_jobs_${uid}`, JSON.stringify(finalApplied));
-      if (typeof window !== "undefined") {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith("candidate_applied_jobs_") && k !== `candidate_applied_jobs_${uid}`) {
-            try {
-              const raw = localStorage.getItem(k);
-              if (raw) {
-                const list = JSON.parse(raw);
-                if (Array.isArray(list)) {
-                  const cleaned = list.filter((it: any) => isCompanyValid(it.company, it.companyId));
-                  safeSetLocalStorage(k, JSON.stringify(cleaned));
-                }
-              }
-            } catch {}
-          }
-        }
-      }
-    } catch (e) {}
+    if (isRealUser) {
+      userKeys.forEach((k) => {
+        try {
+          safeSetLocalStorage(`candidate_applied_jobs_${k}`, JSON.stringify(finalApplied));
+        } catch (e) {}
+      });
+      try {
+        localStorage.removeItem("candidate_applied_jobs_candidate");
+      } catch (e) {}
+    }
 
     // 3. Load Saved Jobs
     const localSaved = getLocalSavedJobs(uid);
@@ -1715,6 +1701,7 @@ export default function CandidateDashboardPage() {
       loadAppliedAndSaved();
     };
     window.addEventListener("applied_jobs_change", handleSync);
+    window.addEventListener("job_application_submitted", handleSync);
     window.addEventListener("saved_jobs_change", handleSync);
     window.addEventListener("messages_change", handleSync);
     window.addEventListener("storage", handleSync);
@@ -1734,6 +1721,7 @@ export default function CandidateDashboardPage() {
 
     return () => {
       window.removeEventListener("applied_jobs_change", handleSync);
+      window.removeEventListener("job_application_submitted", handleSync);
       window.removeEventListener("saved_jobs_change", handleSync);
       window.removeEventListener("messages_change", handleSync);
       window.removeEventListener("storage", handleSync);
