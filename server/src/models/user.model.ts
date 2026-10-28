@@ -58,6 +58,8 @@ export interface IUser extends Document {
     applicants?: boolean;
     resumes?: boolean;
     settings?: boolean;
+    profile?: boolean;
+    subscription?: boolean;
     autoApproveFromSubscription?: boolean;
   };
   purchasedResumes?: Array<{
@@ -337,6 +339,8 @@ const userSchema = new Schema<IUser>(
       applicants: { type: Boolean, default: false },
       resumes: { type: Boolean, default: false },
       settings: { type: Boolean, default: false },
+      profile: { type: Boolean, default: true },
+      subscription: { type: Boolean, default: true },
       autoApproveFromSubscription: { type: Boolean, default: true },
     },
     purchasedResumes: [

@@ -962,6 +962,8 @@ export interface CompanyPermissions {
   applicants: boolean;
   resumes: boolean;
   settings: boolean;
+  profile?: boolean;
+  subscription?: boolean;
   autoApproveFromSubscription?: boolean;
 }
 
@@ -971,6 +973,8 @@ export const DEFAULT_COMPANY_PERMISSIONS: CompanyPermissions = {
   applicants: false,
   resumes: false,
   settings: false,
+  profile: true,
+  subscription: true,
   autoApproveFromSubscription: true,
 };
 
