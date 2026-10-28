@@ -134,6 +134,13 @@ const applicationSchema = new Schema<IApplication>(
   }
 );
 
+// Performance Indexes for high-speed application & recruiter queries
+applicationSchema.index({ candidateEmail: 1, createdAt: -1 });
+applicationSchema.index({ candidateId: 1, createdAt: -1 });
+applicationSchema.index({ jobId: 1, status: 1 });
+applicationSchema.index({ companyId: 1, status: 1 });
+applicationSchema.index({ company: 1, createdAt: -1 });
+
 export const Application =
   mongoose.models.Application ||
   mongoose.model<IApplication>('Application', applicationSchema);

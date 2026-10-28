@@ -19,8 +19,6 @@ import {
 import {
   clearAuthSession,
   fetchAdminNotifications,
-  fetchAdminCompanies,
-  fetchAdminJobSeekers,
   AdminNotificationItem,
 } from "@/lib/api";
 
@@ -90,46 +88,8 @@ export default function AdminHeader({
   const loadNotifications = async () => {
     try {
       const items = await fetchAdminNotifications();
-      if (Array.isArray(items) && items.length > 0) {
+      if (Array.isArray(items)) {
         setNotifications(items);
-      } else {
-        // Fallback: build real notifications directly from companies and jobseekers data
-        const [comps, seekers] = await Promise.all([
-          fetchAdminCompanies().catch(() => []),
-          fetchAdminJobSeekers().catch(() => []),
-        ]);
-        const fallbackList: AdminNotificationItem[] = [];
-        (comps || []).forEach((c: any) => {
-          const isPending = c.status === "Pending";
-          fallbackList.push({
-            id: `comp-${c.id || c._id}`,
-            type: "company_registered",
-            title: "New Company Registered",
-            desc: isPending
-              ? `${c.name || "Company"} applied for approval`
-              : `${c.name || "Company"} registered as employer`,
-            createdAt: c.createdAt || new Date(),
-            targetTab: isPending ? "approvals" : "companies",
-            entityId: c.id || c._id,
-            iconType: "company",
-          });
-        });
-        (seekers || []).forEach((s: any) => {
-          fallbackList.push({
-            id: `seeker-${s.id || s._id}`,
-            type: "jobseeker_registered",
-            title: "New Jobseeker Registered",
-            desc: `${s.name || "Candidate"} registered (${s.targetRole || s.headline || "Job Seeker"})`,
-            createdAt: s.createdAt || new Date(),
-            targetTab: "jobseekers",
-            entityId: s.id || s._id,
-            iconType: "jobseeker",
-          });
-        });
-        fallbackList.sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        setNotifications(fallbackList);
       }
     } catch (err) {
       console.warn("Could not load real admin notifications:", err);
@@ -140,17 +100,12 @@ export default function AdminHeader({
     loadNotifications();
 
     const handleUpdate = () => loadNotifications();
-    window.addEventListener("storage", handleUpdate);
     window.addEventListener("companies_updated", handleUpdate);
     window.addEventListener("plans_updated", handleUpdate);
 
-    // Refresh every 6 seconds to keep notifications real-time
-    const interval = setInterval(loadNotifications, 6000);
     return () => {
-      window.removeEventListener("storage", handleUpdate);
       window.removeEventListener("companies_updated", handleUpdate);
       window.removeEventListener("plans_updated", handleUpdate);
-      clearInterval(interval);
     };
   }, []);
 

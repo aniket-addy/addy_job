@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -1168,7 +1168,12 @@ export default function CandidateDashboardPage() {
   };
 
   // Synchronize applied jobs, saved jobs, recruiter messages, and job alerts
-  const loadAppliedAndSaved = async (u?: UserSession | null) => {
+  const isSyncingRef = useRef(false);
+  const loadAppliedAndSaved = async (u?: UserSession | null, isBackground = false) => {
+    if (isSyncingRef.current) return;
+    if (isBackground && typeof document !== "undefined" && document.hidden) return;
+    isSyncingRef.current = true;
+    try {
     const userObj = u || currentUser || getStoredUser();
     const isRealUser = Boolean(userObj?.id || userObj?.userId || userObj?.email);
     const userEmail = (userObj?.email || "").trim().toLowerCase();
@@ -1474,6 +1479,9 @@ export default function CandidateDashboardPage() {
     } catch {
       setJobAlerts(DEFAULT_JOB_ALERTS);
     }
+    } finally {
+      isSyncingRef.current = false;
+    }
   };
 
   // Handlers for Save, Messages, and Alerts
@@ -1698,13 +1706,12 @@ export default function CandidateDashboardPage() {
 
     // Cross-tab and live recruiter synchronization
     const handleSync = () => {
-      loadAppliedAndSaved();
+      loadAppliedAndSaved(null, true);
     };
     window.addEventListener("applied_jobs_change", handleSync);
     window.addEventListener("job_application_submitted", handleSync);
     window.addEventListener("saved_jobs_change", handleSync);
     window.addEventListener("messages_change", handleSync);
-    window.addEventListener("storage", handleSync);
 
     let bc: BroadcastChannel | null = null;
     try {
@@ -1714,19 +1721,12 @@ export default function CandidateDashboardPage() {
       };
     } catch {}
 
-    // Live background polling every 3 seconds so company actions immediately reflect
-    const pollInterval = setInterval(() => {
-      loadAppliedAndSaved();
-    }, 3000);
-
     return () => {
       window.removeEventListener("applied_jobs_change", handleSync);
       window.removeEventListener("job_application_submitted", handleSync);
       window.removeEventListener("saved_jobs_change", handleSync);
       window.removeEventListener("messages_change", handleSync);
-      window.removeEventListener("storage", handleSync);
       if (bc) bc.close();
-      clearInterval(pollInterval);
     };
   }, []);
 

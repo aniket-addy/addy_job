@@ -121,13 +121,15 @@ function CompanyDetailPageContent() {
       };
     } catch {}
 
-    window.addEventListener("applied_jobs_change", handleSync);
-    window.addEventListener("storage", handleSync);
+    window.addEventListener("company_profile_updated", handleSync);
+    window.addEventListener("job_created", handleSync);
+    window.addEventListener("job_updated", handleSync);
 
     return () => {
       isMounted = false;
-      window.removeEventListener("applied_jobs_change", handleSync);
-      window.removeEventListener("storage", handleSync);
+      window.removeEventListener("company_profile_updated", handleSync);
+      window.removeEventListener("job_created", handleSync);
+      window.removeEventListener("job_updated", handleSync);
       if (bc) bc.close();
     };
   }, [companyId]);

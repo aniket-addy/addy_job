@@ -20,6 +20,7 @@ export interface ApplicationItem {
   pdfData?: string;
   fileName?: string;
   resumeUrl?: string;
+  hasPdf?: boolean;
   jobId?: string;
   education?: string;
   highestQualification?: string;

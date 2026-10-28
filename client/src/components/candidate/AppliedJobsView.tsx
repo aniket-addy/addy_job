@@ -104,19 +104,15 @@ export default function AppliedJobsView({
     };
 
     fetchStats();
-    const interval = setInterval(fetchStats, 3000);
 
     const onSync = () => {
       fetchStats();
     };
     window.addEventListener("applied_jobs_change", onSync);
-    window.addEventListener("storage", onSync);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
       window.removeEventListener("applied_jobs_change", onSync);
-      window.removeEventListener("storage", onSync);
     };
   }, [activeJob?.jobId, activeJob?.id, activeJob?.title, activeJob?.company]);
 

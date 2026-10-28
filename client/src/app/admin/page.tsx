@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -82,21 +82,33 @@ export default function SuperAdminPage() {
     setIsAuthorized(true);
   }, []);
 
-  const loadDatabaseData = async () => {
+  const isFetchingRef = useRef(false);
+
+  const loadDatabaseData = async (isBackground = false) => {
+    if (isFetchingRef.current) return;
+    if (isBackground && typeof document !== "undefined" && document.hidden) return;
+    isFetchingRef.current = true;
     try {
-      setIsLoading(true);
-      const [overview, companies, jobsData, appsData, plansData, jobSeekersData] = await Promise.all([
-        fetchAdminOverview(),
+      if (!isBackground) {
+        setIsLoading(true);
+      }
+
+      // 1. Fetch overview stats immediately to show stats cards in < 50ms
+      fetchAdminOverview().then((overview) => {
+        if (overview) {
+          setOverviewStats(overview);
+          setIsLoading(false);
+        }
+      });
+
+      // 2. Fetch tabs data in parallel without blocking overview rendering
+      const [companies, jobsData, appsData, plansData, jobSeekersData] = await Promise.all([
         fetchAdminCompanies(),
         fetchAdminJobs(),
         fetchAdminApplications(),
         fetchAdminPlans(),
         fetchAdminJobSeekers(),
       ]);
-
-      if (overview) {
-        setOverviewStats(overview);
-      }
 
       if (Array.isArray(companies)) {
         setAllCompanies(companies);
@@ -122,25 +134,22 @@ export default function SuperAdminPage() {
       console.error("Failed to load admin data from DB:", err);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
-    loadDatabaseData();
+    loadDatabaseData(false);
 
     const handleSync = () => {
-      loadDatabaseData();
+      loadDatabaseData(true);
     };
     window.addEventListener("job_created", handleSync);
     window.addEventListener("job_updated", handleSync);
     window.addEventListener("company_profile_updated", handleSync);
     window.addEventListener("company_permissions_updated", handleSync);
     window.addEventListener("companies_updated", handleSync);
-    window.addEventListener("auth_change", handleSync);
     window.addEventListener("applied_jobs_change", handleSync);
-    window.addEventListener("storage", handleSync);
-
-    const interval = setInterval(loadDatabaseData, 6000);
 
     return () => {
       window.removeEventListener("job_created", handleSync);
@@ -148,10 +157,7 @@ export default function SuperAdminPage() {
       window.removeEventListener("company_profile_updated", handleSync);
       window.removeEventListener("company_permissions_updated", handleSync);
       window.removeEventListener("companies_updated", handleSync);
-      window.removeEventListener("auth_change", handleSync);
       window.removeEventListener("applied_jobs_change", handleSync);
-      window.removeEventListener("storage", handleSync);
-      clearInterval(interval);
     };
   }, []);
 

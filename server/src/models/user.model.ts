@@ -382,6 +382,10 @@ const userSchema = new Schema<IUser>(
   }
 );
 
+// Performance Indexes for high-speed role queries
+userSchema.index({ role: 1, status: 1 });
+userSchema.index({ role: 1, createdAt: -1 });
+
 // Hash password before saving
 userSchema.pre('save', async function () {
   if (!this.isModified('password') || !this.password) {

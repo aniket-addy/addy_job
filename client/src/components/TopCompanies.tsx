@@ -5,8 +5,10 @@ import { Building2 } from "lucide-react";
 import { fetchPublicCompanies } from "@/lib/api";
 import { companiesList } from "@/data/companiesData";
 
-export default function TopCompanies() {
-  const [companies, setCompanies] = useState<any[]>([]);
+export default function TopCompanies({ initialCompanies }: { initialCompanies?: any[] }) {
+  const [companies, setCompanies] = useState<any[]>(
+    Array.isArray(initialCompanies) && initialCompanies.length > 0 ? initialCompanies : []
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -28,12 +30,10 @@ export default function TopCompanies() {
     };
 
     load();
-    window.addEventListener("applied_jobs_change", load);
-    window.addEventListener("storage", load);
+    window.addEventListener("companies_updated", load);
     return () => {
       isMounted = false;
-      window.removeEventListener("applied_jobs_change", load);
-      window.removeEventListener("storage", load);
+      window.removeEventListener("companies_updated", load);
     };
   }, []);
 

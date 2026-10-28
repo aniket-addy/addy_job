@@ -137,29 +137,29 @@ function JobsContent() {
 
     const handleAppliedSync = () => {
       syncAppliedMap();
+    };
+
+    const handleSavedSync = () => {
+      syncSavedMap();
+    };
+
+    const handleJobChange = () => {
       loadJobs();
     };
 
-    window.addEventListener("job_created", loadJobs);
-    window.addEventListener("job_updated", loadJobs);
+    window.addEventListener("job_created", handleJobChange);
+    window.addEventListener("job_updated", handleJobChange);
     window.addEventListener("applied_jobs_change", handleAppliedSync);
     window.addEventListener("job_application_submitted", handleAppliedSync);
-    window.addEventListener("saved_jobs_change", () => {
-      syncSavedMap();
-      loadJobs();
-    });
-    window.addEventListener("storage", () => {
-      syncSavedMap();
-      syncAppliedMap();
-      loadJobs();
-    });
+    window.addEventListener("saved_jobs_change", handleSavedSync);
 
     return () => {
       isMounted = false;
-      window.removeEventListener("job_created", loadJobs);
-      window.removeEventListener("job_updated", loadJobs);
+      window.removeEventListener("job_created", handleJobChange);
+      window.removeEventListener("job_updated", handleJobChange);
       window.removeEventListener("applied_jobs_change", handleAppliedSync);
       window.removeEventListener("job_application_submitted", handleAppliedSync);
+      window.removeEventListener("saved_jobs_change", handleSavedSync);
     };
   }, []);
 

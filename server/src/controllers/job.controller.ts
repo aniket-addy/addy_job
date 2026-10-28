@@ -91,11 +91,11 @@ export const getJobs = async (req: Request, res: Response) => {
       queryExec.limit(Number(limit));
     }
 
-    const jobs = await queryExec.exec();
+    const jobs = await queryExec.lean().exec();
 
     // Map company logos to jobs
-    const compIds = jobs.map((j) => j.companyId).filter(Boolean);
-    const compNames = jobs.map((j) => j.company).filter(Boolean);
+    const compIds = jobs.map((j: any) => j.companyId).filter(Boolean);
+    const compNames = jobs.map((j: any) => j.company).filter(Boolean);
     const compUsers = await User.find({
       role: 'company',
       $or: [
@@ -103,7 +103,7 @@ export const getJobs = async (req: Request, res: Response) => {
         { userId: { $in: compIds } },
         { companyName: { $in: compNames } },
       ],
-    }).select('_id userId companyName name logo profileImage');
+    }).select('_id userId companyName name logo profileImage').lean();
 
     const compMap = new Map<string, string>();
     compUsers.forEach((u) => {
@@ -313,7 +313,6 @@ export const createJob = async (req: Request, res: Response) => {
     }
 
     const isCompanyRole = reqUser?.role === 'company';
-    const initialStatus = isCompanyRole ? 'Pending' : (status || 'Active');
 
     if (!title || !title.trim()) {
       res.status(400).json({ success: false, message: 'Job title is required' });
@@ -323,16 +322,27 @@ export const createJob = async (req: Request, res: Response) => {
     let finalCompany = (company || '').trim();
     let finalCompanyId = companyId || (reqUser?.role === 'company' ? reqUser.id : undefined);
 
-    // If company name not passed, find from companyId or user session
-    if (!finalCompany && finalCompanyId) {
+    let hasJobPermission = !isCompanyRole; // admin or sadmin has permission by default
+
+    // If company user, check permissions.jobs
+    if (finalCompanyId) {
       const compUser = await User.findById(finalCompanyId);
       if (compUser) {
-        finalCompany = compUser.companyName || compUser.name || compUser.email.split('@')[0];
+        if (!finalCompany) {
+          finalCompany = compUser.companyName || compUser.name || compUser.email.split('@')[0];
+        }
+        if (isCompanyRole) {
+          // Company must be Approved by Super Admin AND have permissions.jobs enabled to post live jobs
+          const isApproved = compUser.status === 'Approved';
+          hasJobPermission = isApproved && compUser.permissions?.jobs === true;
+        }
       }
     }
     if (!finalCompany) {
       finalCompany = 'Hiring Company';
     }
+
+    const initialStatus = hasJobPermission ? (status || 'Active') : 'Pending';
 
     const newJob = await Job.create({
       title: title.trim(),
@@ -863,10 +873,10 @@ export const getCandidateApplications = async (req: Request, res: Response) => {
 
     const { Application } = await import('../models/application.model.js');
     const { User } = await import('../models/user.model.js');
-    const apps = await Application.find(query).populate('jobId').sort({ createdAt: -1 });
+    const apps = await Application.find(query).select('-pdfData').populate('jobId').sort({ createdAt: -1 }).lean();
 
     // Fetch existing companies to ensure deleted or non-existent companies are not displayed to candidates
-    const existingCompanies = await User.find({ role: 'company' }).select('_id userId customId companyName name');
+    const existingCompanies = await User.find({ role: 'company' }).select('_id userId customId companyName name').lean();
     const validCompanyIds = new Set<string>();
     const validCompanyNames = new Set<string>();
 
@@ -1006,7 +1016,7 @@ export const getCompanyApplications = async (req: Request, res: Response) => {
       if (mongoose.isValidObjectId(targetCompanyId)) {
         jobOrFilters.push({ companyId: new mongoose.Types.ObjectId(targetCompanyId) });
       }
-      const companyJobs = await Job.find({ $or: jobOrFilters });
+      const companyJobs = await Job.find({ $or: jobOrFilters }).select('_id').lean();
       const jobIds = companyJobs.map((j) => j._id);
       if (jobIds.length > 0) {
         orConditions.push({ jobId: { $in: jobIds } });
@@ -1019,10 +1029,10 @@ export const getCompanyApplications = async (req: Request, res: Response) => {
       return;
     }
 
-    const apps = await Application.find({ $or: orConditions }).populate('jobId').sort({ createdAt: -1 });
+    const apps = await Application.find({ $or: orConditions }).populate('jobId').sort({ createdAt: -1 }).lean();
 
     const emails = apps.map((a: any) => a.candidateEmail).filter(Boolean);
-    const users = await User.find({ email: { $in: emails }, role: 'job_seeker' });
+    const users = await User.find({ email: { $in: emails }, role: 'job_seeker' }).select('-password -purchasedResumes').lean();
     const userMap = new Map(users.map((u) => [u.email.toLowerCase().trim(), u]));
 
     const formatted = apps.map((a: any) => {

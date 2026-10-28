@@ -14,6 +14,7 @@ import {
   updateJobStatus,
   deleteJob,
   getAdminApplications,
+  getAdminApplicationResume,
   createAdminApplication,
   updateApplicationStatus,
   getAdminPlans,
@@ -65,6 +66,7 @@ router.delete('/jobs/:id', deleteJob);
 
 // Applications & Resumes management
 router.get('/applications', getAdminApplications);
+router.get('/applications/:id/resume', getAdminApplicationResume);
 router.post('/applications', createAdminApplication);
 router.patch('/applications/:id/status', updateApplicationStatus);
 router.post('/resumes/bulk-send', sendBulkResumesToCompany);

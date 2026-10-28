@@ -22,9 +22,13 @@ import {
 } from "@/lib/api";
 import { jobsList } from "@/data/jobsData";
 
-export default function RecommendedJobs() {
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function RecommendedJobs({ initialJobs }: { initialJobs?: any[] }) {
+  const [jobs, setJobs] = useState<any[]>(
+    Array.isArray(initialJobs) && initialJobs.length > 0 ? initialJobs : []
+  );
+  const [isLoading, setIsLoading] = useState(
+    !Array.isArray(initialJobs) || initialJobs.length === 0
+  );
   const [savedJobs, setSavedJobs] = useState<Record<string, boolean>>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -62,18 +66,21 @@ export default function RecommendedJobs() {
     loadJobs();
     syncSavedJobs();
 
-    const handleSync = () => {
+    const handleJobChange = () => {
       loadJobs();
+    };
+
+    const handleSavedChange = () => {
       syncSavedJobs();
     };
 
-    window.addEventListener("applied_jobs_change", handleSync);
-    window.addEventListener("saved_jobs_change", handleSync);
-    window.addEventListener("storage", handleSync);
+    window.addEventListener("job_created", handleJobChange);
+    window.addEventListener("job_updated", handleJobChange);
+    window.addEventListener("saved_jobs_change", handleSavedChange);
     return () => {
-      window.removeEventListener("applied_jobs_change", handleSync);
-      window.removeEventListener("saved_jobs_change", handleSync);
-      window.removeEventListener("storage", handleSync);
+      window.removeEventListener("job_created", handleJobChange);
+      window.removeEventListener("job_updated", handleJobChange);
+      window.removeEventListener("saved_jobs_change", handleSavedChange);
     };
   }, []);
 
