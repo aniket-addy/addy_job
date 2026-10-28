@@ -522,39 +522,52 @@ export default function PlansPricingManager({
 
       {/* CREATE & EDIT PLAN MODAL */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 relative max-h-[92vh] overflow-y-auto">
-            {/* Close Button */}
-            <button
-              onClick={() => setModalOpen(false)}
-              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 relative max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header (Fixed at top) */}
+            <div className="flex items-start justify-between gap-3 p-5 sm:p-6 pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-violet-50 text-[#7C3AED] flex items-center justify-center font-bold shrink-0">
+                  {editingPlan ? (
+                    <Pencil className="w-5 h-5" />
+                  ) : (
+                    <PlusCircle className="w-5 h-5" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight truncate">
+                    {editingPlan ? `Edit Plan: ${editingPlan.name}` : `Create New ${billingCycle === "yearly" ? "Yearly (/year)" : "Monthly (/month)"} Plan`}
+                  </h3>
+                  <p className="text-xs text-slate-500 line-clamp-1">
+                    {editingPlan
+                      ? "Update pricing, billing cycle duration, and package entitlements in MongoDB."
+                      : `Add a new ${billingCycle} plan to the database available for all companies.`}
+                  </p>
+                </div>
+              </div>
 
-            {/* Modal Header */}
-            <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
-              <div className="w-10 h-10 rounded-2xl bg-violet-50 text-[#7C3AED] flex items-center justify-center font-bold">
-                {editingPlan ? (
-                  <Pencil className="w-5 h-5" />
-                ) : (
-                  <PlusCircle className="w-5 h-5" />
-                )}
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-slate-900 tracking-tight">
-                  {editingPlan ? `Edit Plan: ${editingPlan.name}` : `Create New ${billingCycle === "yearly" ? "Yearly (/year)" : "Monthly (/month)"} Plan`}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {editingPlan
-                    ? "Update pricing, billing cycle duration, and package entitlements in MongoDB."
-                    : `Add a new ${billingCycle} plan to the database available for all companies.`}
-                </p>
-              </div>
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors cursor-pointer shrink-0"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleFormSubmit} className="space-y-4">
+            {/* Scrollable Form Body without native scrollbars */}
+            <form
+              onSubmit={handleFormSubmit}
+              className="p-5 sm:p-6 overflow-y-auto flex-1 no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-4 text-xs"
+            >
               {/* Billing Cycle Selector Dropdown */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -672,7 +685,7 @@ export default function PlansPricingManager({
                   </button>
                 </div>
 
-                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                   {features.map((feat, idx) => (
                     <div
                       key={idx}
@@ -692,7 +705,7 @@ export default function PlansPricingManager({
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
