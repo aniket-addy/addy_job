@@ -103,24 +103,6 @@ const STATUS_OPTIONS = [
     hoverBg: "hover:bg-teal-50/70",
   },
   {
-    value: "Interview",
-    label: "Status: Interview",
-    dotColor: "bg-purple-500",
-    badgeBg: "bg-purple-50/80",
-    badgeText: "text-purple-700",
-    badgeBorder: "border-purple-200/80",
-    hoverBg: "hover:bg-purple-50/70",
-  },
-  {
-    value: "Hired",
-    label: "Status: Hired",
-    dotColor: "bg-emerald-500",
-    badgeBg: "bg-emerald-50/80",
-    badgeText: "text-emerald-700",
-    badgeBorder: "border-emerald-200/80",
-    hoverBg: "hover:bg-emerald-50/60",
-  },
-  {
     value: "Rejected",
     label: "Status: Rejected",
     dotColor: "bg-rose-500",
@@ -415,8 +397,6 @@ export default function CompanyJobApplicantsModal({
                   "Applied",
                   "Reviewing",
                   "Shortlisted",
-                  "Interview",
-                  "Hired",
                   "Rejected",
                 ] as const
               ).map((st) => (

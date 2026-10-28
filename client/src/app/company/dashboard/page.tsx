@@ -1928,7 +1928,7 @@ export default function CompanyDashboardPage() {
     setImageModalState((prev) => ({ ...prev, isOpen: false, mode: "menu" }));
   };
 
-  // Actions for Candidates: Hire, Reject, Shortlist, Interview
+  // Actions for Candidates: Shortlist, Reject, Reviewing
   const handleUpdateStatus = (
     applicantId: string,
     newStatus: "Reviewing" | "Shortlisted" | "Interview" | "Hired" | "Rejected"
@@ -1941,8 +1941,12 @@ export default function CompanyDashboardPage() {
       `${applicant?.candidateName || "Candidate"} has been marked as ${newStatus}!`
     );
 
-    // Persist real recruiter action to MongoDB backend!
-    updateApplicationStatusAPI(applicantId, newStatus, newStatus).catch((err) => {
+    // Persist real recruiter action to MongoDB backend and sync localStorage!
+    updateApplicationStatusAPI(applicantId, newStatus, newStatus, {
+      jobId: applicant?.jobId,
+      email: applicant?.email,
+      candidateName: applicant?.candidateName,
+    }).catch((err) => {
       console.warn("Backend status update error:", err);
     });
   };
@@ -1951,7 +1955,11 @@ export default function CompanyDashboardPage() {
   const handleViewResume = (app: RecruiterApplicant) => {
     setSelectedApplicant(app);
     if (app.id) {
-      markResumeViewedAPI(app.id).catch((err) => console.warn("Backend resume view error:", err));
+      markResumeViewedAPI(app.id, {
+        jobId: app.jobId,
+        email: app.email,
+        candidateName: app.candidateName,
+      }).catch((err) => console.warn("Backend resume view error:", err));
       setApplicants((prev) =>
         prev.map((a) =>
           a.id === app.id ? { ...a, status: a.status === "Applied" ? "Reviewing" : a.status } : a
@@ -3166,15 +3174,15 @@ export default function CompanyDashboardPage() {
                               {app.status}
                             </span>
 
-                            {/* Quick Hire Button */}
-                            {app.status !== "Hired" && (
+                            {/* Quick Shortlist Button */}
+                            {app.status !== "Shortlisted" && (
                               <button
-                                onClick={() => handleUpdateStatus(app.id, "Hired")}
-                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                                title="Hire this candidate"
+                                onClick={() => handleUpdateStatus(app.id, "Shortlisted")}
+                                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                title="Shortlist this candidate"
                               >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Hire</span>
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>Shortlist</span>
                               </button>
                             )}
 
@@ -3998,7 +4006,7 @@ export default function CompanyDashboardPage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Review submissions, schedule interviews, and mark candidates as Hired or Rejected.
+                    Review submissions and manage candidate application status.
                   </p>
                 </div>
 
@@ -4010,8 +4018,6 @@ export default function CompanyDashboardPage() {
                       "Applied",
                       "Reviewing",
                       "Shortlisted",
-                      "Interview",
-                      "Hired",
                       "Rejected",
                     ] as const
                   ).map((st) => (
@@ -4132,34 +4138,26 @@ export default function CompanyDashboardPage() {
 
                           <button
                             onClick={() => handleUpdateStatus(app.id, "Shortlisted")}
-                            className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold transition cursor-pointer whitespace-nowrap shadow-2xs"
+                            className={`px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap shadow-2xs ${
+                              app.status === "Shortlisted"
+                                ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                : "bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200"
+                            }`}
                           >
-                            Shortlist
-                          </button>
-
-                          <button
-                            onClick={() => handleUpdateStatus(app.id, "Interview")}
-                            className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition cursor-pointer whitespace-nowrap shadow-2xs"
-                          >
-                            Interview
-                          </button>
-
-                          {/* HIRE BUTTON */}
-                          <button
-                            onClick={() => handleUpdateStatus(app.id, "Hired")}
-                            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                          >
-                            <UserCheck className="w-4 h-4" />
-                            <span>Hire Candidate</span>
+                            {app.status === "Shortlisted" ? "Shortlisted ✓" : "Shortlist"}
                           </button>
 
                           {/* REJECT BUTTON */}
                           <button
                             onClick={() => handleUpdateStatus(app.id, "Rejected")}
-                            className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs ${
+                              app.status === "Rejected"
+                                ? "bg-rose-600 text-white border border-rose-600"
+                                : "bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200"
+                            }`}
                           >
                             <UserX className="w-4 h-4" />
-                            <span>Reject</span>
+                            <span>{app.status === "Rejected" ? "Rejected" : "Reject"}</span>
                           </button>
                         </div>
                       </div>
@@ -5688,12 +5686,12 @@ export default function CompanyDashboardPage() {
                 </button>
                 <button
                   onClick={() => {
-                    handleUpdateStatus(selectedApplicant.id, "Hired");
+                    handleUpdateStatus(selectedApplicant.id, "Shortlisted");
                     setSelectedApplicant(null);
                   }}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition shadow-xs cursor-pointer"
                 >
-                  Hire Candidate
+                  Shortlist Candidate
                 </button>
               </div>
             </div>

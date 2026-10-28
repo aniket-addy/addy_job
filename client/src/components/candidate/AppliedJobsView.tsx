@@ -424,7 +424,7 @@ export default function AppliedJobsView({
                     {/* Animated Active connecting line */}
                     <div
                       className={`absolute top-5 left-10 h-0.5 transition-all duration-500 -z-0 ${
-                        isRejected ? "bg-rose-400" : isInterview ? "bg-purple-500" : "bg-emerald-500"
+                        isRejected ? "bg-rose-400" : isInterview ? "bg-purple-500" : isShortlisted ? "bg-amber-500" : "bg-emerald-500"
                       }`}
                       style={{
                         width: hasRecruiterAction

@@ -1525,15 +1525,72 @@ export function notifyApplicationSync() {
   }
 }
 
+export function updateLocalAppliedJobStatus(
+  applicationIdOrJobId: string,
+  newStatus: string,
+  recruiterAction?: string,
+  extraMatch?: { jobId?: string; email?: string; candidateName?: string }
+) {
+  if (typeof window === 'undefined') return;
+  try {
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith('candidate_applied_jobs_'));
+    keys.forEach((key) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const list = JSON.parse(raw);
+        if (!Array.isArray(list)) return;
+        let changed = false;
+        const updated = list.map((item: any) => {
+          const match =
+            String(item.id) === String(applicationIdOrJobId) ||
+            String(item._id) === String(applicationIdOrJobId) ||
+            String(item.jobId) === String(applicationIdOrJobId) ||
+            (extraMatch?.jobId && String(item.jobId) === String(extraMatch.jobId) && (!extraMatch.email || String(item.candidateEmail).toLowerCase() === extraMatch.email.toLowerCase())) ||
+            (extraMatch?.email && String(item.candidateEmail).toLowerCase() === extraMatch.email.toLowerCase() && (!extraMatch.jobId || String(item.jobId) === String(extraMatch.jobId)));
+          if (match) {
+            changed = true;
+            const isShort = newStatus.toLowerCase() === 'shortlisted';
+            const isRej = newStatus.toLowerCase() === 'rejected';
+            const isRev = ['reviewed', 'reviewing'].includes(newStatus.toLowerCase());
+            return {
+              ...item,
+              status: newStatus,
+              recruiterAction: recruiterAction || newStatus,
+              recruiterActionAt: new Date().toISOString(),
+              resumeViewed: true,
+              resumeViewedAt: item.resumeViewedAt || new Date().toISOString(),
+              statusStep: (isShort || isRej) ? 3 : isRev ? 2 : (item.statusStep || 1),
+              recruiterStatus: isShort
+                ? 'Shortlisted for next round'
+                : isRej
+                ? 'Application closed'
+                : isRev
+                ? 'Resume reviewed by recruiter'
+                : item.recruiterStatus,
+            };
+          }
+          return item;
+        });
+        if (changed) {
+          localStorage.setItem(key, JSON.stringify(updated));
+        }
+      } catch {}
+    });
+  } catch {}
+}
+
 export async function updateApplicationStatusAPI(
   id: string,
   status: string,
-  recruiterAction?: string
+  recruiterAction?: string,
+  extraMatch?: { jobId?: string; email?: string; candidateName?: string }
 ): Promise<{ success: boolean; message?: string; application?: any }> {
   try {
+    updateLocalAppliedJobStatus(id, status, recruiterAction, extraMatch);
     const res = await fetch(`${API_BASE_URL}/jobs/applications/${id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({ status, recruiterAction }),
     });
     const data = await res.json();
@@ -1541,23 +1598,27 @@ export async function updateApplicationStatusAPI(
     return data;
   } catch (err: any) {
     console.error('updateApplicationStatusAPI error:', err);
+    notifyApplicationSync();
     return { success: false, message: err.message };
   }
 }
 
 export async function markResumeViewedAPI(
-  id: string
+  id: string,
+  extraMatch?: { jobId?: string; email?: string; candidateName?: string }
 ): Promise<{ success: boolean; message?: string; application?: any }> {
   try {
+    updateLocalAppliedJobStatus(id, 'Reviewing', undefined, extraMatch);
     const res = await fetch(`${API_BASE_URL}/jobs/applications/${id}/view-resume`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(true),
     });
     const data = await res.json();
     notifyApplicationSync();
     return data;
   } catch (err: any) {
     console.error('markResumeViewedAPI error:', err);
+    notifyApplicationSync();
     return { success: false, message: err.message };
   }
 }

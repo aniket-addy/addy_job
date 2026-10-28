@@ -519,6 +519,8 @@ export default function Navbar({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 markAsRead(n.id);
+                                setNotificationsOpen(false);
+                                router.push("/candidate/dashboard?tab=applied");
                               }}
                               className={`p-3 rounded-2xl flex items-start gap-3 transition-all cursor-pointer border select-none ${
                                 !n.read

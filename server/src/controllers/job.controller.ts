@@ -1111,8 +1111,24 @@ export const updateJobApplicationStatus = async (req: Request, res: Response) =>
       }
     }
 
+    const appId = String(id);
     const { Application } = await import('../models/application.model.js');
-    const updated = await Application.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
+    const mongoose = (await import('mongoose')).default;
+    let updated = null;
+    if (mongoose.Types.ObjectId.isValid(appId)) {
+      updated = await Application.findByIdAndUpdate(appId, { $set: updateFields }, { new: true });
+    }
+    if (!updated) {
+      const orConditions: any[] = [{ id: appId }];
+      if (mongoose.Types.ObjectId.isValid(appId)) {
+        orConditions.push({ _id: appId });
+      }
+      updated = await Application.findOneAndUpdate(
+        { $or: orConditions },
+        { $set: updateFields },
+        { new: true }
+      );
+    }
 
     if (!updated) {
       res.status(404).json({ success: false, message: 'Application not found' });
@@ -1136,9 +1152,21 @@ export const markResumeViewed = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
     const { id } = req.params;
+    const appId = String(id);
 
     const { Application } = await import('../models/application.model.js');
-    const app = await Application.findById(id);
+    const mongoose = (await import('mongoose')).default;
+    let app = null;
+    if (mongoose.Types.ObjectId.isValid(appId)) {
+      app = await Application.findById(appId);
+    }
+    if (!app) {
+      const orConditions: any[] = [{ id: appId }];
+      if (mongoose.Types.ObjectId.isValid(appId)) {
+        orConditions.push({ _id: appId });
+      }
+      app = await Application.findOne({ $or: orConditions });
+    }
     if (!app) {
       res.status(404).json({ success: false, message: 'Application not found' });
       return;

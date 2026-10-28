@@ -159,30 +159,53 @@ function JobDetailPageContent() {
   const [profileResumeName, setProfileResumeName] = useState("");
   const [profileResumeUrl, setProfileResumeUrl] = useState("");
   const [profileResumeDate, setProfileResumeDate] = useState("");
-  const [resumeChoice, setResumeChoice] = useState<"profile" | "custom">("profile");
+  const [resumeChoice, setResumeChoice] = useState<"profile" | "custom">("custom");
   const [customFileName, setCustomFileName] = useState("");
   const [customBase64, setCustomBase64] = useState("");
   const [resumeError, setResumeError] = useState("");
   const resumeInputRef = React.useRef<HTMLInputElement>(null);
+  const customFileChosenRef = React.useRef(false);
 
   useEffect(() => {
     if (isApplyModalOpen) {
       setResumeError("");
+      setCustomFileName("");
+      setCustomBase64("");
+      customFileChosenRef.current = false;
+      if (resumeInputRef.current) {
+        resumeInputRef.current.value = "";
+      }
+
       const storedUser = getStoredUser();
       if (storedUser) {
         setFullName(storedUser.name || (storedUser as any).fullName || "");
         setEmail(storedUser.email || "");
         setPhone(storedUser.phone || (storedUser as any).mobileNumber || "");
 
-        const pName =
-          storedUser.resumeName ||
-          (storedUser.name
-            ? `${storedUser.name.replace(/\s+/g, "_")}_Resume.pdf`
-            : "Candidate_Resume.pdf");
-        setProfileResumeName(pName);
-        setProfileResumeUrl(storedUser.resumeUrl || "");
-        setProfileResumeDate(storedUser.resumeDate || "Saved in profile");
-        setResumeChoice("profile");
+        const hasStoredResume = Boolean(
+          storedUser.resumeName?.trim() || storedUser.resumeUrl?.trim()
+        );
+        if (hasStoredResume) {
+          const pName =
+            storedUser.resumeName?.trim() ||
+            (storedUser.name
+              ? `${storedUser.name.replace(/\s+/g, "_")}_Resume.pdf`
+              : "Profile_Resume.pdf");
+          setProfileResumeName(pName);
+          setProfileResumeUrl(storedUser.resumeUrl || "");
+          setProfileResumeDate(storedUser.resumeDate || "Saved in profile");
+          setResumeChoice("profile");
+        } else {
+          setProfileResumeName("");
+          setProfileResumeUrl("");
+          setProfileResumeDate("");
+          setResumeChoice("custom");
+        }
+      } else {
+        setProfileResumeName("");
+        setProfileResumeUrl("");
+        setProfileResumeDate("");
+        setResumeChoice("custom");
       }
 
       // Fetch fresh data from backend
@@ -192,9 +215,28 @@ function JobDetailPageContent() {
             if (fresh.name) setFullName(fresh.name);
             if (fresh.email) setEmail(fresh.email);
             if (fresh.phone) setPhone(fresh.phone);
-            if (fresh.resumeName) setProfileResumeName(fresh.resumeName);
-            if (fresh.resumeUrl) setProfileResumeUrl(fresh.resumeUrl);
-            if (fresh.resumeDate) setProfileResumeDate(fresh.resumeDate);
+
+            const hasFreshResume = Boolean(
+              fresh.resumeName?.trim() || fresh.resumeUrl?.trim()
+            );
+            if (hasFreshResume) {
+              const pName =
+                fresh.resumeName?.trim() ||
+                (fresh.name
+                  ? `${fresh.name.replace(/\s+/g, "_")}_Resume.pdf`
+                  : "Profile_Resume.pdf");
+              setProfileResumeName(pName);
+              setProfileResumeUrl(fresh.resumeUrl || "");
+              if (fresh.resumeDate) setProfileResumeDate(fresh.resumeDate);
+              if (!customFileChosenRef.current) {
+                setResumeChoice("profile");
+              }
+            } else {
+              setProfileResumeName("");
+              setProfileResumeUrl("");
+              setProfileResumeDate("");
+              setResumeChoice("custom");
+            }
           }
         })
         .catch(() => { });
@@ -218,6 +260,7 @@ function JobDetailPageContent() {
       return;
     }
 
+    customFileChosenRef.current = true;
     setCustomFileName(file.name);
     setResumeChoice("custom");
     const reader = new FileReader();
@@ -284,9 +327,22 @@ function JobDetailPageContent() {
       return;
     }
 
-    if (resumeChoice === "custom" && !customFileName) {
-      setResumeError("Please choose a resume file to upload or switch to your profile resume.");
-      return;
+    const isUsingProfile = resumeChoice === "profile" && Boolean(profileResumeName);
+
+    if (isUsingProfile) {
+      if (!profileResumeName) {
+        setResumeError("No profile resume found. Please upload a resume file.");
+        return;
+      }
+    } else {
+      if (!customFileName || !customBase64) {
+        setResumeError(
+          profileResumeName
+            ? "Please choose a resume file to upload or switch to your profile resume."
+            : "Please choose a resume file to upload."
+        );
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -295,13 +351,12 @@ function JobDetailPageContent() {
     const storedUser = getStoredUser();
     const uid = storedUser?.id || storedUser?.userId || storedUser?.email || "candidate";
 
-    const isUsingProfile = resumeChoice === "profile";
     const finalResume = isUsingProfile
       ? (profileResumeUrl || storedUser?.resumeUrl || "")
       : customBase64;
     const finalFileName = isUsingProfile
-      ? (profileResumeName || storedUser?.resumeName || `${(fullName || "Candidate").replace(/\s+/g, "_")}_Resume.pdf`)
-      : (customFileName || `${(fullName || "Candidate").replace(/\s+/g, "_")}_Resume.pdf`);
+      ? (profileResumeName || storedUser?.resumeName || "Profile_Resume.pdf")
+      : (customFileName || "Candidate_Resume.pdf");
 
     const appData = {
       id: "app-" + Date.now(),
@@ -1090,6 +1145,9 @@ function JobDetailPageContent() {
                                 setResumeChoice("profile");
                                 setCustomFileName("");
                                 setCustomBase64("");
+                                customFileChosenRef.current = false;
+                                if (resumeInputRef.current) resumeInputRef.current.value = "";
+                                setResumeError("");
                               }}
                               className="px-2.5 py-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline transition cursor-pointer"
                               title="Revert to profile resume"
@@ -1108,7 +1166,9 @@ function JobDetailPageContent() {
                         >
                           <Upload className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition mb-1" />
                           <span className="text-xs font-bold text-blue-600 group-hover:underline">
-                            Attach New Resume (Click to browse file)
+                            {profileResumeName
+                              ? "Attach New Resume (Click to browse file)"
+                              : "Upload Resume (Click to browse file)"}
                           </span>
                           <span className="text-[10px] text-slate-400">PDF, DOC, DOCX (Max 12MB)</span>
                         </div>
@@ -1116,7 +1176,10 @@ function JobDetailPageContent() {
                           <div className="flex justify-end">
                             <button
                               type="button"
-                              onClick={() => setResumeChoice("profile")}
+                              onClick={() => {
+                                setResumeChoice("profile");
+                                setResumeError("");
+                              }}
                               className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer flex items-center gap-1"
                             >
                               <span>← Use Profile Resume ({profileResumeName})</span>
