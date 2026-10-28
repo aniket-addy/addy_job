@@ -6,6 +6,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { fetchPublicCompanies } from "@/lib/api";
+import { companiesList } from "@/data/companiesData";
 import {
   Search,
   MapPin,
@@ -37,11 +38,18 @@ export default function CompaniesPage() {
     const load = () => {
       fetchPublicCompanies()
         .then((data) => {
-          if (isMounted && Array.isArray(data)) {
-            setCompanies(data);
+          if (isMounted) {
+            if (Array.isArray(data) && data.length > 0) {
+              setCompanies(data);
+            } else {
+              setCompanies(companiesList);
+            }
           }
         })
-        .catch((err) => console.error("Error fetching companies:", err))
+        .catch((err) => {
+          console.error("Error fetching companies:", err);
+          if (isMounted) setCompanies(companiesList);
+        })
         .finally(() => {
           if (isMounted) setIsLoading(false);
         });

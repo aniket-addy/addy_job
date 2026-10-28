@@ -28,6 +28,7 @@ import {
   Sparkles,
   Search,
   ExternalLink,
+  Phone,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { registerUser, setAuthSession } from "@/lib/api";
@@ -43,6 +44,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
   const [form, setForm] = useState({
     companyName: "",
     workEmail: "",
+    phone: "",
     website: "",
     companySize: "",
     industry: "",
@@ -54,6 +56,15 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Dynamic Password criteria calculation
+  const passwordCriteria = {
+    minLength: form.password.length >= 8,
+    firstCapital: /^[A-Z]/.test(form.password),
+    hasLetter: /[a-z]/.test(form.password),
+    hasNumber: /[0-9]/.test(form.password),
+    hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(form.password),
+  };
 
   // FAQ open/close accordion state
   const [openFaq, setOpenFaq] = useState<number | null>(0); // First one open by default
@@ -78,8 +89,44 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
       setIsLoading(false);
       return;
     }
-    if (!form.password || form.password.length < 6) {
-      setErrorMsg("Password must be at least 6 characters long.");
+    if (!form.phone.trim()) {
+      setErrorMsg("Please enter your phone number.");
+      setIsLoading(false);
+      return;
+    }
+    const cleanPhone = form.phone.replace(/[\s-]/g, "");
+    if (!/^\+?[0-9]{10,15}$/.test(cleanPhone)) {
+      setErrorMsg("Please enter a valid phone number (at least 10 digits).");
+      setIsLoading(false);
+      return;
+    }
+    if (!form.password) {
+      setErrorMsg("Please enter a password.");
+      setIsLoading(false);
+      return;
+    }
+    if (form.password.length < 8) {
+      setErrorMsg("Password must be at least 8 characters long.");
+      setIsLoading(false);
+      return;
+    }
+    if (!passwordCriteria.firstCapital) {
+      setErrorMsg("Password must start with a Capital letter (A-Z).");
+      setIsLoading(false);
+      return;
+    }
+    if (!passwordCriteria.hasLetter) {
+      setErrorMsg("Password must contain at least one lowercase letter (a-z).");
+      setIsLoading(false);
+      return;
+    }
+    if (!passwordCriteria.hasNumber) {
+      setErrorMsg("Password must contain at least one number (0-9).");
+      setIsLoading(false);
+      return;
+    }
+    if (!passwordCriteria.hasSpecial) {
+      setErrorMsg("Password must contain at least one special character (@, #, $, %, etc.).");
       setIsLoading(false);
       return;
     }
@@ -96,6 +143,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
         workEmail: form.workEmail.trim().toLowerCase(),
         password: form.password,
         companyName: form.companyName.trim(),
+        phone: form.phone.trim(),
         industry: form.industry || "Information Technology",
         companySize: form.companySize || "11-50 employees",
         location: "Bengaluru, India",
@@ -426,7 +474,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                   {/* Field 2: Work Email Address */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Work Email Address
+                      Work Email Address <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -447,7 +495,25 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                     </div>
                   </div>
 
-                  {/* Field 3: Company Website (Optional) */}
+                  {/* Field 3: Phone Number */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Phone Number <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="tel"
+                        required
+                        placeholder="+91 98765 43210"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#8B5CF6] focus:bg-white focus:ring-2 focus:ring-[#EDE9FE] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Field 4: Company Website (Optional) */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Company Website (Optional)
@@ -464,7 +530,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                     </div>
                   </div>
 
-                  {/* Field 4: Company Size */}
+                  {/* Field 5: Company Size */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Company Size
@@ -487,7 +553,7 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                     </div>
                   </div>
 
-                  {/* Field 5: Industry */}
+                  {/* Field 6: Industry */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Industry
@@ -512,10 +578,10 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                     </div>
                   </div>
 
-                  {/* Field 6: Create Password */}
+                  {/* Field 7: Create Password */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Create Password
+                      Create Password <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -545,6 +611,45 @@ export default function EmployerSignupView({ onSwitchToJobSeeker }: EmployerSign
                         )}
                       </button>
                     </div>
+
+                    {/* Dynamic Password Validation Indicator */}
+                    {form.password.length > 0 && (
+                      <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] space-y-1.5">
+                        <p className="font-bold text-slate-700">Password Requirements:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-slate-600">
+                          <div className={`flex items-center gap-1.5 ${passwordCriteria.firstCapital ? "text-emerald-600 font-semibold" : "text-slate-500"}`}>
+                            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${passwordCriteria.firstCapital ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                              {passwordCriteria.firstCapital ? "✓" : "•"}
+                            </span>
+                            Starts with Capital (A-Z)
+                          </div>
+                          <div className={`flex items-center gap-1.5 ${passwordCriteria.minLength ? "text-emerald-600 font-semibold" : "text-slate-500"}`}>
+                            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${passwordCriteria.minLength ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                              {passwordCriteria.minLength ? "✓" : "•"}
+                            </span>
+                            At least 8 characters
+                          </div>
+                          <div className={`flex items-center gap-1.5 ${passwordCriteria.hasLetter ? "text-emerald-600 font-semibold" : "text-slate-500"}`}>
+                            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${passwordCriteria.hasLetter ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                              {passwordCriteria.hasLetter ? "✓" : "•"}
+                            </span>
+                            Contains letter (a-z)
+                          </div>
+                          <div className={`flex items-center gap-1.5 ${passwordCriteria.hasNumber ? "text-emerald-600 font-semibold" : "text-slate-500"}`}>
+                            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${passwordCriteria.hasNumber ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                              {passwordCriteria.hasNumber ? "✓" : "•"}
+                            </span>
+                            Contains number (0-9)
+                          </div>
+                          <div className={`flex items-center gap-1.5 sm:col-span-2 ${passwordCriteria.hasSpecial ? "text-emerald-600 font-semibold" : "text-slate-500"}`}>
+                            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${passwordCriteria.hasSpecial ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>
+                              {passwordCriteria.hasSpecial ? "✓" : "•"}
+                            </span>
+                            Contains special character (@, #, $, %, etc.)
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Terms Checkbox */}

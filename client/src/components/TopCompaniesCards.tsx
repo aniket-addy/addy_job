@@ -4,6 +4,7 @@ import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { Star, Building2, Briefcase } from "lucide-react";
 import { fetchPublicCompanies } from "@/lib/api";
+import { companiesList } from "@/data/companiesData";
 
 export default function TopCompaniesCards() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -15,11 +16,18 @@ export default function TopCompaniesCards() {
     const load = () => {
       fetchPublicCompanies()
         .then((data) => {
-          if (isMounted && Array.isArray(data)) {
-            setCompanies(data);
+          if (isMounted) {
+            if (Array.isArray(data) && data.length > 0) {
+              setCompanies(data);
+            } else {
+              setCompanies(companiesList);
+            }
           }
         })
-        .catch((err) => console.error("Error fetching top companies:", err))
+        .catch((err) => {
+          console.error("Error fetching top companies:", err);
+          if (isMounted) setCompanies(companiesList);
+        })
         .finally(() => {
           if (isMounted) setIsLoading(false);
         });

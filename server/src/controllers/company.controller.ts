@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { User } from '../models/user.model.js';
 import { UserProfile } from '../models/profile.model.js';
 import { Job } from '../models/job.model.js';
+import { Settings } from '../models/settings.model.js';
 import { ensureDBConnection } from '../config/db.js';
 
 const iconNames = ['Layers', 'Sparkles', 'Sprout', 'Globe', 'Boxes', 'Triangle'] as const;
@@ -478,6 +479,24 @@ export const updateCompanyById = async (req: Request, res: Response) => {
         ...req.body.notificationSettings,
       };
     }
+    if (req.body.plan !== undefined) {
+      companyUser.plan = req.body.plan;
+    }
+    if (typeof req.body.resumeCredits === 'number') {
+      companyUser.resumeCredits = req.body.resumeCredits;
+    }
+    if (req.body.permissions !== undefined && typeof req.body.permissions === 'object') {
+      companyUser.permissions = {
+        dashboard: false,
+        jobs: false,
+        applicants: false,
+        resumes: false,
+        settings: false,
+        ...(companyUser.permissions || {}),
+        ...req.body.permissions,
+        autoApproveFromSubscription: true,
+      };
+    }
 
     await companyUser.save();
 
@@ -616,5 +635,109 @@ export const testCompanyNotification = async (req: Request, res: Response): Prom
   } catch (error: any) {
     console.error('testCompanyNotification error:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to dispatch test notification' });
+  }
+};
+
+// @desc    Activate Free Trial for the logged-in company user
+// @route   POST /api/companies/activate-trial
+export const activateCompanyTrial = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const authReq = req as any;
+    const userId = authReq.user?.id || authReq.user?.userId;
+    const userEmail = authReq.user?.email;
+
+    let company = null;
+    if (userId && mongoose.isValidObjectId(userId)) {
+      company = await User.findById(userId);
+    }
+    if (!company && userId) {
+      company = await User.findOne({
+        role: 'company',
+        $or: [{ userId }, { customId: userId }],
+      });
+    }
+    if (!company && userEmail) {
+      company = await User.findOne({
+        role: 'company',
+        $or: [{ email: userEmail.toLowerCase() }, { workEmail: userEmail.toLowerCase() }],
+      });
+    }
+
+    // Fallback: check body email, name, or companyId if provided
+    if (!company && req.body?.email) {
+      const email = String(req.body.email).toLowerCase().trim();
+      company = await User.findOne({
+        role: 'company',
+        $or: [{ email }, { workEmail: email }],
+      });
+    }
+    if (!company && req.body?.companyId) {
+      const cId = String(req.body.companyId).trim();
+      if (mongoose.isValidObjectId(cId)) {
+        company = await User.findById(cId);
+      }
+      if (!company) {
+        company = await User.findOne({
+          role: 'company',
+          $or: [{ userId: cId }, { customId: cId }],
+        });
+      }
+    }
+
+    if (!company) {
+      res.status(404).json({ success: false, message: 'Company account not found' });
+      return;
+    }
+
+    // Load active settings from MongoDB
+    const settingsDoc = await Settings.findOne({ key: 'global_permissions' });
+    const globalSettings = settingsDoc?.value || {};
+
+    const trialDays = typeof globalSettings.trialDays === 'number' ? globalSettings.trialDays : 14;
+    const trialCredits = typeof globalSettings.trialCredits === 'number' ? globalSettings.trialCredits : 15;
+    const trialPerms = globalSettings.defaultNewCompanyPerms || {
+      dashboard: true,
+      jobs: true,
+      applicants: true,
+      resumes: false,
+      settings: false,
+    };
+
+    company.plan = 'Free Trial';
+    company.resumeCredits = trialCredits;
+    company.resumesUsed = 0;
+    company.permissions = {
+      dashboard: false,
+      jobs: false,
+      applicants: false,
+      resumes: false,
+      settings: false,
+      ...trialPerms,
+      autoApproveFromSubscription: true,
+    };
+
+    await company.save();
+
+    res.json({
+      success: true,
+      message: `🎉 Free Trial activated! You have ${trialDays} days access and ${trialCredits} complimentary resume credits.`,
+      plan: 'Free Trial',
+      trialDays,
+      resumeCredits: company.resumeCredits,
+      permissions: company.permissions,
+      company: {
+        id: company._id.toString(),
+        userId: company.userId || company.customId,
+        name: company.companyName || company.name,
+        companyName: company.companyName || company.name,
+        plan: company.plan,
+        resumeCredits: company.resumeCredits,
+        permissions: company.permissions,
+      },
+    });
+  } catch (error: any) {
+    console.error('activateCompanyTrial error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to activate Free Trial' });
   }
 };

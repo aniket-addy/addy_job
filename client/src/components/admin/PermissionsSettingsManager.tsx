@@ -22,6 +22,10 @@ import {
   Gift,
   Clock,
   Coins,
+  Plus,
+  Trash2,
+  ListChecks,
+  Check,
 } from "lucide-react";
 import {
   fetchAdminPermissionsSettings,
@@ -30,6 +34,14 @@ import {
   CompanyPermissions,
   PLAN_AUTO_PERMISSIONS,
 } from "@/lib/api";
+
+export const DEFAULT_TRIAL_POINTS: string[] = [
+  "Instant access to Candidate Search & Talent Pool",
+  "Direct Candidate CV Downloads with Complimentary Credits",
+  "Post & Manage Job Openings on the platform",
+  "Real-time Applicant Pipeline & Status Tracking",
+  "Direct Messaging & Company Dashboard Access",
+];
 
 export interface PlanRuleItem {
   id: string;
@@ -165,6 +177,7 @@ export default function PermissionsSettingsManager({
   const [freeTrialEnabled, setFreeTrialEnabled] = useState(true);
   const [trialDays, setTrialDays] = useState(14);
   const [trialCredits, setTrialCredits] = useState(15);
+  const [trialPoints, setTrialPoints] = useState<string[]>(DEFAULT_TRIAL_POINTS);
   const [unsubscribedPerms, setUnsubscribedPerms] = useState({
     dashboard: true,
     jobs: true,
@@ -204,6 +217,9 @@ export default function PermissionsSettingsManager({
           }
           if (typeof remote.trialCredits === "number") {
             setTrialCredits(remote.trialCredits);
+          }
+          if (Array.isArray(remote.trialPoints) && remote.trialPoints.length > 0) {
+            setTrialPoints(remote.trialPoints);
           }
           if (typeof remote.enableDefaultPermissions === "boolean") {
             setEnableDefaultPerms(remote.enableDefaultPermissions);
@@ -258,6 +274,9 @@ export default function PermissionsSettingsManager({
             if (typeof parsed.trialCredits === "number") {
               setTrialCredits(parsed.trialCredits);
             }
+            if (Array.isArray(parsed.trialPoints) && parsed.trialPoints.length > 0) {
+              setTrialPoints(parsed.trialPoints);
+            }
             if (typeof parsed.enableDefaultPermissions === "boolean") {
               setEnableDefaultPerms(parsed.enableDefaultPermissions);
             }
@@ -302,10 +321,26 @@ export default function PermissionsSettingsManager({
 
   // Toggle unsubscribed company module permission
   const handleToggleUnsubscribed = (key: keyof typeof unsubscribedPerms) => {
-    setUnsubscribedPerms((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+    setUnsubscribedPerms((prev) => {
+      const next = {
+        ...prev,
+        [key]: !prev[key],
+      };
+      if (typeof window !== "undefined") {
+        try {
+          const cached = localStorage.getItem("addyjob_permissions_settings");
+          const parsed = cached ? JSON.parse(cached) : {};
+          parsed.defaultNewCompanyPerms = next;
+          if (!parsed.planRules) parsed.planRules = {};
+          parsed.planRules["Free Trial"] = next;
+          localStorage.setItem("addyjob_permissions_settings", JSON.stringify(parsed));
+          PLAN_AUTO_PERMISSIONS["Free Trial"] = next;
+          window.dispatchEvent(new Event("company_permissions_updated"));
+          window.dispatchEvent(new Event("storage"));
+        } catch (e) {}
+      }
+      return next;
+    });
   };
 
   // Reset to initial default state
@@ -316,6 +351,7 @@ export default function PermissionsSettingsManager({
     setFreeTrialEnabled(true);
     setTrialDays(14);
     setTrialCredits(15);
+    setTrialPoints([...DEFAULT_TRIAL_POINTS]);
     setUnsubscribedPerms({
       dashboard: true,
       jobs: true,
@@ -356,11 +392,16 @@ export default function PermissionsSettingsManager({
       // Synchronize Free Trial rule with unsubscribedPerms
       planRulesMap["Free Trial"] = unsubscribedPerms;
 
+      const cleanedPoints = trialPoints
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+
       const payload = {
         autoApprovalEnabled,
         freeTrialEnabled,
-        trialDays,
-        trialCredits,
+        trialDays: Math.max(1, Number(trialDays) || 1),
+        trialCredits: Math.max(0, Number(trialCredits) || 0),
+        trialPoints: cleanedPoints.length > 0 ? cleanedPoints : DEFAULT_TRIAL_POINTS,
         enableDefaultPermissions: enableDefaultPerms,
         planRules: planRulesMap,
         planRulesDetails: planRules,
@@ -720,9 +761,9 @@ export default function PermissionsSettingsManager({
           </div>
         </div>
 
-        {/* Trial Duration & Complimentary Credits Configuration Bar */}
+        {/* Trial Duration, Complimentary Credits & Unsubscribed Bar */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
-          {/* Trial Duration Selector */}
+          {/* Trial Duration Selector (Custom Days Input + Quick Presets) */}
           <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/70 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -733,25 +774,41 @@ export default function PermissionsSettingsManager({
                 {trialDays} Days
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {[7, 14, 30].map((d) => (
+
+            {/* Custom Days Input */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all">
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={trialDays}
+                onChange={(e) => setTrialDays(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-full text-xs font-black text-slate-900 bg-transparent focus:outline-none"
+                placeholder="Enter days..."
+              />
+              <span className="text-[11px] font-bold text-slate-400 shrink-0">Days</span>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-4 gap-1">
+              {[7, 14, 21, 30].map((d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => setTrialDays(d)}
-                  className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center ${
+                  className={`py-1 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center ${
                     trialDays === d
-                      ? "bg-[#7C3AED] text-white shadow-xs scale-[1.02]"
+                      ? "bg-[#7C3AED] text-white shadow-xs"
                       : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100"
                   }`}
                 >
-                  {d} Days
+                  {d}d
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Complimentary Credits Selector */}
+          {/* Complimentary Credits Selector (Custom Credits Input + Quick Presets) */}
           <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/70 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -762,15 +819,31 @@ export default function PermissionsSettingsManager({
                 {trialCredits} Credits
               </span>
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
-              {[5, 10, 15, 25].map((c) => (
+
+            {/* Custom Credits Input */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all">
+              <input
+                type="number"
+                min="0"
+                max="10000"
+                value={trialCredits}
+                onChange={(e) => setTrialCredits(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-full text-xs font-black text-slate-900 bg-transparent focus:outline-none"
+                placeholder="Enter credits..."
+              />
+              <span className="text-[11px] font-bold text-slate-400 shrink-0">Credits</span>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-5 gap-1">
+              {[5, 10, 25, 50, 100].map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setTrialCredits(c)}
-                  className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-center ${
+                  className={`py-1 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center ${
                     trialCredits === c
-                      ? "bg-amber-500 text-white shadow-xs scale-[1.02]"
+                      ? "bg-amber-500 text-white shadow-xs"
                       : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100"
                   }`}
                 >
@@ -797,6 +870,79 @@ export default function PermissionsSettingsManager({
             <p className="text-[11px] text-slate-500 leading-snug">
               Auto-grant the same feature permissions to newly registered companies before they purchase a plan.
             </p>
+          </div>
+        </div>
+
+        {/* Free Trial Provided Points Highlights (Customizable points list) */}
+        <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/70 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/70">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <ListChecks className="w-4 h-4 text-purple-600" />
+                  Trial Provided Benefits (Points Format)
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-700">
+                  {trialPoints.length} Points
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Whatever points you configure here are directly presented on the company Free Trial subscription card.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setTrialPoints([...DEFAULT_TRIAL_POINTS])}
+                className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+              >
+                <RotateCcw className="w-3 h-3 text-slate-400" />
+                Reset Defaults
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrialPoints([...trialPoints, ""])}
+                className="px-2.5 py-1 text-[11px] font-bold text-white bg-[#7C3AED] hover:bg-[#6D28D9] rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" />
+                Add Point
+              </button>
+            </div>
+          </div>
+
+          {/* Editable Points List */}
+          <div className="space-y-2">
+            {trialPoints.map((point, index) => (
+              <div key={index} className="flex items-center gap-2 group">
+                <span className="w-6 h-6 rounded-lg bg-purple-50 text-[#7C3AED] border border-purple-100 text-[10px] font-black flex items-center justify-center shrink-0">
+                  {index + 1}
+                </span>
+                <input
+                  type="text"
+                  value={point}
+                  onChange={(e) => {
+                    const newPoints = [...trialPoints];
+                    newPoints[index] = e.target.value;
+                    setTrialPoints(newPoints);
+                  }}
+                  placeholder={`e.g. Trial benefit point #${index + 1}...`}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                />
+                <button
+                  type="button"
+                  disabled={trialPoints.length <= 1}
+                  onClick={() => {
+                    if (trialPoints.length > 1) {
+                      setTrialPoints(trialPoints.filter((_, i) => i !== index));
+                    }
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                  title="Remove point"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
