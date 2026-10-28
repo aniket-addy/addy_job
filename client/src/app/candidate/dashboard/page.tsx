@@ -1721,18 +1721,12 @@ export default function CandidateDashboardPage() {
       };
     } catch {}
 
-    // Live background polling every 25 seconds when page is visible
-    const pollInterval = setInterval(() => {
-      loadAppliedAndSaved(null, true);
-    }, 25000);
-
     return () => {
       window.removeEventListener("applied_jobs_change", handleSync);
       window.removeEventListener("job_application_submitted", handleSync);
       window.removeEventListener("saved_jobs_change", handleSync);
       window.removeEventListener("messages_change", handleSync);
       if (bc) bc.close();
-      clearInterval(pollInterval);
     };
   }, []);
 

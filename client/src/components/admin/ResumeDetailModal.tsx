@@ -32,6 +32,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { ApplicationItem } from "./RecentApplications";
+import { fetchAdminApplicationResume } from "@/lib/api";
 
 interface ResumeDetailModalProps {
   application: ApplicationItem | null;
@@ -207,17 +208,39 @@ export default function ResumeDetailModal({
 }: ResumeDetailModalProps) {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"document" | "profile">("profile");
+  const [loadedPdf, setLoadedPdf] = useState<string>("");
+  const [loadingPdf, setLoadingPdf] = useState<boolean>(false);
 
-  const hasPdf = Boolean(application?.pdfData || application?.resumeUrl);
-  const pdfSource = application?.pdfData || application?.resumeUrl || "";
+  const initialPdf = application?.pdfData || application?.resumeUrl || "";
+  const pdfSource = loadedPdf || initialPdf || "";
+  const hasPdf = Boolean(application?.hasPdf || initialPdf || loadedPdf);
 
   useEffect(() => {
-    if (hasPdf) {
+    if (!isOpen || !application) return;
+
+    if (initialPdf) {
+      setLoadedPdf(initialPdf);
       setActiveTab("document");
+      return;
+    }
+
+    if (application.hasPdf || application.fileName) {
+      setLoadingPdf(true);
+      fetchAdminApplicationResume(application.id)
+        .then((res) => {
+          if (res?.success && (res.pdfData || res.resumeUrl)) {
+            setLoadedPdf(res.pdfData || res.resumeUrl || "");
+            setActiveTab("document");
+          } else {
+            setActiveTab("profile");
+          }
+        })
+        .catch(() => setActiveTab("profile"))
+        .finally(() => setLoadingPdf(false));
     } else {
       setActiveTab("profile");
     }
-  }, [hasPdf, application?.id]);
+  }, [isOpen, application?.id, initialPdf]);
 
   if (!isOpen || !application) return null;
 
@@ -466,12 +489,19 @@ export default function ResumeDetailModal({
                   </div>
                 </div>
 
-                <div className="w-full rounded-2xl border border-slate-200 overflow-hidden bg-slate-900 shadow-inner">
-                  <iframe
-                    src={pdfSource}
-                    className="w-full h-[540px] rounded-2xl bg-white border-0"
-                    title={`${candidateName} Resume Document`}
-                  />
+                <div className="w-full rounded-2xl border border-slate-200 overflow-hidden bg-slate-900 shadow-inner min-h-[540px] flex items-center justify-center">
+                  {loadingPdf ? (
+                    <div className="flex flex-col items-center gap-3 text-white">
+                      <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs font-semibold text-slate-300">Loading verified resume document...</p>
+                    </div>
+                  ) : (
+                    <iframe
+                      src={pdfSource}
+                      className="w-full h-[540px] rounded-2xl bg-white border-0"
+                      title={`${candidateName} Resume Document`}
+                    />
+                  )}
                 </div>
               </div>
             ) : (

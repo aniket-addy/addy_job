@@ -47,38 +47,61 @@ export const seedInitialAdminData = async () => {
 
 
 // @desc    Get dashboard overview metrics & statistics
+// @desc    Get dashboard overview metrics & statistics
 // @route   GET /api/admin/overview
 export const getAdminOverview = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
-    await seedInitialAdminData();
 
-    const [
-      totalCompanies,
-      pendingCompanies,
-      approvedCompanies,
-      rejectedCompanies,
-      totalJobs,
-      activeJobs,
-      expiredJobs,
-      totalApplications,
-      totalCandidates,
-      plans,
-    ] = await Promise.all([
-      User.countDocuments({ role: 'company' }),
-      User.countDocuments({ role: 'company', status: 'Pending' }),
-      User.countDocuments({ role: 'company', status: 'Approved' }),
-      User.countDocuments({ role: 'company', status: 'Rejected' }),
-      Job.countDocuments(),
-      Job.countDocuments({ status: 'Active' }),
-      Job.countDocuments({ status: 'Expired' }),
+    const [userStats, jobStats, totalApplications, plansCount] = await Promise.all([
+      User.aggregate([
+        {
+          $group: {
+            _id: { role: '$role', status: '$status' },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Job.aggregate([
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
+        },
+      ]),
       Application.countDocuments(),
-      User.countDocuments({ role: 'job_seeker' }),
-      Plan.find({ status: 'Active' }),
+      Plan.countDocuments({ status: 'Active' }),
     ]);
 
-    // Real Platform Revenue (₹ 0 until payment integration is configured)
-    const revenueEst = 0;
+    let totalCompanies = 0;
+    let pendingCompanies = 0;
+    let approvedCompanies = 0;
+    let rejectedCompanies = 0;
+    let totalCandidates = 0;
+
+    userStats.forEach((u) => {
+      const role = u._id?.role;
+      const status = u._id?.status;
+      if (role === 'company') {
+        totalCompanies += u.count;
+        if (status === 'Pending') pendingCompanies += u.count;
+        else if (status === 'Approved') approvedCompanies += u.count;
+        else if (status === 'Rejected') rejectedCompanies += u.count;
+      } else if (role === 'job_seeker') {
+        totalCandidates += u.count;
+      }
+    });
+
+    let totalJobs = 0;
+    let activeJobs = 0;
+    let expiredJobs = 0;
+
+    jobStats.forEach((j) => {
+      totalJobs += j.count;
+      if (j._id === 'Active') activeJobs += j.count;
+      else if (j._id === 'Expired') expiredJobs += j.count;
+    });
 
     res.json({
       success: true,
@@ -92,8 +115,8 @@ export const getAdminOverview = async (req: Request, res: Response) => {
         expiredJobs,
         totalApplications,
         totalCandidates,
-        plansCount: plans.length,
-        totalRevenue: `₹ ${revenueEst.toLocaleString('en-IN')}`,
+        plansCount,
+        totalRevenue: '₹ 0',
       },
     });
   } catch (error: any) {
@@ -111,7 +134,7 @@ export const getAdminCompanies = async (req: Request, res: Response) => {
 
     const [users, jobCounts] = await Promise.all([
       User.find({ role: 'company' })
-        .select('-purchasedResumes -password')
+        .select('-purchasedResumes -password -bannerImage')
         .sort({ createdAt: -1 })
         .lean(),
       Job.aggregate([
@@ -819,31 +842,27 @@ export const getJobApplicants = async (req: Request, res: Response) => {
 export const getAdminApplications = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
-    await seedInitialAdminData();
 
-    // 1 & 2. Fetch real applications and profile resumes in parallel with lean projection
-    const [apps, candidatesWithResume] = await Promise.all([
-      Application.find({
-        company: { $ne: 'Candidate Profile Upload' },
-      })
-        .select('-pdfData')
+    // 1 & 2. Fetch real applications and candidates without heavy base64 strings from MongoDB Atlas
+    const [allApps, users] = await Promise.all([
+      Application.find()
+        .select('-pdfData -resumeUrl')
         .sort({ createdAt: -1 })
         .lean(),
-      User.find({
-        role: 'job_seeker',
-        $or: [
-          { resumeName: { $exists: true, $ne: '' } },
-          { resumeUrl: { $exists: true, $ne: '' } },
-        ],
-      })
-        .select('name email phone headline targetRole resumeDate resumeUrl specialization experience skills resumeName')
-        .sort({ updatedAt: -1 })
+      User.find({ role: 'job_seeker' })
+        .select('name email phone headline targetRole resumeDate specialization experience skills resumeName createdAt')
+        .sort({ createdAt: -1 })
         .lean(),
     ]);
 
-    // 3. Format job seeker profile resumes
+    const apps = allApps.filter((a: any) => a.company !== 'Candidate Profile Upload');
+    const candidatesWithResume = users.filter((u: any) => Boolean(u.resumeName || u.resumeDate));
+
+    // 3. Format job seeker profile resumes (strip base64 strings from list)
     const profileResumes = candidatesWithResume.map((u) => {
       const cName = u.name || 'Candidate';
+      const isHttp = typeof u.resumeUrl === 'string' && (u.resumeUrl.startsWith('http://') || u.resumeUrl.startsWith('https://'));
+      const hasPdf = Boolean(u.resumeUrl || u.resumeName);
       return {
         id: `profile-${u._id.toString()}`,
         candidateName: cName,
@@ -855,48 +874,92 @@ export const getAdminApplications = async (req: Request, res: Response) => {
         company: 'Candidate Profile',
         appliedOn: u.resumeDate ? u.resumeDate.split('•')[0].trim() : 'Profile Resume',
         status: 'Shortlisted' as const,
-        resumeUrl: u.resumeUrl || '',
+        resumeUrl: isHttp ? u.resumeUrl : '',
         domain: u.specialization || u.targetRole || 'General Pool',
         experience: u.experience || 'Fresher',
         skills: u.skills || [],
-        pdfData: u.resumeUrl || '',
+        pdfData: isHttp ? u.resumeUrl : '',
         fileName: u.resumeName || `${cName.replace(/\s+/g, '_')}_Resume.pdf`,
         isProfileResume: true,
         resumeType: 'Profile Resume',
         jobId: '',
+        hasPdf,
       };
     });
 
-    // 4. Format job application resumes (submitted when applying to companies)
-    const applicationResumes = apps.map((a: any) => ({
-      id: a._id.toString(),
-      candidateName: a.candidateName,
-      candidateEmail: a.candidateEmail || '',
-      candidatePhone: a.candidatePhone || '',
-      avatarLetter: a.avatarLetter || getInitials(a.candidateName),
-      avatarBg: a.avatarBg || getColorForName(a.candidateName),
-      position: a.position,
-      company: a.company,
-      appliedOn: a.appliedOn || 'Recent',
-      status: a.status,
-      resumeUrl: a.resumeUrl || '',
-      domain: a.domain || '',
-      experience: a.experience || '',
-      skills: a.skills || [],
-      pdfData: a.pdfData || a.resumeUrl || '',
-      fileName: a.fileName || 'Application_Resume.pdf',
-      isApplicationResume: true,
-      resumeType: 'Application Resume',
-      jobId: a.jobId ? a.jobId.toString() : '',
-    }));
+    // 4. Format job application resumes (strip base64 strings from list)
+    const applicationResumes = apps.map((a: any) => {
+      const isHttp = typeof a.resumeUrl === 'string' && (a.resumeUrl.startsWith('http://') || a.resumeUrl.startsWith('https://'));
+      const hasPdf = Boolean(a.pdfData || a.resumeUrl || a.fileName);
+      return {
+        id: a._id.toString(),
+        candidateName: a.candidateName,
+        candidateEmail: a.candidateEmail || '',
+        candidatePhone: a.candidatePhone || '',
+        avatarLetter: a.avatarLetter || getInitials(a.candidateName),
+        avatarBg: a.avatarBg || getColorForName(a.candidateName),
+        position: a.position,
+        company: a.company,
+        appliedOn: a.appliedOn || 'Recent',
+        status: a.status,
+        resumeUrl: isHttp ? a.resumeUrl : '',
+        domain: a.domain || '',
+        experience: a.experience || '',
+        skills: a.skills || [],
+        pdfData: isHttp ? a.resumeUrl : '',
+        fileName: a.fileName || 'Application_Resume.pdf',
+        isApplicationResume: true,
+        resumeType: 'Application Resume',
+        jobId: a.jobId ? a.jobId.toString() : '',
+        hasPdf,
+      };
+    });
 
-    // Both profile resumes and applied resumes are available to Super Admin
     const allResumes = [...applicationResumes, ...profileResumes];
 
     res.json({ success: true, applications: allResumes });
   } catch (error: any) {
     console.error('getAdminApplications error:', error);
     res.status(500).json({ success: false, message: 'Failed to retrieve resumes' });
+  }
+};
+
+// @desc    Get single application or profile resume file on-demand
+// @route   GET /api/admin/applications/:id/resume
+export const getAdminApplicationResume = async (req: Request, res: Response) => {
+  try {
+    await ensureDBConnection();
+    const id = String(req.params.id || "");
+
+    if (id.startsWith('profile-')) {
+      const userId = id.replace('profile-', '');
+      const user = await User.findById(userId).select('resumeUrl resumeName name').lean();
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Candidate not found' });
+      }
+      return res.json({
+        success: true,
+        pdfData: user.resumeUrl || '',
+        resumeUrl: user.resumeUrl || '',
+        fileName: user.resumeName || `${(user.name || 'Candidate').replace(/\s+/g, '_')}_Resume.pdf`,
+      });
+    }
+
+    const app = await Application.findById(id).select('pdfData resumeUrl fileName candidateName').lean();
+    if (!app) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    const pdfData = app.pdfData || app.resumeUrl || '';
+    return res.json({
+      success: true,
+      pdfData,
+      resumeUrl: app.resumeUrl || pdfData,
+      fileName: app.fileName || `${(app.candidateName || 'Candidate').replace(/\s+/g, '_')}_Resume.pdf`,
+    });
+  } catch (error: any) {
+    console.error('getAdminApplicationResume error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve resume document' });
   }
 };
 
@@ -1678,9 +1741,10 @@ export const getAdminJobSeekers = async (req: Request, res: Response) => {
   try {
     await ensureDBConnection();
 
-    const users = await User.find({
-      $or: [{ role: 'job_seeker' }, { role: { $nin: ['company', 'admin'] } }],
-    }).sort({ createdAt: -1 });
+    const users = await User.find({ role: 'job_seeker' })
+      .select('-password -purchasedResumes -resumeUrl -bannerImage -profileImage')
+      .sort({ createdAt: -1 })
+      .lean();
 
     const jobSeekers = users.map((u) => {
       const name = u.name || 'Candidate';
@@ -1709,7 +1773,8 @@ export const getAdminJobSeekers = async (req: Request, res: Response) => {
         expectedSalary: u.expectedSalary || '',
         resumeName: u.resumeName || '',
         resumeDate: u.resumeDate || '',
-        resumeUrl: u.resumeUrl || '',
+        resumeUrl: '',
+        hasResume: Boolean(u.resumeName),
         status: u.status || 'Active',
         createdAt: u.createdAt,
         registeredOn: u.createdAt

@@ -92,18 +92,23 @@ export default function SuperAdminPage() {
       if (!isBackground) {
         setIsLoading(true);
       }
-      const [overview, companies, jobsData, appsData, plansData, jobSeekersData] = await Promise.all([
-        fetchAdminOverview(),
+
+      // 1. Fetch overview stats immediately to show stats cards in < 50ms
+      fetchAdminOverview().then((overview) => {
+        if (overview) {
+          setOverviewStats(overview);
+          setIsLoading(false);
+        }
+      });
+
+      // 2. Fetch tabs data in parallel without blocking overview rendering
+      const [companies, jobsData, appsData, plansData, jobSeekersData] = await Promise.all([
         fetchAdminCompanies(),
         fetchAdminJobs(),
         fetchAdminApplications(),
         fetchAdminPlans(),
         fetchAdminJobSeekers(),
       ]);
-
-      if (overview) {
-        setOverviewStats(overview);
-      }
 
       if (Array.isArray(companies)) {
         setAllCompanies(companies);
@@ -144,10 +149,7 @@ export default function SuperAdminPage() {
     window.addEventListener("company_profile_updated", handleSync);
     window.addEventListener("company_permissions_updated", handleSync);
     window.addEventListener("companies_updated", handleSync);
-    window.addEventListener("auth_change", handleSync);
     window.addEventListener("applied_jobs_change", handleSync);
-
-    const interval = setInterval(() => loadDatabaseData(true), 30000);
 
     return () => {
       window.removeEventListener("job_created", handleSync);
@@ -155,9 +157,7 @@ export default function SuperAdminPage() {
       window.removeEventListener("company_profile_updated", handleSync);
       window.removeEventListener("company_permissions_updated", handleSync);
       window.removeEventListener("companies_updated", handleSync);
-      window.removeEventListener("auth_change", handleSync);
       window.removeEventListener("applied_jobs_change", handleSync);
-      clearInterval(interval);
     };
   }, []);
 

@@ -104,10 +104,6 @@ export default function AppliedJobsView({
     };
 
     fetchStats();
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      fetchStats();
-    }, 25000);
 
     const onSync = () => {
       fetchStats();
@@ -116,7 +112,6 @@ export default function AppliedJobsView({
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
       window.removeEventListener("applied_jobs_change", onSync);
     };
   }, [activeJob?.jobId, activeJob?.id, activeJob?.title, activeJob?.company]);

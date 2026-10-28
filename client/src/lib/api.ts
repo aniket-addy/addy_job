@@ -521,7 +521,7 @@ export async function fetchAdminOverview(forceRefresh = false): Promise<AdminOve
     const json = await cachedFetch<any>(
       `${API_BASE_URL}/admin/overview`,
       { headers: getAuthHeaders() },
-      10000,
+      60000,
       forceRefresh
     );
     return json?.data || null;
@@ -574,7 +574,7 @@ export async function fetchAdminReports(forceRefresh = false): Promise<AdminRepo
     const json = await cachedFetch<any>(
       `${API_BASE_URL}/admin/reports`,
       { headers: getAuthHeaders() },
-      25000,
+      60000,
       forceRefresh
     );
     return json?.data || null;
@@ -589,7 +589,7 @@ export async function fetchAdminCompanies(forceRefresh = false): Promise<any[]> 
     const json = await cachedFetch<any>(
       `${API_BASE_URL}/admin/companies`,
       { headers: getAuthHeaders() },
-      15000,
+      60000,
       forceRefresh
     );
     return json?.companies || [];
@@ -610,15 +610,15 @@ export interface AdminNotificationItem {
   iconType: 'company' | 'jobseeker';
 }
 
-export async function fetchAdminNotifications(): Promise<AdminNotificationItem[]> {
+export async function fetchAdminNotifications(forceRefresh = false): Promise<AdminNotificationItem[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/notifications`, {
-      cache: 'no-store',
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.notifications || [];
+    const json = await cachedFetch<any>(
+      `${API_BASE_URL}/admin/notifications`,
+      { headers: getAuthHeaders() },
+      30000,
+      forceRefresh
+    );
+    return json?.notifications || [];
   } catch (error) {
     console.error('fetchAdminNotifications error:', error);
     return [];
@@ -701,7 +701,7 @@ export async function fetchAdminJobSeekers(forceRefresh = false): Promise<JobSee
     const json = await cachedFetch<any>(
       `${API_BASE_URL}/admin/jobseekers`,
       { headers: getAuthHeaders() },
-      15000,
+      60000,
       forceRefresh
     );
     return json?.jobSeekers || [];
@@ -733,7 +733,7 @@ export async function fetchAdminJobs(forceRefresh = false): Promise<any[]> {
     const json = await cachedFetch<any>(
       `${API_BASE_URL}/admin/jobs`,
       { headers: getAuthHeaders() },
-      15000,
+      60000,
       forceRefresh
     );
     return json?.jobs || [];
@@ -907,13 +907,25 @@ export async function fetchAdminApplications(forceRefresh = false): Promise<any[
     const json = await cachedFetch<any>(
       `${API_BASE_URL}/admin/applications`,
       { headers: getAuthHeaders() },
-      15000,
+      60000,
       forceRefresh
     );
     return json?.applications || [];
   } catch (error) {
     console.error('fetchAdminApplications error:', error);
     return [];
+  }
+}
+
+export async function fetchAdminApplicationResume(id: string): Promise<{ success: boolean; pdfData?: string; resumeUrl?: string; fileName?: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/applications/${id}/resume`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('fetchAdminApplicationResume error:', error);
+    return { success: false };
   }
 }
 
@@ -1012,7 +1024,7 @@ export async function fetchAdminPlans(forceRefresh = false): Promise<any[]> {
     const json = await cachedFetch<any>(
       `${API_BASE_URL}/admin/plans`,
       { headers: getAuthHeaders() },
-      30000,
+      60000,
       forceRefresh
     );
     return json?.plans || [];
